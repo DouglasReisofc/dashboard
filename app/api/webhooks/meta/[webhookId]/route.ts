@@ -4,10 +4,11 @@ import { getWebhookByPublicId, recordWebhookEvent } from "lib/webhooks";
 
 export async function GET(
   request: Request,
-  { params }: { params: { webhookId: string } },
+  context: { params: Promise<{ webhookId: string }> },
 ) {
   try {
-    const webhook = await getWebhookByPublicId(params.webhookId);
+    const { webhookId } = await context.params;
+    const webhook = await getWebhookByPublicId(webhookId);
 
     if (!webhook) {
       return NextResponse.json({ message: "Webhook não encontrado." }, { status: 404 });
@@ -34,10 +35,11 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: { webhookId: string } },
+  context: { params: Promise<{ webhookId: string }> },
 ) {
   try {
-    const webhook = await getWebhookByPublicId(params.webhookId);
+    const { webhookId } = await context.params;
+    const webhook = await getWebhookByPublicId(webhookId);
 
     if (!webhook) {
       return NextResponse.json({ message: "Webhook não encontrado." }, { status: 404 });
