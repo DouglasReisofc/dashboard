@@ -3,6 +3,7 @@ import { Metadata } from "next";
 
 import { getCurrentUser } from "lib/auth";
 import { getAllCategories, getAllProducts } from "lib/catalog";
+import { formatDate } from "lib/format";
 
 export const metadata: Metadata = {
   title: "Painel administrativo | StoreBot Dashboard",
@@ -86,9 +87,7 @@ const AdminPanelPage = async () => {
                             {category.ownerName} • {category.isActive ? "Ativa" : "Inativa"}
                           </span>
                         </div>
-                        <span className="text-secondary small">
-                          {new Date(category.createdAt).toLocaleDateString("pt-BR")}
-                        </span>
+                        <span className="text-secondary small">{formatDate(category.createdAt)}</span>
                       </div>
                       {category.description && (
                         <p className="text-secondary small mb-0 mt-2">{category.description}</p>
@@ -119,9 +118,7 @@ const AdminPanelPage = async () => {
                             {product.ownerName} • {product.ownerEmail}
                           </span>
                         </div>
-                        <span className="text-secondary small">
-                          {new Date(product.createdAt).toLocaleDateString("pt-BR")}
-                        </span>
+                        <span className="text-secondary small">{formatDate(product.createdAt)}</span>
                       </div>
                       <div className="d-flex flex-wrap gap-2 mt-2">
                         <span className="badge bg-light text-dark">

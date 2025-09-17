@@ -5,6 +5,7 @@ import { Alert, Button, Card, Col, Form, Modal, Row, Table } from "react-bootstr
 import { useRouter } from "next/navigation";
 
 import type { CategorySummary, ProductSummary } from "types/catalog";
+import { formatDate } from "lib/format";
 
 type ProductFormState = {
   categoryId: string;
@@ -263,7 +264,7 @@ const UserProductManager = ({ categories, products }: UserProductManagerProps) =
                     <tr key={product.id}>
                       <td>{product.categoryName}</td>
                       <td>{product.resaleLimit === 0 ? "Esgotado" : product.resaleLimit}</td>
-                      <td>{new Date(product.createdAt).toLocaleDateString("pt-BR")}</td>
+                      <td>{formatDate(product.createdAt)}</td>
                       <td className="text-end">
                         <div className="d-flex justify-content-end gap-2">
                           <Button size="sm" variant="outline-primary" onClick={() => setViewProduct(product)}>

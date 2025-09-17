@@ -3,6 +3,7 @@ import { Metadata } from "next";
 
 import { getCurrentUser } from "lib/auth";
 import { getCategoriesForUser, getProductsForUser } from "lib/catalog";
+import { formatDate } from "lib/format";
 
 export const metadata: Metadata = {
   title: "Painel do usuário | StoreBot Dashboard",
@@ -88,9 +89,7 @@ const UserPanelPage = async () => {
                             {category.isActive ? "Ativa" : "Inativa"} • {category.productCount} produto(s)
                           </span>
                         </div>
-                        <span className="text-secondary small">
-                          {new Date(category.createdAt).toLocaleDateString("pt-BR")}
-                        </span>
+                        <span className="text-secondary small">{formatDate(category.createdAt)}</span>
                       </div>
                       {category.description && (
                         <p className="text-secondary small mb-0 mt-2">{category.description}</p>
@@ -121,9 +120,7 @@ const UserPanelPage = async () => {
                             Limite de revendas: {product.resaleLimit === 0 ? "esgotado" : `${product.resaleLimit} restante(s)`}
                           </span>
                         </div>
-                        <span className="text-secondary small">
-                          {new Date(product.createdAt).toLocaleDateString("pt-BR")}
-                        </span>
+                        <span className="text-secondary small">{formatDate(product.createdAt)}</span>
                       </div>
                       {product.filePath && (
                         <span className="badge bg-light text-dark mt-2">Possui anexo</span>
