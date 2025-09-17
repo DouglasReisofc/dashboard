@@ -56,6 +56,14 @@ type FormState = {
   removeImage: boolean;
 };
 
+type ViewId = "menu" | "categoryList" | "categoryDetail" | "autoReplies" | "variables";
+
+interface ViewOption {
+  id: ViewId;
+  label: string;
+  description: string;
+}
+
 interface UserBotMenuEditorProps {
   config: BotMenuConfig | null;
 }
@@ -64,21 +72,18 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
   const router = useRouter();
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const hasExistingConfig = Boolean(config);
+  const [activeView, setActiveView] = useState<ViewId>("menu");
   const [formState, setFormState] = useState<FormState>({
     menuText: config?.menuText ?? defaultMenuText,
-    menuFooterText: hasExistingConfig ? config?.menuFooterText ?? "" : defaultMenuFooterText,
+    menuFooterText: config?.menuFooterText ?? defaultMenuFooterText,
     menuButtonBuyText: config?.menuButtonBuyText ?? defaultMenuButtonLabels.buy,
     menuButtonAddBalanceText: config?.menuButtonAddBalanceText ?? defaultMenuButtonLabels.addBalance,
     menuButtonSupportText: config?.menuButtonSupportText ?? defaultMenuButtonLabels.support,
     categoryListHeaderText: config?.categoryListHeaderText ?? defaultCategoryListHeaderText,
     categoryListBodyText: config?.categoryListBodyText ?? defaultCategoryListBodyText,
-    categoryListFooterText: hasExistingConfig
-      ? config?.categoryListFooterText ?? ""
-      : defaultCategoryListFooterText,
-    categoryListFooterMoreText: hasExistingConfig
-      ? config?.categoryListFooterMoreText ?? ""
-      : defaultCategoryListFooterMoreText,
+    categoryListFooterText: config?.categoryListFooterText ?? defaultCategoryListFooterText,
+    categoryListFooterMoreText:
+      config?.categoryListFooterMoreText ?? defaultCategoryListFooterMoreText,
     categoryListButtonText: config?.categoryListButtonText ?? defaultCategoryListButtonText,
     categoryListSectionTitle: config?.categoryListSectionTitle ?? defaultCategoryListSectionTitle,
     categoryListNextTitle: config?.categoryListNextTitle ?? defaultCategoryListNextTitle,
@@ -86,13 +91,11 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
       config?.categoryListNextDescription ?? defaultCategoryListNextDescription,
     categoryListEmptyText: config?.categoryListEmptyText ?? defaultCategoryListEmptyText,
     categoryDetailBodyText: config?.categoryDetailBodyText ?? defaultCategoryDetailBodyText,
-    categoryDetailFooterText: hasExistingConfig
-      ? config?.categoryDetailFooterText ?? ""
-      : defaultCategoryDetailFooterText,
+    categoryDetailFooterText:
+      config?.categoryDetailFooterText ?? defaultCategoryDetailFooterText,
     categoryDetailButtonText: config?.categoryDetailButtonText ?? defaultCategoryDetailButtonText,
-    categoryDetailFileCaption: hasExistingConfig
-      ? config?.categoryDetailFileCaption ?? ""
-      : defaultCategoryDetailFileCaption,
+    categoryDetailFileCaption:
+      config?.categoryDetailFileCaption ?? defaultCategoryDetailFileCaption,
     addBalanceReplyText: config?.addBalanceReplyText ?? defaultAddBalanceReplyText,
     supportReplyText: config?.supportReplyText ?? defaultSupportReplyText,
     variables:
@@ -169,6 +172,47 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
       },
     ],
     [],
+  );
+
+  const viewOptions = useMemo<ViewOption[]>(
+    () => [
+      {
+        id: "menu",
+        label: "Menu principal",
+        description:
+          "Personalize a mensagem formal, o rodapé, a mídia e os botões exibidos sempre que o cliente receber o menu principal.",
+      },
+      {
+        id: "categoryList",
+        label: "Lista de categorias",
+        description:
+          "Defina títulos, descrições e mensagens de navegação utilizados quando o bot envia a lista interativa de categorias.",
+      },
+      {
+        id: "categoryDetail",
+        label: "Detalhes da categoria",
+        description:
+          "Ajuste os textos dos cartões com imagem, botão de compra e rodapés enviados ao selecionar uma categoria.",
+      },
+      {
+        id: "autoReplies",
+        label: "Respostas automáticas",
+        description:
+          "Configure as mensagens de saldo e suporte respondidas quando o cliente interage com os botões do menu.",
+      },
+      {
+        id: "variables",
+        label: "Variáveis",
+        description:
+          "Gerencie as variáveis disponíveis para personalizar qualquer mensagem enviada pelo chatbot.",
+      },
+    ],
+    [],
+  );
+
+  const activeOption = useMemo(
+    () => viewOptions.find((option) => option.id === activeView) ?? viewOptions[0],
+    [activeView, viewOptions],
   );
 
   const handleFieldChange = <T extends keyof FormState>(field: T, value: FormState[T]) => {
@@ -309,348 +353,368 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
   return (
     <section className="d-flex flex-column gap-4">
       <Card>
-        <Card.Body>
-          <Card.Title as="h2" className="h4">
-            Personalização do bot
-          </Card.Title>
-          <Card.Text className="text-secondary">
-            Ajuste o menu principal, a lista de categorias e as respostas automáticas enviadas pelo chatbot
-            da Meta Cloud API. Utilize as variáveis para manter cada mensagem personalizada.
-          </Card.Text>
+        <Card.Body className="d-flex flex-column gap-4">
+          <div>
+            <Card.Title as="h2" className="h4">
+              Personalização do bot
+            </Card.Title>
+            <Card.Text className="text-secondary mb-3">
+              Ajuste o menu principal, a lista de categorias e as respostas automáticas enviadas pelo chatbot
+              da Meta Cloud API. Utilize as variáveis para manter cada mensagem personalizada.
+            </Card.Text>
+
+            <div className="d-flex flex-wrap gap-2">
+              {viewOptions.map((option) => (
+                <Button
+                  key={option.id}
+                  variant={activeView === option.id ? "primary" : "outline-primary"}
+                  onClick={() => setActiveView(option.id)}
+                >
+                  {option.label}
+                </Button>
+              ))}
+            </div>
+
+            <Card.Text className="text-secondary mb-0 mt-3">{activeOption.description}</Card.Text>
+          </div>
 
           {feedback && (
-            <Alert
-              variant={feedback.type}
-              onClose={() => setFeedback(null)}
-              dismissible
-              className="mb-4"
-            >
+            <Alert variant={feedback.type} onClose={() => setFeedback(null)} dismissible>
               {feedback.message}
             </Alert>
           )}
 
           <Form onSubmit={handleSubmit} className="d-flex flex-column gap-4">
-            <section className="d-flex flex-column gap-3">
-              <h3 className="h5 mb-1">Menu principal</h3>
-              <Form.Text className="text-secondary">
-                Personalize a mensagem e os botões enviados automaticamente logo após qualquer interação.
-              </Form.Text>
-
-              <Form.Group controlId="bot-menu-text">
-                <Form.Label>Texto do menu</Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={6}
-                  value={formState.menuText}
-                  onChange={(event) => handleFieldChange("menuText", event.target.value)}
-                  placeholder="Escreva a mensagem que será enviada automaticamente"
-                  required
-                />
-              </Form.Group>
-
-              <Form.Group controlId="bot-menu-footer">
-                <Form.Label>Rodapé do menu</Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={2}
-                  value={formState.menuFooterText}
-                  onChange={(event) => handleFieldChange("menuFooterText", event.target.value)}
-                  placeholder="Texto exibido abaixo dos botões do menu principal"
-                />
+            {activeView === "menu" && (
+              <section className="d-flex flex-column gap-3">
                 <Form.Text className="text-secondary">
-                  Deixe em branco para ocultar o rodapé.
+                  Personalize a mensagem formal enviada automaticamente logo após qualquer interação, incluindo
+                  botões e imagem de destaque.
                 </Form.Text>
-              </Form.Group>
 
-              <Form.Group controlId="bot-menu-buttons">
-                <Form.Label>Textos dos botões</Form.Label>
+                <Form.Group controlId="bot-menu-text">
+                  <Form.Label>Texto do menu</Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={6}
+                    value={formState.menuText}
+                    onChange={(event) => handleFieldChange("menuText", event.target.value)}
+                    placeholder="Escreva a mensagem que será enviada automaticamente"
+                    required
+                  />
+                </Form.Group>
+
+                <Form.Group controlId="bot-menu-footer">
+                  <Form.Label>Rodapé do menu</Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={2}
+                    value={formState.menuFooterText}
+                    onChange={(event) => handleFieldChange("menuFooterText", event.target.value)}
+                    placeholder="Texto exibido abaixo dos botões do menu principal"
+                  />
+                  <Form.Text className="text-secondary">
+                    Deixe em branco para ocultar o rodapé.
+                  </Form.Text>
+                </Form.Group>
+
+                <Form.Group controlId="bot-menu-buttons">
+                  <Form.Label>Textos dos botões</Form.Label>
+                  <div className="row g-3">
+                    <div className="col-12 col-md-4">
+                      <Form.Control
+                        value={formState.menuButtonBuyText}
+                        onChange={(event) => handleFieldChange("menuButtonBuyText", event.target.value)}
+                        placeholder="Botão para compras"
+                        required
+                      />
+                      <Form.Text className="text-secondary">Opção exibida para iniciar uma compra.</Form.Text>
+                    </div>
+                    <div className="col-12 col-md-4">
+                      <Form.Control
+                        value={formState.menuButtonAddBalanceText}
+                        onChange={(event) => handleFieldChange("menuButtonAddBalanceText", event.target.value)}
+                        placeholder="Botão para adicionar saldo"
+                        required
+                      />
+                      <Form.Text className="text-secondary">Texto utilizado no botão de saldo.</Form.Text>
+                    </div>
+                    <div className="col-12 col-md-4">
+                      <Form.Control
+                        value={formState.menuButtonSupportText}
+                        onChange={(event) => handleFieldChange("menuButtonSupportText", event.target.value)}
+                        placeholder="Botão de suporte"
+                        required
+                      />
+                      <Form.Text className="text-secondary">Descrição do atalho para suporte.</Form.Text>
+                    </div>
+                  </div>
+                </Form.Group>
+
+                <Form.Group controlId="bot-menu-image">
+                  <Form.Label>Mídia opcional</Form.Label>
+                  <Form.Control
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => handleFileChange(event.target.files?.[0] ?? null)}
+                  />
+                  <Form.Text className="text-secondary d-block mb-2">
+                    Utilize uma imagem para destacar o menu enviado automaticamente.
+                  </Form.Text>
+
+                  {(previewUrl || currentImagePath) && (
+                    <div className="d-flex flex-column flex-md-row gap-3 align-items-md-center">
+                      <Image
+                        src={previewUrl ?? `/${currentImagePath}`}
+                        alt="Pré-visualização da mídia do bot"
+                        rounded
+                        className="border"
+                        style={{ maxWidth: "180px" }}
+                      />
+
+                      {currentImagePath && (
+                        <a href={`/${currentImagePath}`} target="_blank" rel="noreferrer">
+                          Abrir mídia atual em nova aba
+                        </a>
+                      )}
+
+                      <Form.Check
+                        type="switch"
+                        id="bot-remove-image"
+                        label="Remover mídia ao salvar"
+                        checked={formState.removeImage}
+                        onChange={(event) => handleRemoveImageToggle(event.target.checked)}
+                      />
+                    </div>
+                  )}
+                </Form.Group>
+              </section>
+            )}
+
+            {activeView === "categoryList" && (
+              <section className="d-flex flex-column gap-3">
+                <Form.Text className="text-secondary">
+                  Ajuste os textos exibidos quando o cliente abre a lista interativa de categorias e quando
+                  há mais páginas disponíveis.
+                </Form.Text>
+
+                <Form.Group controlId="bot-list-header">
+                  <Form.Label>Título da lista</Form.Label>
+                  <Form.Control
+                    value={formState.categoryListHeaderText}
+                    onChange={(event) => handleFieldChange("categoryListHeaderText", event.target.value)}
+                    placeholder="Ex: Comprar contas"
+                    required
+                  />
+                </Form.Group>
+
+                <Form.Group controlId="bot-list-body">
+                  <Form.Label>Descrição da lista</Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={2}
+                    value={formState.categoryListBodyText}
+                    onChange={(event) => handleFieldChange("categoryListBodyText", event.target.value)}
+                    placeholder="Ex: Selecione a categoria desejada ({{pagina_atual}}/{{total_paginas}})."
+                    required
+                  />
+                </Form.Group>
+
                 <div className="row g-3">
-                  <div className="col-12 col-md-4">
-                    <Form.Control
-                      value={formState.menuButtonBuyText}
-                      onChange={(event) => handleFieldChange("menuButtonBuyText", event.target.value)}
-                      placeholder="Botão para compras"
-                      required
-                    />
-                    <Form.Text className="text-secondary">Opção exibida para iniciar uma compra.</Form.Text>
+                  <div className="col-12 col-md-6">
+                    <Form.Group controlId="bot-list-button">
+                      <Form.Label>Texto do botão da lista</Form.Label>
+                      <Form.Control
+                        value={formState.categoryListButtonText}
+                        onChange={(event) => handleFieldChange("categoryListButtonText", event.target.value)}
+                        placeholder="Ex: Ver categorias"
+                        required
+                      />
+                    </Form.Group>
                   </div>
-                  <div className="col-12 col-md-4">
-                    <Form.Control
-                      value={formState.menuButtonAddBalanceText}
-                      onChange={(event) => handleFieldChange("menuButtonAddBalanceText", event.target.value)}
-                      placeholder="Botão para adicionar saldo"
-                      required
-                    />
-                    <Form.Text className="text-secondary">Texto utilizado no botão de saldo.</Form.Text>
-                  </div>
-                  <div className="col-12 col-md-4">
-                    <Form.Control
-                      value={formState.menuButtonSupportText}
-                      onChange={(event) => handleFieldChange("menuButtonSupportText", event.target.value)}
-                      placeholder="Botão de suporte"
-                      required
-                    />
-                    <Form.Text className="text-secondary">Descrição do atalho para suporte.</Form.Text>
+                  <div className="col-12 col-md-6">
+                    <Form.Group controlId="bot-list-section">
+                      <Form.Label>Título da seção</Form.Label>
+                      <Form.Control
+                        value={formState.categoryListSectionTitle}
+                        onChange={(event) => handleFieldChange("categoryListSectionTitle", event.target.value)}
+                        placeholder="Ex: Página {{pagina_atual}}/{{total_paginas}}"
+                        required
+                      />
+                    </Form.Group>
                   </div>
                 </div>
-              </Form.Group>
 
-              <Form.Group controlId="bot-menu-image">
-                <Form.Label>Mídia opcional</Form.Label>
-                <Form.Control
-                  type="file"
-                  accept="image/*"
-                  onChange={(event) => handleFileChange(event.target.files?.[0] ?? null)}
-                />
-                <Form.Text className="text-secondary d-block mb-2">
-                  Utilize uma imagem para destacar o menu enviado automaticamente.
+                <Form.Group controlId="bot-list-footer">
+                  <Form.Label>Rodapé quando for a última página</Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={2}
+                    value={formState.categoryListFooterText}
+                    onChange={(event) => handleFieldChange("categoryListFooterText", event.target.value)}
+                    placeholder="Mensagem exibida quando não há mais páginas"
+                  />
+                </Form.Group>
+
+                <Form.Group controlId="bot-list-footer-more">
+                  <Form.Label>Rodapé quando houver mais páginas</Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={2}
+                    value={formState.categoryListFooterMoreText}
+                    onChange={(event) => handleFieldChange("categoryListFooterMoreText", event.target.value)}
+                    placeholder="Instruções para acessar a próxima página"
+                  />
+                </Form.Group>
+
+                <div className="row g-3">
+                  <div className="col-12 col-md-6">
+                    <Form.Group controlId="bot-list-next-title">
+                      <Form.Label>Título do item &quot;próxima lista&quot;</Form.Label>
+                      <Form.Control
+                        value={formState.categoryListNextTitle}
+                        onChange={(event) => handleFieldChange("categoryListNextTitle", event.target.value)}
+                        placeholder="Ex: Próxima lista ▶️"
+                        required
+                      />
+                    </Form.Group>
+                  </div>
+                  <div className="col-12 col-md-6">
+                    <Form.Group controlId="bot-list-next-description">
+                      <Form.Label>Descrição do item &quot;próxima lista&quot;</Form.Label>
+                      <Form.Control
+                        value={formState.categoryListNextDescription}
+                        onChange={(event) => handleFieldChange("categoryListNextDescription", event.target.value)}
+                        placeholder="Ex: Visualizar mais categorias"
+                        required
+                      />
+                    </Form.Group>
+                  </div>
+                </div>
+
+                <Form.Group controlId="bot-list-empty">
+                  <Form.Label>Mensagem quando não houver categorias</Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={2}
+                    value={formState.categoryListEmptyText}
+                    onChange={(event) => handleFieldChange("categoryListEmptyText", event.target.value)}
+                    placeholder="Texto exibido quando nenhuma categoria está disponível"
+                    required
+                  />
+                </Form.Group>
+              </section>
+            )}
+
+            {activeView === "categoryDetail" && (
+              <section className="d-flex flex-column gap-3">
+                <Form.Text className="text-secondary">
+                  Defina o conteúdo dos cartões enviados com imagem e botão interativo sempre que uma
+                  categoria for selecionada.
                 </Form.Text>
 
-                {(previewUrl || currentImagePath) && (
-                  <div className="d-flex flex-column flex-md-row gap-3 align-items-md-center">
-                    <Image
-                      src={previewUrl ?? `/${currentImagePath}`}
-                      alt="Pré-visualização da mídia do bot"
-                      rounded
-                      className="border"
-                      style={{ maxWidth: "180px" }}
-                    />
+                <Form.Group controlId="bot-detail-body">
+                  <Form.Label>Descrição do cartão</Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={5}
+                    value={formState.categoryDetailBodyText}
+                    onChange={(event) => handleFieldChange("categoryDetailBodyText", event.target.value)}
+                    placeholder="Texto mostrado junto com a imagem da categoria"
+                    required
+                  />
+                </Form.Group>
 
-                    {currentImagePath && (
-                      <a href={`/${currentImagePath}`} target="_blank" rel="noreferrer">
-                        Abrir mídia atual em nova aba
-                      </a>
-                    )}
+                <Form.Group controlId="bot-detail-footer">
+                  <Form.Label>Rodapé do cartão</Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={2}
+                    value={formState.categoryDetailFooterText}
+                    onChange={(event) => handleFieldChange("categoryDetailFooterText", event.target.value)}
+                    placeholder="Mensagem exibida abaixo do botão de compra"
+                  />
+                  <Form.Text className="text-secondary">Deixe vazio para não exibir rodapé.</Form.Text>
+                </Form.Group>
 
-                    <Form.Check
-                      type="switch"
-                      id="bot-remove-image"
-                      label="Remover mídia ao salvar"
-                      checked={formState.removeImage}
-                      onChange={(event) => handleRemoveImageToggle(event.target.checked)}
-                    />
+                <div className="row g-3">
+                  <div className="col-12 col-md-6">
+                    <Form.Group controlId="bot-detail-button">
+                      <Form.Label>Texto do botão de compra</Form.Label>
+                      <Form.Control
+                        value={formState.categoryDetailButtonText}
+                        onChange={(event) => handleFieldChange("categoryDetailButtonText", event.target.value)}
+                        placeholder="Ex: Comprar"
+                        required
+                      />
+                    </Form.Group>
                   </div>
-                )}
-              </Form.Group>
-            </section>
-
-            <section className="d-flex flex-column gap-3">
-              <h3 className="h5 mb-1">Lista de categorias</h3>
-              <Form.Text className="text-secondary">
-                Ajuste os textos exibidos quando o cliente abre a lista interativa de categorias.
-              </Form.Text>
-
-              <Form.Group controlId="bot-list-header">
-                <Form.Label>Título da lista</Form.Label>
-                <Form.Control
-                  value={formState.categoryListHeaderText}
-                  onChange={(event) => handleFieldChange("categoryListHeaderText", event.target.value)}
-                  placeholder="Ex: Comprar contas"
-                  required
-                />
-              </Form.Group>
-
-              <Form.Group controlId="bot-list-body">
-                <Form.Label>Descrição da lista</Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={2}
-                  value={formState.categoryListBodyText}
-                  onChange={(event) => handleFieldChange("categoryListBodyText", event.target.value)}
-                  placeholder="Ex: Selecione a categoria desejada ({{pagina_atual}}/{{total_paginas}})."
-                  required
-                />
-              </Form.Group>
-
-              <div className="row g-3">
-                <div className="col-12 col-md-6">
-                  <Form.Group controlId="bot-list-button">
-                    <Form.Label>Texto do botão da lista</Form.Label>
-                    <Form.Control
-                      value={formState.categoryListButtonText}
-                      onChange={(event) => handleFieldChange("categoryListButtonText", event.target.value)}
-                      placeholder="Ex: Ver categorias"
-                      required
-                    />
-                  </Form.Group>
+                  <div className="col-12 col-md-6">
+                    <Form.Group controlId="bot-detail-caption">
+                      <Form.Label>Legenda do anexo do produto</Form.Label>
+                      <Form.Control
+                        value={formState.categoryDetailFileCaption}
+                        onChange={(event) => handleFieldChange("categoryDetailFileCaption", event.target.value)}
+                        placeholder="Ex: {{nome_categoria}} - dados complementares"
+                      />
+                      <Form.Text className="text-secondary">Deixe vazio para não enviar legenda.</Form.Text>
+                    </Form.Group>
+                  </div>
                 </div>
-                <div className="col-12 col-md-6">
-                  <Form.Group controlId="bot-list-section">
-                    <Form.Label>Título da seção</Form.Label>
-                    <Form.Control
-                      value={formState.categoryListSectionTitle}
-                      onChange={(event) => handleFieldChange("categoryListSectionTitle", event.target.value)}
-                      placeholder="Ex: Página {{pagina_atual}}/{{total_paginas}}"
-                      required
-                    />
-                  </Form.Group>
-                </div>
-              </div>
+              </section>
+            )}
 
-              <Form.Group controlId="bot-list-footer">
-                <Form.Label>Rodapé quando for a última página</Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={2}
-                  value={formState.categoryListFooterText}
-                  onChange={(event) => handleFieldChange("categoryListFooterText", event.target.value)}
-                  placeholder="Mensagem exibida quando não há mais páginas"
-                />
-              </Form.Group>
+            {activeView === "autoReplies" && (
+              <section className="d-flex flex-column gap-3">
+                <Form.Text className="text-secondary">
+                  Configure as respostas rápidas utilizadas quando o cliente toca nos botões de adicionar
+                  saldo ou suporte.
+                </Form.Text>
 
-              <Form.Group controlId="bot-list-footer-more">
-                <Form.Label>Rodapé quando houver mais páginas</Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={2}
-                  value={formState.categoryListFooterMoreText}
-                  onChange={(event) => handleFieldChange("categoryListFooterMoreText", event.target.value)}
-                  placeholder="Instruções para acessar a próxima página"
-                />
-              </Form.Group>
+                <Form.Group controlId="bot-reply-balance">
+                  <Form.Label>Mensagem para adicionar saldo</Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={3}
+                    value={formState.addBalanceReplyText}
+                    onChange={(event) => handleFieldChange("addBalanceReplyText", event.target.value)}
+                    placeholder="Orientações para o cliente adicionar saldo"
+                    required
+                  />
+                </Form.Group>
 
-              <div className="row g-3">
-                <div className="col-12 col-md-6">
-                  <Form.Group controlId="bot-list-next-title">
-                    <Form.Label>Título do item &quot;próxima lista&quot;</Form.Label>
-                    <Form.Control
-                      value={formState.categoryListNextTitle}
-                      onChange={(event) => handleFieldChange("categoryListNextTitle", event.target.value)}
-                      placeholder="Ex: Próxima lista ▶️"
-                      required
-                    />
-                  </Form.Group>
-                </div>
-                <div className="col-12 col-md-6">
-                  <Form.Group controlId="bot-list-next-description">
-                    <Form.Label>Descrição do item &quot;próxima lista&quot;</Form.Label>
-                    <Form.Control
-                      value={formState.categoryListNextDescription}
-                      onChange={(event) => handleFieldChange("categoryListNextDescription", event.target.value)}
-                      placeholder="Ex: Ver mais categorias ({{proxima_pagina}}/{{total_paginas}})"
-                      required
-                    />
-                  </Form.Group>
-                </div>
-              </div>
+                <Form.Group controlId="bot-reply-support">
+                  <Form.Label>Mensagem de suporte</Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={3}
+                    value={formState.supportReplyText}
+                    onChange={(event) => handleFieldChange("supportReplyText", event.target.value)}
+                    placeholder="Mensagem enviada ao acionar o suporte"
+                    required
+                  />
+                </Form.Group>
+              </section>
+            )}
 
-              <Form.Group controlId="bot-list-empty">
-                <Form.Label>Mensagem sem categorias ativas</Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={3}
-                  value={formState.categoryListEmptyText}
-                  onChange={(event) => handleFieldChange("categoryListEmptyText", event.target.value)}
-                  placeholder="Texto enviado quando não há categorias disponíveis"
-                  required
-                />
-              </Form.Group>
-            </section>
-
-            <section className="d-flex flex-column gap-3">
-              <h3 className="h5 mb-1">Detalhes da categoria</h3>
-              <Form.Text className="text-secondary">
-                Mensagens enviadas quando o cliente seleciona uma categoria específica.
-              </Form.Text>
-
-              <Form.Group controlId="bot-detail-body">
-                <Form.Label>Descrição detalhada</Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={4}
-                  value={formState.categoryDetailBodyText}
-                  onChange={(event) => handleFieldChange("categoryDetailBodyText", event.target.value)}
-                  placeholder="Conteúdo exibido no cartão com imagem da categoria"
-                  required
-                />
-              </Form.Group>
-
-              <Form.Group controlId="bot-detail-footer">
-                <Form.Label>Rodapé do cartão</Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={2}
-                  value={formState.categoryDetailFooterText}
-                  onChange={(event) => handleFieldChange("categoryDetailFooterText", event.target.value)}
-                  placeholder="Mensagem exibida abaixo do botão de compra"
-                />
-                <Form.Text className="text-secondary">Deixe vazio para não exibir rodapé.</Form.Text>
-              </Form.Group>
-
-              <div className="row g-3">
-                <div className="col-12 col-md-6">
-                  <Form.Group controlId="bot-detail-button">
-                    <Form.Label>Texto do botão de compra</Form.Label>
-                    <Form.Control
-                      value={formState.categoryDetailButtonText}
-                      onChange={(event) => handleFieldChange("categoryDetailButtonText", event.target.value)}
-                      placeholder="Ex: Comprar"
-                      required
-                    />
-                  </Form.Group>
-                </div>
-                <div className="col-12 col-md-6">
-                  <Form.Group controlId="bot-detail-caption">
-                    <Form.Label>Legenda do anexo do produto</Form.Label>
-                    <Form.Control
-                      value={formState.categoryDetailFileCaption}
-                      onChange={(event) => handleFieldChange("categoryDetailFileCaption", event.target.value)}
-                      placeholder="Ex: {{nome_categoria}} - dados complementares"
-                    />
-                    <Form.Text className="text-secondary">Deixe vazio para não enviar legenda.</Form.Text>
-                  </Form.Group>
-                </div>
-              </div>
-            </section>
-
-            <section className="d-flex flex-column gap-3">
-              <h3 className="h5 mb-1">Respostas automáticas</h3>
-              <Form.Text className="text-secondary">
-                Mensagens enviadas quando o cliente solicita adicionar saldo ou aciona o suporte.
-              </Form.Text>
-
-              <Form.Group controlId="bot-reply-balance">
-                <Form.Label>Mensagem para adicionar saldo</Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={3}
-                  value={formState.addBalanceReplyText}
-                  onChange={(event) => handleFieldChange("addBalanceReplyText", event.target.value)}
-                  placeholder="Orientações para o cliente adicionar saldo"
-                  required
-                />
-              </Form.Group>
-
-              <Form.Group controlId="bot-reply-support">
-                <Form.Label>Mensagem de suporte</Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={3}
-                  value={formState.supportReplyText}
-                  onChange={(event) => handleFieldChange("supportReplyText", event.target.value)}
-                  placeholder="Mensagem enviada ao acionar o suporte"
-                  required
-                />
-              </Form.Group>
-            </section>
-
-            <section className="d-flex flex-column gap-3">
-              <h3 className="h5 mb-1">Variáveis personalizadas</h3>
-              <Form.Text className="text-secondary">
-                Separe as variáveis por vírgulas ou linhas. Elas serão substituídas automaticamente ao
-                enviar qualquer mensagem configurada acima.
-              </Form.Text>
-
-              <Form.Group controlId="bot-menu-variables">
-                <Form.Control
-                  as="textarea"
-                  rows={3}
-                  value={formState.variables}
-                  onChange={(event) => handleFieldChange("variables", event.target.value)}
-                  placeholder="{{nome_cliente}}, {{numero_cliente}}"
-                />
-              </Form.Group>
-            </section>
+            {activeView === "variables" && (
+              <section className="d-flex flex-column gap-3">
+                <Form.Group controlId="bot-menu-variables">
+                  <Form.Label>Variáveis personalizadas</Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={4}
+                    value={formState.variables}
+                    onChange={(event) => handleFieldChange("variables", event.target.value)}
+                    placeholder="{{nome_cliente}}, {{numero_cliente}}"
+                  />
+                  <Form.Text className="text-secondary">
+                    Separe as variáveis por vírgulas ou linhas. Elas serão substituídas automaticamente ao
+                    enviar qualquer mensagem configurada.
+                  </Form.Text>
+                </Form.Group>
+              </section>
+            )}
 
             <div className="d-flex justify-content-end">
               <Button type="submit" variant="primary" disabled={isSubmitting}>
