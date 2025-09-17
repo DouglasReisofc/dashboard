@@ -14,14 +14,25 @@ import ProjectBudget from "components/dashboard/ProjectBudget";
 import TaskList from "components/dashboard/TaskList";
 import UpcomingMeetingSlider from "components/dashboard/UpcomingMeetingSlider";
 
+import { getCurrentUser } from "lib/auth";
+
 export const metadata: Metadata = {
-  title: "Project Dashboard | Dasher - Responsive Bootstrap 5 Admin Dashboard",
-  description: "Dasher - Responsive Bootstrap 5 Admin Dashboard",
+  title: "Admin | StoreBot Dashboard",
+  description: "Painel administrativo com visão completa da operação StoreBot.",
 };
 
-const HomePage = () => {
+const AdminDashboard = async () => {
+  const user = await getCurrentUser();
+
   return (
     <Fragment>
+      <div className="mb-6">
+        <h1 className="mb-2">Painel administrativo</h1>
+        <p className="text-secondary mb-0">
+          Bem-vindo{user ? `, ${user.name}` : ""}! Monitore indicadores chave, acompanhe equipes e gerencie
+          resultados em tempo real.
+        </p>
+      </div>
       <Row className="g-6 mb-6">
         <DashboardStats />
       </Row>
@@ -43,4 +54,4 @@ const HomePage = () => {
   );
 };
 
-export default HomePage;
+export default AdminDashboard;

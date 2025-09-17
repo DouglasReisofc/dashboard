@@ -7,8 +7,8 @@ import ProductListing from "components/ecommerce/ProductListing";
 import EcommerceHeader from "components/ecommerce/EcommerceHeader";
 
 export const metadata: Metadata = {
-  title: "Products | Dasher - Responsive Bootstrap 5 Admin Dashboard",
-  description: "Dasher - Responsive Bootstrap 5 Admin Dashboard",
+  title: "Catálogo | StoreBot Dashboard",
+  description: "Gerencie produtos, preços e estoque em tempo real.",
 };
 
 const Ecommerce = () => {

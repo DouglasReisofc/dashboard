@@ -21,7 +21,13 @@ import OffcanvasSidebar from "layouts/OffcanvasSidebar";
 //import custom hooks
 import useMenu from "hooks/useMenu";
 
-const Header = () => {
+import type { SessionUser } from "types/auth";
+
+interface HeaderProps {
+  user: SessionUser;
+}
+
+const Header: React.FC<HeaderProps> = ({ user }) => {
   const [isNoficationOpen, setIsNotificationOpen] = useState<boolean>(false);
   const { toggleMenuHandler, handleCollapsed } = useMenu();
 
@@ -95,7 +101,7 @@ const Header = () => {
               </Button>
             </ListGroup.Item>
             <ListGroup.Item as="li">
-              <UserMenu />
+              <UserMenu user={user} />
             </ListGroup.Item>
           </ListGroup>
         </Container>

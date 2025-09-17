@@ -7,8 +7,8 @@ import BlogList from "components/blog/BlogList";
 import BlogListHeader from "components/blog/BlogListHeader";
 
 export const metadata: Metadata = {
-  title: "Post List | Dasher - Responsive Bootstrap 5 Admin Dashboard",
-  description: "Dasher - Responsive Bootstrap 5 Admin Dashboard",
+  title: "Blog interno | StoreBot Dashboard",
+  description: "Atualizações e artigos para a equipe StoreBot.",
 };
 
 const Blog = () => {

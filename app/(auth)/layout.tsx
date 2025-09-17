@@ -14,11 +14,8 @@ const AuthLayout = ({ children }: { children: React.ReactNode }) => {
       <section>
         <Container>{children}</Container>
       </section>
-      <div className='custom-container'>
-        <span className='me-1'>Theme distributed by - </span>
-        <a href='https://www.themewagon.com/' target='_blank' rel='noopener '>
-          ThemeWagon
-        </a>
+      <div className='custom-container text-center text-secondary small'>
+        StoreBot Dashboard — acesso seguro integrado ao MySQL.
       </div>
     </Flex>
   );
