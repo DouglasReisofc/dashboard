@@ -64,16 +64,17 @@ const LandingPage = () => {
                 e integrações Node.js com MySQL em um único projeto Next.js.
               </p>
               <div className="d-flex flex-wrap gap-3">
-                <Link href="/sign-up" passHref legacyBehavior>
-                  <Button as="a" variant="primary" size="lg">
-                    Criar conta
-                  </Button>
-                </Link>
-                <Link href="/sign-in" passHref legacyBehavior>
-                  <Button as="a" variant="outline-primary" size="lg">
-                    Já sou cliente
-                  </Button>
-                </Link>
+                <Button as={Link} href="/sign-up" variant="primary" size="lg">
+                  Criar conta
+                </Button>
+                <Button
+                  as={Link}
+                  href="/sign-in"
+                  variant="outline-primary"
+                  size="lg"
+                >
+                  Já sou cliente
+                </Button>
               </div>
             </Col>
             <Col lg={6}>
@@ -148,11 +149,9 @@ const LandingPage = () => {
               </p>
             </Col>
             <Col lg={4} className="text-lg-end">
-              <Link href="/sign-up" passHref legacyBehavior>
-                <Button as="a" size="lg" variant="primary">
-                  Começar agora
-                </Button>
-              </Link>
+              <Button as={Link} href="/sign-up" size="lg" variant="primary">
+                Começar agora
+              </Button>
             </Col>
           </Row>
         </Container>
