@@ -61,6 +61,16 @@ const sanitizeInteractiveText = (text: string) => {
     : trimmed;
 };
 
+const sanitizeInteractiveLabel = (text: string, maxLength: number) => {
+  const trimmed = text.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  return trimmed.length > maxLength ? trimmed.slice(0, maxLength) : trimmed;
+};
+
 type MetaMessagePayload = {
   messaging_product: "whatsapp";
   to: string;
@@ -572,7 +582,7 @@ export const sendInteractiveCtaUrlMessage = async (options: {
   } = options;
 
   const sanitizedBody = sanitizeInteractiveText(bodyText);
-  const sanitizedButtonText = sanitizeInteractiveText(buttonText);
+  const sanitizedButtonText = sanitizeInteractiveLabel(buttonText, 20);
   const sanitizedUrl = buttonUrl.trim();
 
   if (!sanitizedBody) {
@@ -653,7 +663,7 @@ export const sendInteractiveCopyCodeMessage = async (options: {
   const { webhook, to, bodyText, buttonText, code, footerText } = options;
 
   const sanitizedBody = sanitizeInteractiveText(bodyText);
-  const sanitizedButtonText = sanitizeInteractiveText(buttonText);
+  const sanitizedButtonText = sanitizeInteractiveLabel(buttonText, 20);
   const sanitizedCode = code.trim();
 
   if (!sanitizedBody) {
@@ -672,16 +682,20 @@ export const sendInteractiveCopyCodeMessage = async (options: {
   }
 
   const interactive: Record<string, unknown> = {
-    type: "cta_copy",
+    type: "button",
     body: {
       text: sanitizedBody,
     },
     action: {
-      name: "cta_copy",
-      parameters: {
-        copy_code: sanitizedCode,
-        display_text: sanitizedButtonText,
-      },
+      buttons: [
+        {
+          type: "copy_code",
+          text: sanitizedButtonText,
+          copy_code: {
+            code: sanitizedCode,
+          },
+        },
+      ],
     },
   };
 
