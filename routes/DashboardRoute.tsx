@@ -3,6 +3,7 @@ import { v4 as uuid } from "uuid";
 import {
   IconHome,
   IconLayoutDashboard,
+  IconCreditCard,
   IconPlugConnected,
   IconPackage,
   IconRobot,
@@ -70,6 +71,12 @@ const userMenu: MenuItemType[] = [
     title: "Configurar bot",
     link: "/dashboard/user/configurar-bot",
     icon: <IconRobot size={20} strokeWidth={1.5} />,
+  },
+  {
+    id: uuid(),
+    title: "Config. pagamentos",
+    link: "/dashboard/user/pagamentos",
+    icon: <IconCreditCard size={20} strokeWidth={1.5} />,
   },
   {
     id: uuid(),

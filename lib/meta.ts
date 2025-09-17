@@ -37,6 +37,7 @@ export const MENU_BUTTON_IDS = {
 export const CATEGORY_LIST_ROW_PREFIX = "storebot_category_";
 export const CATEGORY_LIST_NEXT_PREFIX = "storebot_list_next_";
 export const CATEGORY_PURCHASE_BUTTON_PREFIX = "storebot_buy_category_";
+export const ADD_BALANCE_OPTION_PREFIX = "storebot_add_balance_";
 
 type ButtonDefinition = {
   id: string;
@@ -156,6 +157,12 @@ type CategoryListEntry = {
   price: number;
 };
 
+type AddBalanceOption = {
+  id: string;
+  title: string;
+  description?: string | null;
+};
+
 const buildCategoryListPayload = (
   to: string,
   categories: CategoryListEntry[],
@@ -245,6 +252,55 @@ const buildCategoryListPayload = (
     },
     page: sanitizedPage,
     totalPages,
+  };
+};
+
+const buildAddBalanceListPayload = (
+  to: string,
+  options: {
+    header: string;
+    body: string;
+    footer?: string | null;
+    buttonLabel: string;
+    sectionTitle: string;
+    rows: AddBalanceOption[];
+  },
+) => {
+  const interactive: Record<string, unknown> = {
+    type: "list",
+    header: {
+      type: "text",
+      text: options.header.slice(0, 60),
+    },
+    body: {
+      text: options.body.slice(0, MAX_BODY_LENGTH),
+    },
+    action: {
+      button: options.buttonLabel.slice(0, 20),
+      sections: [
+        {
+          title: options.sectionTitle.slice(0, 24),
+          rows: options.rows.slice(0, MAX_LIST_ROWS).map((row) => ({
+            id: row.id,
+            title: row.title.slice(0, 24),
+            description: row.description?.slice(0, 72) ?? undefined,
+          })),
+        },
+      ],
+    },
+  };
+
+  if (options.footer && options.footer.trim().length > 0) {
+    interactive.footer = {
+      text: options.footer.trim().slice(0, 60),
+    };
+  }
+
+  return {
+    messaging_product: "whatsapp" as const,
+    to,
+    type: "interactive" as const,
+    interactive,
   };
 };
 
@@ -421,6 +477,38 @@ export const sendCategoryDetailReply = async (options: {
   return template;
 };
 
+export const sendAddBalanceOptions = async (options: {
+  webhook: UserWebhookRow;
+  to: string;
+  header: string;
+  body: string;
+  footer?: string | null;
+  buttonLabel: string;
+  sectionTitle: string;
+  rows: AddBalanceOption[];
+}) => {
+  const { webhook, to, header, body, footer, buttonLabel, sectionTitle, rows } = options;
+
+  if (!rows.length) {
+    console.warn("[Meta Webhook] Lista de Pix vazia ignorada");
+    return false;
+  }
+
+  const payload = buildAddBalanceListPayload(to, {
+    header,
+    body,
+    footer,
+    buttonLabel,
+    sectionTitle,
+    rows,
+  });
+
+  return postMetaMessage(webhook, payload, {
+    successLog: `Lista de valores Pix enviada para ${to}`,
+    failureLog: `Falha ao enviar lista de valores Pix para ${to}`,
+  });
+};
+
 export const sendTextMessage = async (options: {
   webhook: UserWebhookRow;
   to: string;
@@ -447,6 +535,36 @@ export const sendTextMessage = async (options: {
   await postMetaMessage(webhook, payload, {
     successLog: `Mensagem de texto enviada para ${to}`,
     failureLog: `Falha ao enviar mensagem de texto para ${to}`,
+  });
+};
+
+export const sendImageFromUrl = async (options: {
+  webhook: UserWebhookRow;
+  to: string;
+  imageUrl: string;
+  caption?: string | null;
+}) => {
+  const { webhook, to, imageUrl, caption } = options;
+  const trimmedUrl = imageUrl.trim();
+
+  if (!trimmedUrl) {
+    console.warn("[Meta Webhook] URL da imagem vazia ignorada");
+    return;
+  }
+
+  const payload: MetaMessagePayload = {
+    messaging_product: "whatsapp",
+    to,
+    type: "image",
+    image: {
+      link: trimmedUrl,
+      caption: caption?.trim()?.slice(0, MAX_BODY_LENGTH) ?? undefined,
+    },
+  };
+
+  await postMetaMessage(webhook, payload, {
+    successLog: `Imagem enviada para ${to}`,
+    failureLog: `Falha ao enviar imagem para ${to}`,
   });
 };
 

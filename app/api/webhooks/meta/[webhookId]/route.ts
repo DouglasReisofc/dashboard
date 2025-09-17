@@ -19,18 +19,26 @@ import {
   findCustomerByWhatsappForUser,
   upsertCustomerInteraction,
 } from "lib/customers";
-import { formatCurrency } from "lib/format";
+import { formatCurrency, formatDateTime } from "lib/format";
 import {
   CATEGORY_LIST_NEXT_PREFIX,
   CATEGORY_LIST_ROW_PREFIX,
   CATEGORY_PURCHASE_BUTTON_PREFIX,
   MENU_BUTTON_IDS,
+  ADD_BALANCE_OPTION_PREFIX,
   sendBotMenuReply,
   sendCategoryDetailReply,
   sendCategoryListReply,
+  sendAddBalanceOptions,
+  sendImageFromUrl,
   sendProductFile,
   sendTextMessage,
 } from "lib/meta";
+import {
+  createMercadoPagoPixCharge,
+  getMercadoPagoPixConfigForUser,
+  getPixChargeImageUrl,
+} from "lib/payments";
 import { getWebhookByPublicId, recordWebhookEvent } from "lib/webhooks";
 import type { CategorySummary } from "types/catalog";
 
@@ -135,6 +143,7 @@ const replyWithBotMenu = async (
 
   let cachedCategories: CategorySummary[] | null = null;
   let botConfigPromise: Promise<Awaited<ReturnType<typeof getBotMenuConfigForUser>>> | null = null;
+  let paymentConfigPromise: Promise<Awaited<ReturnType<typeof getMercadoPagoPixConfigForUser>>> | null = null;
 
   const loadActiveCategories = async (): Promise<CategorySummary[]> => {
     if (cachedCategories !== null) {
@@ -164,6 +173,14 @@ const replyWithBotMenu = async (
     }
 
     return botConfigPromise;
+  };
+
+  const resolvePaymentConfig = async () => {
+    if (!paymentConfigPromise) {
+      paymentConfigPromise = getMercadoPagoPixConfigForUser(webhook.user_id);
+    }
+
+    return paymentConfigPromise;
   };
 
   const getContext = (): BotTemplateContext => ({
@@ -241,6 +258,96 @@ const replyWithBotMenu = async (
   }
 
   if (listReplyId) {
+    if (listReplyId.startsWith(ADD_BALANCE_OPTION_PREFIX)) {
+      const amountRaw = listReplyId.slice(ADD_BALANCE_OPTION_PREFIX.length);
+      const cents = Number.parseInt(amountRaw, 10);
+      const paymentConfig = await resolvePaymentConfig();
+
+      if (!paymentConfig.isActive || !paymentConfig.isConfigured) {
+        await sendTextMessage({
+          webhook,
+          to: recipient,
+          text: "No momento não conseguimos gerar um Pix automático. Tente novamente em instantes.",
+        });
+        await sendMainMenu();
+        return;
+      }
+
+      const allowedCents = new Set(
+        paymentConfig.amountOptions.map((value) => Math.round(Number(value) * 100)),
+      );
+
+      if (!Number.isFinite(cents) || cents <= 0 || !allowedCents.has(cents)) {
+        await sendTextMessage({
+          webhook,
+          to: recipient,
+          text: "Não reconhecemos o valor selecionado. Escolha uma opção disponível no menu.",
+        });
+        await sendMainMenu();
+        return;
+      }
+
+      const amount = cents / 100;
+
+      try {
+        const charge = await createMercadoPagoPixCharge({
+          userId: webhook.user_id,
+          amount,
+          customerWhatsapp: recipient,
+          customerName: contactName,
+          config: paymentConfig,
+        });
+
+        if (charge.qrCodeBase64) {
+          const imageUrl = getPixChargeImageUrl(charge.publicId);
+          await sendImageFromUrl({
+            webhook,
+            to: recipient,
+            imageUrl,
+            caption: `Valor: ${formatCurrency(charge.amount)}`,
+          });
+        }
+
+        const expirationLine = charge.expiresAt
+          ? `Válido até: ${formatDateTime(charge.expiresAt)}`
+          : null;
+        const pixKeyLine = paymentConfig.pixKey ? `Chave Pix: ${paymentConfig.pixKey}` : null;
+        const ticketLine = charge.ticketUrl ? `Acompanhe o pagamento: ${charge.ticketUrl}` : null;
+
+        const summary = [
+          "💳 Pagamento via Pix (Mercado Pago)",
+          `Valor: ${formatCurrency(charge.amount)}`,
+          expirationLine,
+          pixKeyLine,
+          "",
+          "Pix copia e cola:",
+          charge.qrCode ?? "Não foi possível gerar o código. Tente novamente em instantes.",
+          "",
+          ticketLine,
+          paymentConfig.instructions?.trim() || null,
+          "Assim que o pagamento for confirmado, seu saldo será atualizado automaticamente.",
+        ]
+          .filter((line): line is string => typeof line === "string" && line.length > 0)
+          .join("\n");
+
+        await sendTextMessage({
+          webhook,
+          to: recipient,
+          text: summary,
+        });
+      } catch (pixError) {
+        console.error("[Meta Webhook] Falha ao gerar cobrança Pix", pixError);
+        await sendTextMessage({
+          webhook,
+          to: recipient,
+          text: "Não foi possível gerar o Pix agora. Tente novamente em alguns minutos.",
+        });
+      }
+
+      await sendMainMenu();
+      return;
+    }
+
     if (listReplyId.startsWith(CATEGORY_LIST_NEXT_PREFIX)) {
       const nextPageRaw = listReplyId.slice(CATEGORY_LIST_NEXT_PREFIX.length);
       const nextPage = Number.parseInt(nextPageRaw, 10);
@@ -492,7 +599,11 @@ const replyWithBotMenu = async (
     }
 
     if (buttonReplyId === MENU_BUTTON_IDS.addBalance) {
-      const botConfig = await resolveBotConfig();
+      const [botConfig, paymentConfig] = await Promise.all([
+        resolveBotConfig(),
+        resolvePaymentConfig(),
+      ]);
+
       const message = renderAddBalanceReply(
         botConfig
           ? { addBalanceReplyText: botConfig.addBalanceReplyText, variables: botConfig.variables }
@@ -500,12 +611,59 @@ const replyWithBotMenu = async (
         getContext(),
       );
 
-      await sendTextMessage({
+      if (!paymentConfig.isActive || !paymentConfig.isConfigured) {
+        await sendTextMessage({
+          webhook,
+          to: recipient,
+          text: `${message}\n\nNo momento não há métodos de pagamento disponíveis.`,
+        });
+        await sendMainMenu();
+        return;
+      }
+
+      const rows = paymentConfig.amountOptions
+        .map((value) => {
+          const numeric = Number(value);
+          if (!Number.isFinite(numeric) || numeric <= 0) {
+            return null;
+          }
+
+          const cents = Math.round(numeric * 100);
+          return {
+            id: `${ADD_BALANCE_OPTION_PREFIX}${cents}`,
+            title: formatCurrency(numeric),
+            description: `Expira em ${paymentConfig.pixExpirationMinutes} min`,
+          };
+        })
+        .filter((entry): entry is { id: string; title: string; description: string } => Boolean(entry));
+
+      if (rows.length === 0) {
+        await sendTextMessage({
+          webhook,
+          to: recipient,
+          text: `${message}\n\nNenhum valor de recarga foi configurado.`,
+        });
+        await sendMainMenu();
+        return;
+      }
+
+      const footer = paymentConfig.instructions?.trim()
+        ? paymentConfig.instructions.trim()
+        : paymentConfig.pixKey?.trim()
+          ? `Chave Pix: ${paymentConfig.pixKey.trim()}`
+          : null;
+
+      await sendAddBalanceOptions({
         webhook,
         to: recipient,
-        text: message,
+        header: paymentConfig.displayName,
+        body: message,
+        footer,
+        buttonLabel: "Selecionar valor",
+        sectionTitle: "Valores disponíveis",
+        rows,
       });
-      await sendMainMenu();
+
       return;
     }
 

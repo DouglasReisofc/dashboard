@@ -76,6 +76,8 @@ export const ensureUserTable = async () => {
   await ensureWebhookTable();
   await ensureWebhookEventTable();
   await ensureCustomerTable();
+  await ensurePaymentMethodTable();
+  await ensurePaymentChargeTable();
 
   const normalizedEmail = DEFAULT_ADMIN_EMAIL.toLowerCase().trim();
   const hashedPassword = await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, 10);
@@ -285,6 +287,54 @@ export const ensureCustomerTable = async () => {
   `);
 };
 
+export const ensurePaymentMethodTable = async () => {
+  const db = getDb();
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS user_payment_methods (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      provider VARCHAR(64) NOT NULL,
+      is_active TINYINT(1) NOT NULL DEFAULT 0,
+      display_name VARCHAR(255) NULL,
+      credentials LONGTEXT NULL,
+      settings LONGTEXT NULL,
+      metadata LONGTEXT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_payment_methods_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      CONSTRAINT unique_payment_method UNIQUE KEY unique_payment_method (user_id, provider)
+    ) ENGINE=InnoDB;
+  `);
+};
+
+export const ensurePaymentChargeTable = async () => {
+  const db = getDb();
+  await ensurePaymentMethodTable();
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS user_payment_charges (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      public_id CHAR(36) NOT NULL UNIQUE,
+      user_id INT NOT NULL,
+      provider VARCHAR(64) NOT NULL,
+      provider_payment_id VARCHAR(128) NOT NULL,
+      status VARCHAR(64) NOT NULL,
+      amount DECIMAL(12, 2) NOT NULL,
+      currency VARCHAR(3) NOT NULL DEFAULT 'BRL',
+      qr_code LONGTEXT NULL,
+      qr_code_base64 LONGTEXT NULL,
+      ticket_url TEXT NULL,
+      expires_at DATETIME NULL,
+      customer_whatsapp VARCHAR(32) NULL,
+      customer_name VARCHAR(255) NULL,
+      metadata LONGTEXT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_payment_charges_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      CONSTRAINT unique_provider_payment UNIQUE KEY unique_provider_payment (provider, provider_payment_id)
+    ) ENGINE=InnoDB;
+  `);
+};
+
 export const ensureWebhookTable = async () => {
   const db = getDb();
   await db.query(`
@@ -394,6 +444,39 @@ export type CustomerRow = {
   balance: string;
   is_blocked: number;
   last_interaction: Date | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type UserPaymentMethodRow = {
+  id: number;
+  user_id: number;
+  provider: string;
+  is_active: number;
+  display_name: string | null;
+  credentials: string | null;
+  settings: string | null;
+  metadata: string | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type UserPaymentChargeRow = {
+  id: number;
+  public_id: string;
+  user_id: number;
+  provider: string;
+  provider_payment_id: string;
+  status: string;
+  amount: string;
+  currency: string;
+  qr_code: string | null;
+  qr_code_base64: string | null;
+  ticket_url: string | null;
+  expires_at: Date | null;
+  customer_whatsapp: string | null;
+  customer_name: string | null;
+  metadata: string | null;
   created_at: Date;
   updated_at: Date;
 };
