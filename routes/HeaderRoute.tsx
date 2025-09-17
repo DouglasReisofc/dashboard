@@ -29,20 +29,20 @@ export const UserMenuItem: UserMenuLink[] = [
   {
     id: uuid(),
     link: "/dashboard/user",
-    title: "Meu catálogo",
+    title: "Painel do usuário",
     icon: <IconHome size={20} strokeWidth={1.5} />,
     roles: ["admin", "user"],
   },
   {
     id: uuid(),
-    link: "/dashboard/user#categories",
+    link: "/dashboard/user/categories",
     title: "Categorias",
     icon: <IconTags size={20} strokeWidth={1.5} />,
     roles: ["admin", "user"],
   },
   {
     id: uuid(),
-    link: "/dashboard/user#products",
+    link: "/dashboard/user/products",
     title: "Produtos digitais",
     icon: <IconPackage size={20} strokeWidth={1.5} />,
     roles: ["admin", "user"],

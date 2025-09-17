@@ -13,20 +13,20 @@ import { MenuItemType } from "types/menuTypes";
 const adminMenu: MenuItemType[] = [
   {
     id: uuid(),
-    title: "Visão geral",
+    title: "Painel",
     link: "/dashboard/admin",
     icon: <IconLayoutDashboard size={20} strokeWidth={1.5} />,
   },
   {
     id: uuid(),
     title: "Categorias",
-    link: "/dashboard/admin#categories",
+    link: "/dashboard/admin/categories",
     icon: <IconTags size={20} strokeWidth={1.5} />,
   },
   {
     id: uuid(),
     title: "Produtos digitais",
-    link: "/dashboard/admin#products",
+    link: "/dashboard/admin/products",
     icon: <IconPackage size={20} strokeWidth={1.5} />,
   },
 ];
@@ -34,20 +34,20 @@ const adminMenu: MenuItemType[] = [
 const userMenu: MenuItemType[] = [
   {
     id: uuid(),
-    title: "Meu catálogo",
+    title: "Painel",
     link: "/dashboard/user",
     icon: <IconHome size={20} strokeWidth={1.5} />,
   },
   {
     id: uuid(),
     title: "Categorias",
-    link: "/dashboard/user#categories",
+    link: "/dashboard/user/categories",
     icon: <IconTags size={20} strokeWidth={1.5} />,
   },
   {
     id: uuid(),
-    title: "Produtos",
-    link: "/dashboard/user#products",
+    title: "Produtos digitais",
+    link: "/dashboard/user/products",
     icon: <IconPackage size={20} strokeWidth={1.5} />,
   },
 ];
@@ -59,4 +59,3 @@ export const getDashboardMenu = (role: "admin" | "user"): MenuItemType[] => {
 
   return userMenu;
 };
-
