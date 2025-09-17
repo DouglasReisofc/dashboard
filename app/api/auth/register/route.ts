@@ -8,11 +8,10 @@ import { createAuthToken, setSessionCookie } from "lib/auth";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, email, password, role } = body as {
+    const { name, email, password } = body as {
       name?: string;
       email?: string;
       password?: string;
-      role?: "admin" | "user";
     };
 
     if (!name || !email || !password) {
@@ -23,8 +22,6 @@ export async function POST(request: Request) {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    const normalizedRole: "admin" | "user" = role === "admin" ? "admin" : "user";
-
     await ensureUserTable();
     const db = getDb();
 
@@ -43,20 +40,20 @@ export async function POST(request: Request) {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const [result] = await db.query<ResultSetHeader>(
-      "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)",
-      [name.trim(), normalizedEmail, hashedPassword, normalizedRole],
+      "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, 'user')",
+      [name.trim(), normalizedEmail, hashedPassword],
     );
 
     const userId = result.insertId;
 
-    const token = createAuthToken({ userId, role: normalizedRole });
+    const token = createAuthToken({ userId, role: "user" });
     const response = NextResponse.json(
       {
         user: {
           id: userId,
           name: name.trim(),
           email: normalizedEmail,
-          role: normalizedRole,
+          role: "user",
         },
         message: "Conta criada com sucesso.",
       },

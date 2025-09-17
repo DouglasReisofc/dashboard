@@ -30,9 +30,14 @@ DATABASE_NAME=storebot
 JWT_SECRET=super-secret-jwt-key-change-me
 APP_URL=http://localhost:4478
 PORT=4478
+DEFAULT_ADMIN_EMAIL=contactgestorvip@gmail.com
+DEFAULT_ADMIN_PASSWORD=Dev7766@#$%
+DEFAULT_ADMIN_NAME=Administrador StoreBot
 ```
 
 > **Importante:** altere `JWT_SECRET` em produção para um valor forte e mantenha as credenciais em local seguro.
+
+As variáveis `DEFAULT_ADMIN_*` garantem que um administrador inicial seja provisionado automaticamente. Ajuste-as caso precise de outro e-mail ou senha.
 
 ## Instalação e execução
 
@@ -55,6 +60,11 @@ O servidor ficará disponível em `http://localhost:4478`.
 - `lib/auth.ts` – geração e validação de tokens JWT.
 
 O layout em `app/(dashboard)/layout.tsx` garante o redirecionamento automático para `/sign-in` quando não há sessão ativa.
+
+### Perfis de acesso
+
+- O primeiro administrador é criado automaticamente com o e-mail `contactgestorvip@gmail.com` e senha `Dev7766@#$%` (altere no `.env` se necessário).
+- O formulário de cadastro cria apenas contas de usuário final; administradores adicionais devem ser configurados diretamente no banco de dados.
 
 ## Scripts úteis
 

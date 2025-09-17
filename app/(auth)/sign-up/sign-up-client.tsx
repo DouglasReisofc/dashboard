@@ -11,7 +11,6 @@ import {
   FormCheck,
   FormControl,
   FormLabel,
-  FormSelect,
   Image,
   Row,
 } from "react-bootstrap";
@@ -25,7 +24,6 @@ type SignUpFormState = {
   email: string;
   password: string;
   confirmPassword: string;
-  role: "admin" | "user";
   acceptTerms: boolean;
 };
 
@@ -34,7 +32,6 @@ const initialFormState: SignUpFormState = {
   email: "",
   password: "",
   confirmPassword: "",
-  role: "user",
   acceptTerms: false,
 };
 
@@ -83,7 +80,6 @@ const SignUpClient = () => {
           name: formState.name,
           email: formState.email,
           password: formState.password,
-          role: formState.role,
         }),
       });
 
@@ -189,17 +185,6 @@ const SignUpClient = () => {
                       minLength={6}
                       required
                     />
-                  </Col>
-                  <Col md={6}>
-                    <FormLabel htmlFor="signUpRole">Tipo de acesso</FormLabel>
-                    <FormSelect
-                      id="signUpRole"
-                      value={formState.role}
-                      onChange={updateField("role")}
-                    >
-                      <option value="user">Usuário (recomendado)</option>
-                      <option value="admin">Administrador</option>
-                    </FormSelect>
                   </Col>
                 </Row>
 

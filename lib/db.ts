@@ -1,3 +1,4 @@
+import bcrypt from "bcryptjs";
 import mysql, { Pool } from "mysql2/promise";
 
 const DATABASE_HOST = process.env.DATABASE_HOST ?? "localhost";
@@ -5,6 +6,12 @@ const DATABASE_PORT = Number(process.env.DATABASE_PORT ?? 3306);
 const DATABASE_USER = process.env.DATABASE_USER ?? "root";
 const DATABASE_PASSWORD = process.env.DATABASE_PASSWORD ?? "";
 const DATABASE_NAME = process.env.DATABASE_NAME ?? "dashboard";
+const DEFAULT_ADMIN_EMAIL =
+  process.env.DEFAULT_ADMIN_EMAIL ?? "contactgestorvip@gmail.com";
+const DEFAULT_ADMIN_PASSWORD =
+  process.env.DEFAULT_ADMIN_PASSWORD ?? "Dev7766@#$%";
+const DEFAULT_ADMIN_NAME =
+  process.env.DEFAULT_ADMIN_NAME ?? "Administrador StoreBot";
 
 let pool: Pool | null = null;
 
@@ -38,6 +45,21 @@ export const ensureUserTable = async () => {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB;
   `);
+
+  const normalizedEmail = DEFAULT_ADMIN_EMAIL.toLowerCase().trim();
+  const hashedPassword = await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, 10);
+
+  await db.query(
+    `
+      INSERT INTO users (name, email, password, role)
+      VALUES (?, ?, ?, 'admin')
+      ON DUPLICATE KEY UPDATE
+        name = VALUES(name),
+        password = VALUES(password),
+        role = 'admin'
+    `,
+    [DEFAULT_ADMIN_NAME.trim(), normalizedEmail, hashedPassword],
+  );
 };
 
 export type UserRow = {
