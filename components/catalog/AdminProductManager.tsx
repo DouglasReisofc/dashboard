@@ -67,7 +67,6 @@ const AdminProductManager = ({ products }: AdminProductManagerProps) => {
             <Table hover className="align-middle mb-0">
               <thead>
                 <tr>
-                  <th>Produto</th>
                   <th>Categoria</th>
                   <th>Owner</th>
                   <th>Limite</th>
@@ -77,14 +76,13 @@ const AdminProductManager = ({ products }: AdminProductManagerProps) => {
               <tbody>
                 {products.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="text-center text-secondary py-4">
+                    <td colSpan={4} className="text-center text-secondary py-4">
                       Nenhum produto digital cadastrado até o momento.
                     </td>
                   </tr>
                 ) : (
                   products.map((product) => (
                     <tr key={product.id}>
-                      <td>{product.name}</td>
                       <td>{product.categoryName}</td>
                       <td>
                         <div className="d-flex flex-column">
@@ -92,7 +90,7 @@ const AdminProductManager = ({ products }: AdminProductManagerProps) => {
                           <span className="text-secondary small">{product.ownerEmail}</span>
                         </div>
                       </td>
-                      <td>{product.resaleLimit === 0 ? "Ilimitado" : product.resaleLimit}</td>
+                      <td>{product.resaleLimit === 0 ? "Esgotado" : product.resaleLimit}</td>
                       <td className="text-end">
                         <div className="d-flex justify-content-end gap-2">
                           <Button size="sm" variant="outline-primary" onClick={() => setViewProduct(product)}>
@@ -123,9 +121,11 @@ const AdminProductManager = ({ products }: AdminProductManagerProps) => {
         </Modal.Header>
         {viewProduct && (
           <Modal.Body>
-            <h5 className="mb-1">{viewProduct.name}</h5>
+            <h5 className="mb-1">{viewProduct.categoryName}</h5>
             <p className="text-secondary mb-3">
               Categoria {viewProduct.categoryName} – proprietário {viewProduct.ownerName} ({viewProduct.ownerEmail}).
+              {" "}
+              Limite de revendas: {viewProduct.resaleLimit === 0 ? "esgotado" : `${viewProduct.resaleLimit} restante(s)`}.
             </p>
             <Card className="mb-3">
               <Card.Header>Conteúdo compartilhado</Card.Header>

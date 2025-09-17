@@ -22,7 +22,6 @@ export type ProductSummary = {
   userId: number;
   categoryId: number;
   categoryName: string;
-  name: string;
   details: string;
   filePath: string | null;
   resaleLimit: number;

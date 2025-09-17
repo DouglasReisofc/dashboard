@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 import type { CategorySummary, ProductSummary } from "types/catalog";
 
 type ProductFormState = {
-  name: string;
   categoryId: string;
   details: string;
   resaleLimit: string;
@@ -18,10 +17,9 @@ type ProductFormState = {
 type Feedback = { type: "success" | "danger"; message: string } | null;
 
 const emptyProductForm: ProductFormState = {
-  name: "",
   categoryId: "",
   details: "",
-  resaleLimit: "0",
+  resaleLimit: "1",
   file: null,
   removeFile: false,
 };
@@ -56,7 +54,6 @@ const UserProductManager = ({ categories, products }: UserProductManagerProps) =
     if (product) {
       setEditingProduct(product);
       setProductForm({
-        name: product.name,
         categoryId: product.categoryId.toString(),
         details: product.details,
         resaleLimit: product.resaleLimit.toString(),
@@ -77,7 +74,6 @@ const UserProductManager = ({ categories, products }: UserProductManagerProps) =
     setProductFeedback(null);
 
     const formData = new FormData();
-    formData.append("name", productForm.name);
     formData.append("categoryId", productForm.categoryId);
     formData.append("details", productForm.details);
     formData.append("resaleLimit", productForm.resaleLimit);
@@ -153,15 +149,6 @@ const UserProductManager = ({ categories, products }: UserProductManagerProps) =
 
   const renderProductForm = () => (
     <Form>
-      <Form.Group className="mb-3">
-        <Form.Label>Nome do produto</Form.Label>
-        <Form.Control
-          value={productForm.name}
-          onChange={(event) => handleProductChange("name", event.target.value)}
-          placeholder="Produto digital"
-          required
-        />
-      </Form.Group>
       <Row className="g-3">
         <Col md={6}>
           <Form.Group className="mb-3">
@@ -188,7 +175,9 @@ const UserProductManager = ({ categories, products }: UserProductManagerProps) =
               value={productForm.resaleLimit}
               onChange={(event) => handleProductChange("resaleLimit", event.target.value)}
             />
-            <Form.Text>Use 0 para ilimitado.</Form.Text>
+            <Form.Text>
+              Informe quantas revendas são permitidas. Quando chegar a 0 o produto fica esgotado.
+            </Form.Text>
           </Form.Group>
         </Col>
       </Row>
@@ -256,7 +245,6 @@ const UserProductManager = ({ categories, products }: UserProductManagerProps) =
             <Table hover className="align-middle mb-0">
               <thead>
                 <tr>
-                  <th>Produto</th>
                   <th>Categoria</th>
                   <th>Limite</th>
                   <th>Criado em</th>
@@ -266,16 +254,15 @@ const UserProductManager = ({ categories, products }: UserProductManagerProps) =
               <tbody>
                 {products.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="text-center text-secondary py-4">
+                    <td colSpan={4} className="text-center text-secondary py-4">
                       Você ainda não cadastrou produtos digitais.
                     </td>
                   </tr>
                 ) : (
                   products.map((product) => (
                     <tr key={product.id}>
-                      <td>{product.name}</td>
                       <td>{product.categoryName}</td>
-                      <td>{product.resaleLimit === 0 ? "Ilimitado" : product.resaleLimit}</td>
+                      <td>{product.resaleLimit === 0 ? "Esgotado" : product.resaleLimit}</td>
                       <td>{new Date(product.createdAt).toLocaleDateString("pt-BR")}</td>
                       <td className="text-end">
                         <div className="d-flex justify-content-end gap-2">
@@ -329,11 +316,11 @@ const UserProductManager = ({ categories, products }: UserProductManagerProps) =
         </Modal.Header>
         {viewProduct && (
           <Modal.Body>
-            <h5 className="mb-1">{viewProduct.name}</h5>
+            <h5 className="mb-1">{viewProduct.categoryName}</h5>
             <p className="text-secondary mb-3">
-              Vinculado à categoria {viewProduct.categoryName}. Limite de revendas:
+              Produto digital vinculado à categoria {viewProduct.categoryName}. Limite de revendas:
               {" "}
-              {viewProduct.resaleLimit === 0 ? "ilimitado" : `${viewProduct.resaleLimit} vezes`}.
+              {viewProduct.resaleLimit === 0 ? "esgotado" : `${viewProduct.resaleLimit} restante(s)`}.
             </p>
             <Card className="mb-3">
               <Card.Header>Conteúdo secreto</Card.Header>

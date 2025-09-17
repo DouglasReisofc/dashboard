@@ -44,15 +44,12 @@ export async function PUT(
     }
 
     const formData = await request.formData();
-    const name = formData.get("name");
     const categoryIdValue = formData.get("categoryId");
     const details = formData.get("details");
     const resaleLimitValue = formData.get("resaleLimit");
     const removeFile = formData.get("removeFile");
     const file = formData.get("file");
 
-    const cleanedName =
-      typeof name === "string" && name.trim().length ? name.trim() : existing.name;
     const cleanedDetails =
       typeof details === "string" && details.trim().length
         ? details.trim()
@@ -91,7 +88,7 @@ export async function PUT(
 
     await updateProduct(productId, {
       categoryId,
-      name: cleanedName,
+      categoryName: category.name,
       details: cleanedDetails,
       filePath,
       resaleLimit,

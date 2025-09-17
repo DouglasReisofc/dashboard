@@ -59,7 +59,6 @@ const mapProductRow = (
     userId: row.user_id,
     categoryId: row.category_id,
     categoryName: row.category_name ?? "",
-    name: row.name,
     details: row.details,
     filePath: row.file_path,
     resaleLimit: Number(row.resale_limit ?? 0),
@@ -261,7 +260,7 @@ export const insertProduct = async (
   payload: {
     userId: number;
     categoryId: number;
-    name: string;
+    categoryName: string;
     details: string;
     filePath: string | null;
     resaleLimit: number;
@@ -277,7 +276,7 @@ export const insertProduct = async (
     [
       payload.userId,
       payload.categoryId,
-      payload.name,
+      payload.categoryName,
       payload.details,
       payload.filePath,
       payload.resaleLimit,
@@ -291,7 +290,7 @@ export const updateProduct = async (
   productId: number,
   payload: {
     categoryId: number;
-    name: string;
+    categoryName: string;
     details: string;
     filePath: string | null;
     resaleLimit: number;
@@ -307,7 +306,7 @@ export const updateProduct = async (
     `,
     [
       payload.categoryId,
-      payload.name,
+      payload.categoryName,
       payload.details,
       payload.filePath,
       payload.resaleLimit,

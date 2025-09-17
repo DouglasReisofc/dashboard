@@ -52,18 +52,10 @@ export async function POST(request: NextRequest) {
     }
 
     const formData = await request.formData();
-    const name = formData.get("name");
     const categoryIdValue = formData.get("categoryId");
     const details = formData.get("details");
     const resaleLimitValue = formData.get("resaleLimit");
     const file = formData.get("file");
-
-    if (typeof name !== "string" || !name.trim()) {
-      return NextResponse.json(
-        { message: "Informe um nome para o produto." },
-        { status: 400 },
-      );
-    }
 
     if (typeof categoryIdValue !== "string") {
       return NextResponse.json(
@@ -100,7 +92,6 @@ export async function POST(request: NextRequest) {
     }
 
     const resaleLimit = parseInteger(resaleLimitValue, 0);
-    const cleanedName = name.trim();
     const cleanedDetails = details.trim();
 
     let filePath: string | null = null;
@@ -111,7 +102,7 @@ export async function POST(request: NextRequest) {
     const productId = await insertProduct({
       userId: user.id,
       categoryId,
-      name: cleanedName,
+      categoryName: category.name,
       details: cleanedDetails,
       filePath,
       resaleLimit,

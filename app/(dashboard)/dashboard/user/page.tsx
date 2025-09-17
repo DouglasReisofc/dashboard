@@ -116,13 +116,9 @@ const UserPanelPage = async () => {
                     <li key={product.id}>
                       <div className="d-flex justify-content-between">
                         <div className="me-3">
-                          <strong className="d-block">{product.name}</strong>
+                          <strong className="d-block">{product.categoryName}</strong>
                           <span className="text-secondary small">
-                            {product.categoryName} •
-                            {" "}
-                            {product.resaleLimit === 0
-                              ? "Revenda ilimitada"
-                              : `${product.resaleLimit} revenda(s)`}
+                            Limite de revendas: {product.resaleLimit === 0 ? "esgotado" : `${product.resaleLimit} restante(s)`}
                           </span>
                         </div>
                         <span className="text-secondary small">

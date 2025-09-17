@@ -114,9 +114,9 @@ const AdminPanelPage = async () => {
                     <li key={product.id}>
                       <div className="d-flex justify-content-between">
                         <div className="me-3">
-                          <strong className="d-block">{product.name}</strong>
+                          <strong className="d-block">{product.categoryName}</strong>
                           <span className="text-secondary small">
-                            {product.ownerName} • {product.categoryName}
+                            {product.ownerName} • {product.ownerEmail}
                           </span>
                         </div>
                         <span className="text-secondary small">
@@ -125,7 +125,7 @@ const AdminPanelPage = async () => {
                       </div>
                       <div className="d-flex flex-wrap gap-2 mt-2">
                         <span className="badge bg-light text-dark">
-                          {product.resaleLimit === 0 ? "Revenda ilimitada" : `${product.resaleLimit} revenda(s)`}
+                          {product.resaleLimit === 0 ? "Limite esgotado" : `${product.resaleLimit} revenda(s)`}
                         </span>
                         {product.filePath && <span className="badge bg-light text-dark">Possui anexo</span>}
                       </div>
