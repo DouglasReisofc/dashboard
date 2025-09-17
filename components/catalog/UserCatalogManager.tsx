@@ -1,7 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { Alert, Badge, Button, Card, Col, Form, Modal, Row, Table } from "react-bootstrap";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Col,
+  Form,
+  Modal,
+  Row,
+  Table,
+  Tab,
+  Tabs,
+} from "react-bootstrap";
 import { useRouter } from "next/navigation";
 
 import type { CategorySummary, ProductSummary } from "types/catalog";
@@ -57,15 +69,19 @@ const formatCurrency = (value: number) => {
 
 const UserCatalogManager = ({ categories, products }: UserCatalogManagerProps) => {
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<"categories" | "products">("categories");
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [productModalOpen, setProductModalOpen] = useState(false);
   const [categoryForm, setCategoryForm] = useState<CategoryFormState>(emptyCategoryForm);
   const [productForm, setProductForm] = useState<ProductFormState>(emptyProductForm);
   const [editingCategory, setEditingCategory] = useState<CategorySummary | null>(null);
   const [editingProduct, setEditingProduct] = useState<ProductSummary | null>(null);
-  const [feedback, setFeedback] = useState<Feedback>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDeleting, setIsDeleting] = useState<number | null>(null);
+  const [categoryFeedback, setCategoryFeedback] = useState<Feedback>(null);
+  const [productFeedback, setProductFeedback] = useState<Feedback>(null);
+  const [isCategorySubmitting, setIsCategorySubmitting] = useState(false);
+  const [isProductSubmitting, setIsProductSubmitting] = useState(false);
+  const [deletingCategoryId, setDeletingCategoryId] = useState<number | null>(null);
+  const [deletingProductId, setDeletingProductId] = useState<number | null>(null);
   const [viewProduct, setViewProduct] = useState<ProductSummary | null>(null);
 
   const resetCategoryForm = () => {
@@ -97,7 +113,7 @@ const UserCatalogManager = ({ categories, products }: UserCatalogManagerProps) =
       setEditingCategory(null);
     }
     setCategoryModalOpen(true);
-    setFeedback(null);
+    setCategoryFeedback(null);
   };
 
   const openProductModal = (product?: ProductSummary) => {
@@ -116,7 +132,7 @@ const UserCatalogManager = ({ categories, products }: UserCatalogManagerProps) =
       setEditingProduct(null);
     }
     setProductModalOpen(true);
-    setFeedback(null);
+    setProductFeedback(null);
   };
 
   const handleCategoryChange = <T extends keyof CategoryFormState>(field: T, value: CategoryFormState[T]) => {
@@ -128,8 +144,8 @@ const UserCatalogManager = ({ categories, products }: UserCatalogManagerProps) =
   };
 
   const handleCategorySubmit = async () => {
-    setIsSubmitting(true);
-    setFeedback(null);
+    setIsCategorySubmitting(true);
+    setCategoryFeedback(null);
 
     const formData = new FormData();
     formData.append("name", categoryForm.name);
@@ -160,17 +176,20 @@ const UserCatalogManager = ({ categories, products }: UserCatalogManagerProps) =
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      setFeedback({ type: "danger", message: data.message ?? "Não foi possível salvar a categoria." });
-      setIsSubmitting(false);
+      setCategoryFeedback({
+        type: "danger",
+        message: data.message ?? "Não foi possível salvar a categoria.",
+      });
+      setIsCategorySubmitting(false);
       return;
     }
 
-    setFeedback({
+    setCategoryFeedback({
       type: "success",
       message: editingCategory ? "Categoria atualizada com sucesso." : "Categoria criada com sucesso.",
     });
 
-    setIsSubmitting(false);
+    setIsCategorySubmitting(false);
     setTimeout(() => {
       resetCategoryForm();
       router.refresh();
@@ -178,8 +197,8 @@ const UserCatalogManager = ({ categories, products }: UserCatalogManagerProps) =
   };
 
   const handleProductSubmit = async () => {
-    setIsSubmitting(true);
-    setFeedback(null);
+    setIsProductSubmitting(true);
+    setProductFeedback(null);
 
     const formData = new FormData();
     formData.append("name", productForm.name);
@@ -208,17 +227,20 @@ const UserCatalogManager = ({ categories, products }: UserCatalogManagerProps) =
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      setFeedback({ type: "danger", message: data.message ?? "Não foi possível salvar o produto." });
-      setIsSubmitting(false);
+      setProductFeedback({
+        type: "danger",
+        message: data.message ?? "Não foi possível salvar o produto.",
+      });
+      setIsProductSubmitting(false);
       return;
     }
 
-    setFeedback({
+    setProductFeedback({
       type: "success",
       message: editingProduct ? "Produto atualizado com sucesso." : "Produto criado com sucesso.",
     });
 
-    setIsSubmitting(false);
+    setIsProductSubmitting(false);
     setTimeout(() => {
       resetProductForm();
       router.refresh();
@@ -233,8 +255,8 @@ const UserCatalogManager = ({ categories, products }: UserCatalogManagerProps) =
       return;
     }
 
-    setIsDeleting(category.id);
-    setFeedback(null);
+    setDeletingCategoryId(category.id);
+    setCategoryFeedback(null);
 
     const response = await fetch(`/api/catalog/categories/${category.id}`, {
       method: "DELETE",
@@ -243,13 +265,16 @@ const UserCatalogManager = ({ categories, products }: UserCatalogManagerProps) =
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      setFeedback({ type: "danger", message: data.message ?? "Não foi possível remover a categoria." });
-      setIsDeleting(null);
+      setCategoryFeedback({
+        type: "danger",
+        message: data.message ?? "Não foi possível remover a categoria.",
+      });
+      setDeletingCategoryId(null);
       return;
     }
 
-    setFeedback({ type: "success", message: "Categoria removida com sucesso." });
-    setIsDeleting(null);
+    setCategoryFeedback({ type: "success", message: "Categoria removida com sucesso." });
+    setDeletingCategoryId(null);
     router.refresh();
   };
 
@@ -259,8 +284,8 @@ const UserCatalogManager = ({ categories, products }: UserCatalogManagerProps) =
       return;
     }
 
-    setIsDeleting(product.id);
-    setFeedback(null);
+    setDeletingProductId(product.id);
+    setProductFeedback(null);
 
     const response = await fetch(`/api/catalog/products/${product.id}`, {
       method: "DELETE",
@@ -269,13 +294,16 @@ const UserCatalogManager = ({ categories, products }: UserCatalogManagerProps) =
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      setFeedback({ type: "danger", message: data.message ?? "Não foi possível remover o produto." });
-      setIsDeleting(null);
+      setProductFeedback({
+        type: "danger",
+        message: data.message ?? "Não foi possível remover o produto.",
+      });
+      setDeletingProductId(null);
       return;
     }
 
-    setFeedback({ type: "success", message: "Produto removido com sucesso." });
-    setIsDeleting(null);
+    setProductFeedback({ type: "success", message: "Produto removido com sucesso." });
+    setDeletingProductId(null);
     router.refresh();
   };
 
@@ -430,181 +458,198 @@ const UserCatalogManager = ({ categories, products }: UserCatalogManagerProps) =
 
   return (
     <section>
-      <Row className="g-4" id="categories">
-        <Col lg={12}>
-          <Card className="mb-4">
-            <Card.Body>
-              <div className="d-flex flex-column flex-lg-row align-items-lg-center justify-content-lg-between gap-3 mb-3">
-                <div>
-                  <h2 className="mb-1">Categorias</h2>
-                  <p className="mb-0 text-secondary">
-                    Organize seus produtos digitais por temas, defina preços sugeridos e controle a visibilidade.
-                  </p>
+      <Tabs
+        id="user-catalog-tabs"
+        activeKey={activeTab}
+        onSelect={(key) => setActiveTab((key as "categories" | "products") ?? "categories")}
+        className="mb-4"
+        justify
+      >
+        <Tab eventKey="categories" title="Categorias">
+          <div className="pt-4" id="categories">
+            <Card className="mb-4">
+              <Card.Body>
+                <div className="d-flex flex-column flex-lg-row align-items-lg-center justify-content-lg-between gap-3 mb-3">
+                  <div>
+                    <h2 className="mb-1">Categorias</h2>
+                    <p className="mb-0 text-secondary">
+                      Organize seus produtos digitais por temas, defina preços sugeridos e controle a visibilidade.
+                    </p>
+                  </div>
+                  <Button onClick={() => openCategoryModal()} variant="primary">
+                    Nova categoria
+                  </Button>
                 </div>
-                <Button onClick={() => openCategoryModal()} variant="primary">
-                  Nova categoria
-                </Button>
-              </div>
-              {feedback && (
-                <Alert
-                  variant={feedback.type}
-                  onClose={() => setFeedback(null)}
-                  dismissible
-                  className="mb-4"
-                >
-                  {feedback.message}
-                </Alert>
-              )}
-              <div className="table-responsive">
-                <Table hover className="align-middle mb-0">
-                  <thead>
-                    <tr>
-                      <th>Categoria</th>
-                      <th>Valor</th>
-                      <th>SKU</th>
-                      <th>Status</th>
-                      <th>Produtos</th>
-                      <th className="text-end">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {categories.length === 0 ? (
+                {categoryFeedback && (
+                  <Alert
+                    variant={categoryFeedback.type}
+                    onClose={() => setCategoryFeedback(null)}
+                    dismissible
+                    className="mb-4"
+                  >
+                    {categoryFeedback.message}
+                  </Alert>
+                )}
+                <div className="table-responsive">
+                  <Table hover className="align-middle mb-0">
+                    <thead>
                       <tr>
-                        <td colSpan={6} className="text-center text-secondary py-4">
-                          Nenhuma categoria cadastrada ainda.
-                        </td>
+                        <th>Categoria</th>
+                        <th>Valor</th>
+                        <th>SKU</th>
+                        <th>Status</th>
+                        <th>Produtos</th>
+                        <th className="text-end">Ações</th>
                       </tr>
-                    ) : (
-                      categories.map((category) => (
-                        <tr key={category.id}>
-                          <td>
-                            <div className="d-flex flex-column">
-                              <strong>{category.name}</strong>
-                              {category.description && (
-                                <span className="text-secondary small">{category.description}</span>
-                              )}
-                              {category.imagePath && (
-                                <a
-                                  className="small"
-                                  href={`/${category.imagePath}`}
-                                  target="_blank"
-                                  rel="noreferrer"
+                    </thead>
+                    <tbody>
+                      {categories.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="text-center text-secondary py-4">
+                            Nenhuma categoria cadastrada ainda.
+                          </td>
+                        </tr>
+                      ) : (
+                        categories.map((category) => (
+                          <tr key={category.id}>
+                            <td>
+                              <div className="d-flex flex-column">
+                                <strong>{category.name}</strong>
+                                {category.description && (
+                                  <span className="text-secondary small">{category.description}</span>
+                                )}
+                                {category.imagePath && (
+                                  <a
+                                    className="small"
+                                    href={`/${category.imagePath}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    Ver imagem
+                                  </a>
+                                )}
+                              </div>
+                            </td>
+                            <td>R$ {formatCurrency(category.price)}</td>
+                            <td>{category.sku || "—"}</td>
+                            <td>{renderStatusBadge(category.isActive)}</td>
+                            <td>{category.productCount}</td>
+                            <td className="text-end">
+                              <div className="d-flex justify-content-end gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline-secondary"
+                                  onClick={() => openCategoryModal(category)}
                                 >
-                                  Ver imagem
-                                </a>
-                              )}
-                            </div>
-                          </td>
-                          <td>R$ {formatCurrency(category.price)}</td>
-                          <td>{category.sku}</td>
-                          <td>{renderStatusBadge(category.isActive)}</td>
-                          <td>{category.productCount}</td>
-                          <td className="text-end">
-                            <div className="d-flex justify-content-end gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline-secondary"
-                                onClick={() => openCategoryModal(category)}
-                              >
-                                Editar
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline-danger"
-                                disabled={isDeleting === category.id}
-                                onClick={() => handleDeleteCategory(category)}
-                              >
-                                {isDeleting === category.id ? "Removendo..." : "Excluir"}
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </Table>
-              </div>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
-
-      <Row className="g-4" id="products">
-        <Col lg={12}>
-          <Card>
-            <Card.Body>
-              <div className="d-flex flex-column flex-lg-row align-items-lg-center justify-content-lg-between gap-3 mb-3">
-                <div>
-                  <h2 className="mb-1">Produtos digitais</h2>
-                  <p className="mb-0 text-secondary">
-                    Vincule conteúdos sigilosos às suas categorias e defina limites de revenda.
-                  </p>
+                                  Editar
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline-danger"
+                                  disabled={deletingCategoryId === category.id}
+                                  onClick={() => handleDeleteCategory(category)}
+                                >
+                                  {deletingCategoryId === category.id ? "Removendo..." : "Excluir"}
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </Table>
                 </div>
-                <Button onClick={() => openProductModal()} variant="primary" disabled={categories.length === 0}>
-                  Novo produto
-                </Button>
-              </div>
-              <div className="table-responsive">
-                <Table hover className="align-middle mb-0">
-                  <thead>
-                    <tr>
-                      <th>Produto</th>
-                      <th>Categoria</th>
-                      <th>Limite de revendas</th>
-                      <th>Cadastro</th>
-                      <th className="text-end">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {products.length === 0 ? (
+              </Card.Body>
+            </Card>
+          </div>
+        </Tab>
+        <Tab eventKey="products" title="Produtos digitais">
+          <div className="pt-4" id="products">
+            <Card>
+              <Card.Body>
+                <div className="d-flex flex-column flex-lg-row align-items-lg-center justify-content-lg-between gap-3 mb-3">
+                  <div>
+                    <h2 className="mb-1">Produtos digitais</h2>
+                    <p className="mb-0 text-secondary">
+                      Vincule conteúdos sigilosos às suas categorias e defina limites de revenda.
+                    </p>
+                  </div>
+                  <Button onClick={() => openProductModal()} variant="primary" disabled={categories.length === 0}>
+                    Novo produto
+                  </Button>
+                </div>
+                {productFeedback && (
+                  <Alert
+                    variant={productFeedback.type}
+                    onClose={() => setProductFeedback(null)}
+                    dismissible
+                    className="mb-4"
+                  >
+                    {productFeedback.message}
+                  </Alert>
+                )}
+                <div className="table-responsive">
+                  <Table hover className="align-middle mb-0">
+                    <thead>
                       <tr>
-                        <td colSpan={5} className="text-center text-secondary py-4">
-                          Você ainda não cadastrou produtos digitais.
-                        </td>
+                        <th>Produto</th>
+                        <th>Categoria</th>
+                        <th>Limite de revendas</th>
+                        <th>Cadastro</th>
+                        <th className="text-end">Ações</th>
                       </tr>
-                    ) : (
-                      products.map((product) => (
-                        <tr key={product.id}>
-                          <td>{product.name}</td>
-                          <td>{product.categoryName}</td>
-                          <td>{product.resaleLimit === 0 ? "Ilimitado" : product.resaleLimit}</td>
-                          <td>{new Date(product.createdAt).toLocaleDateString("pt-BR")}</td>
-                          <td className="text-end">
-                            <div className="d-flex justify-content-end gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline-primary"
-                                onClick={() => setViewProduct(product)}
-                              >
-                                Detalhes
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline-secondary"
-                                onClick={() => openProductModal(product)}
-                              >
-                                Editar
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline-danger"
-                                disabled={isDeleting === product.id}
-                                onClick={() => handleDeleteProduct(product)}
-                              >
-                                {isDeleting === product.id ? "Removendo..." : "Excluir"}
-                              </Button>
-                            </div>
+                    </thead>
+                    <tbody>
+                      {products.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="text-center text-secondary py-4">
+                            Você ainda não cadastrou produtos digitais.
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </Table>
-              </div>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
+                      ) : (
+                        products.map((product) => (
+                          <tr key={product.id}>
+                            <td>{product.name}</td>
+                            <td>{product.categoryName}</td>
+                            <td>{product.resaleLimit === 0 ? "Ilimitado" : product.resaleLimit}</td>
+                            <td>{new Date(product.createdAt).toLocaleDateString("pt-BR")}</td>
+                            <td className="text-end">
+                              <div className="d-flex justify-content-end gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline-primary"
+                                  onClick={() => setViewProduct(product)}
+                                >
+                                  Detalhes
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline-secondary"
+                                  onClick={() => openProductModal(product)}
+                                >
+                                  Editar
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline-danger"
+                                  disabled={deletingProductId === product.id}
+                                  onClick={() => handleDeleteProduct(product)}
+                                >
+                                  {deletingProductId === product.id ? "Removendo..." : "Excluir"}
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </Table>
+                </div>
+              </Card.Body>
+            </Card>
+          </div>
+        </Tab>
+      </Tabs>
 
       <Modal show={categoryModalOpen} onHide={resetCategoryForm} size="lg" centered>
         <Modal.Header closeButton>
@@ -612,11 +657,11 @@ const UserCatalogManager = ({ categories, products }: UserCatalogManagerProps) =
         </Modal.Header>
         <Modal.Body>{renderCategoryForm()}</Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={resetCategoryForm} disabled={isSubmitting}>
+          <Button variant="secondary" onClick={resetCategoryForm} disabled={isCategorySubmitting}>
             Cancelar
           </Button>
-          <Button variant="primary" onClick={handleCategorySubmit} disabled={isSubmitting}>
-            {isSubmitting ? "Salvando..." : "Salvar"}
+          <Button variant="primary" onClick={handleCategorySubmit} disabled={isCategorySubmitting}>
+            {isCategorySubmitting ? "Salvando..." : "Salvar"}
           </Button>
         </Modal.Footer>
       </Modal>
@@ -627,11 +672,15 @@ const UserCatalogManager = ({ categories, products }: UserCatalogManagerProps) =
         </Modal.Header>
         <Modal.Body>{renderProductForm()}</Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={resetProductForm} disabled={isSubmitting}>
+          <Button variant="secondary" onClick={resetProductForm} disabled={isProductSubmitting}>
             Cancelar
           </Button>
-          <Button variant="primary" onClick={handleProductSubmit} disabled={isSubmitting || categories.length === 0}>
-            {isSubmitting ? "Salvando..." : "Salvar"}
+          <Button
+            variant="primary"
+            onClick={handleProductSubmit}
+            disabled={isProductSubmitting || categories.length === 0}
+          >
+            {isProductSubmitting ? "Salvando..." : "Salvar"}
           </Button>
         </Modal.Footer>
       </Modal>
