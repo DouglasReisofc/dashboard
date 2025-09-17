@@ -42,7 +42,7 @@ const features = [
     icon: <IconLock size={32} />,
     title: "Entrega segura",
     description:
-      "Armazene detalhes secretos dos produtos, libere downloads e monitore sessões com autenticação e MySQL integrados.",
+      "Armazene detalhes secretos dos produtos, libere downloads e monitore sessões com camadas extras de segurança.",
   },
 ];
 
@@ -130,7 +130,7 @@ const LandingPage = () => {
                   <IconSparkles className="text-primary" size={20} /> Painéis separados para administradores e operadores
                 </li>
                 <li className="d-flex align-items-center gap-2">
-                  <IconSparkles className="text-primary" size={20} /> Integração segura com base MySQL StoreBot
+                  <IconSparkles className="text-primary" size={20} /> Integração segura com painéis e fluxos sob medida
                 </li>
               </ul>
             </Col>
@@ -144,8 +144,8 @@ const LandingPage = () => {
             <Col lg={8}>
               <h2 className="fw-bold mb-2">Pronto para lançar seu chatbot vendedor?</h2>
               <p className="text-secondary mb-0">
-                Configure o .env, conecte sua conta Meta Business e ative um funil automático de vendas de produtos
-                digitais em poucos minutos.
+                Personalize sua operação, conecte sua conta Meta Business e ative um funil automático de vendas de
+                produtos digitais em poucos minutos.
               </p>
             </Col>
             <Col lg={4} className="text-lg-end">
