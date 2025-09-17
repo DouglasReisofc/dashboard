@@ -11,7 +11,6 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  output: "export",
   env: {
     NEXT_PUBLIC_BASE_PATH: isProd ? "/dasher-ui" : "",
   },

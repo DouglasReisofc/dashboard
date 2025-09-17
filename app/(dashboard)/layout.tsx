@@ -6,6 +6,8 @@ import Sidebar from "layouts/Sidebar";
 import { getCurrentUser } from "lib/auth";
 import { redirect } from "next/navigation";
 
+export const dynamic = "force-dynamic";
+
 interface DashboardProps {
   children: React.ReactNode;
 }

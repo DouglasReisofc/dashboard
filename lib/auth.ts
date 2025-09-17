@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { cache } from "react";
 
 import { ensureUserTable, getDb, UserRow } from "lib/db";
 import type { SessionUser } from "types/auth";
@@ -53,7 +54,7 @@ export const clearSessionCookie = (response: NextResponse) => {
   });
 };
 
-export const getCurrentUser = async (): Promise<SessionUser | null> => {
+export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   const cookieStore = cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
 
@@ -86,4 +87,4 @@ export const getCurrentUser = async (): Promise<SessionUser | null> => {
     console.error("Failed to verify session", error);
     return null;
   }
-};
+});

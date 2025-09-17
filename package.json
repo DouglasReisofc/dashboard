@@ -5,11 +5,11 @@
   "homepage": "https://themewagon.github.io/dasher-ui",
   "scripts": {
     "dev": "next dev -p 4478",
-    "build": "next build && touch out/.nojekyll",
+    "build": "next build",
     "start": "next start -p 4478",
     "lint": "next lint",
     "predeploy": "npm run build",
-    "deploy": "touch out/.nojekyll && gh-pages -d out"
+    "deploy": "echo 'Deploy requires a Node.js host (e.g. Vercel) to run the dynamic app.'"
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.8.2",
