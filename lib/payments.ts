@@ -1,7 +1,13 @@
 import { randomUUID } from "crypto";
 import { ResultSetHeader } from "mysql2";
 
-import type { MercadoPagoPixCharge, MercadoPagoPixConfig } from "types/payments";
+import type {
+  MercadoPagoCheckoutConfig,
+  MercadoPagoCheckoutPaymentMethod,
+  MercadoPagoCheckoutPaymentType,
+  MercadoPagoPixCharge,
+  MercadoPagoPixConfig,
+} from "types/payments";
 import {
   UserPaymentChargeRow,
   UserPaymentMethodRow,
@@ -11,9 +17,26 @@ import {
 } from "./db";
 import { createMercadoPagoPixPayment } from "./mercadopago";
 
-const DEFAULT_MERCADO_PAGO_DISPLAY_NAME = "Pagamento Pix";
+const DEFAULT_MERCADO_PAGO_PIX_DISPLAY_NAME = "Pagamento Pix";
+const DEFAULT_MERCADO_PAGO_CHECKOUT_DISPLAY_NAME = "Checkout Mercado Pago";
 const DEFAULT_EXPIRATION_MINUTES = 30;
 const DEFAULT_AMOUNT_OPTIONS = [25, 50, 100];
+const CHECKOUT_PAYMENT_TYPES: readonly MercadoPagoCheckoutPaymentType[] = [
+  "credit_card",
+  "debit_card",
+  "ticket",
+  "bank_transfer",
+  "atm",
+  "account_money",
+];
+const CHECKOUT_PAYMENT_METHODS: readonly MercadoPagoCheckoutPaymentMethod[] = ["pix"];
+const DEFAULT_CHECKOUT_PAYMENT_TYPES: readonly MercadoPagoCheckoutPaymentType[] = [
+  "credit_card",
+  "debit_card",
+  "ticket",
+  "bank_transfer",
+];
+const DEFAULT_CHECKOUT_PAYMENT_METHODS: readonly MercadoPagoCheckoutPaymentMethod[] = ["pix"];
 
 const getAppBaseUrl = () => {
   const raw = process.env.APP_URL?.trim();
@@ -74,10 +97,58 @@ const sanitizeAmountOptions = (values: unknown): number[] => {
     .slice(0, 20);
 };
 
-const mapPaymentMethodRow = (row: UserPaymentMethodRow | null): MercadoPagoPixConfig => {
+const sanitizeCheckoutPaymentTypes = (
+  values: unknown,
+): MercadoPagoCheckoutPaymentType[] => {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  const allowed = new Set<MercadoPagoCheckoutPaymentType>();
+
+  for (const entry of values) {
+    if (typeof entry !== "string") {
+      continue;
+    }
+
+    const normalized = entry.trim().toLowerCase();
+    const match = CHECKOUT_PAYMENT_TYPES.find((type) => type === normalized);
+    if (match) {
+      allowed.add(match);
+    }
+  }
+
+  return Array.from(allowed);
+};
+
+const sanitizeCheckoutPaymentMethods = (
+  values: unknown,
+): MercadoPagoCheckoutPaymentMethod[] => {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  const allowed = new Set<MercadoPagoCheckoutPaymentMethod>();
+
+  for (const entry of values) {
+    if (typeof entry !== "string") {
+      continue;
+    }
+
+    const normalized = entry.trim().toLowerCase();
+    const match = CHECKOUT_PAYMENT_METHODS.find((method) => method === normalized);
+    if (match) {
+      allowed.add(match);
+    }
+  }
+
+  return Array.from(allowed);
+};
+
+const mapPixPaymentMethodRow = (row: UserPaymentMethodRow | null): MercadoPagoPixConfig => {
   const defaultConfig: MercadoPagoPixConfig = {
     isActive: false,
-    displayName: DEFAULT_MERCADO_PAGO_DISPLAY_NAME,
+    displayName: DEFAULT_MERCADO_PAGO_PIX_DISPLAY_NAME,
     accessToken: "",
     publicKey: null,
     pixKey: null,
@@ -145,7 +216,7 @@ const mapPaymentMethodRow = (row: UserPaymentMethodRow | null): MercadoPagoPixCo
 
   return {
     isActive: row.is_active === 1 && accessToken.length > 0,
-    displayName: row.display_name?.trim() || DEFAULT_MERCADO_PAGO_DISPLAY_NAME,
+    displayName: row.display_name?.trim() || DEFAULT_MERCADO_PAGO_PIX_DISPLAY_NAME,
     accessToken,
     publicKey,
     pixKey,
@@ -156,6 +227,87 @@ const mapPaymentMethodRow = (row: UserPaymentMethodRow | null): MercadoPagoPixCo
     isConfigured: accessToken.length > 0,
     updatedAt,
   } satisfies MercadoPagoPixConfig;
+};
+
+const mapCheckoutPaymentMethodRow = (
+  row: UserPaymentMethodRow | null,
+): MercadoPagoCheckoutConfig => {
+  const defaultConfig: MercadoPagoCheckoutConfig = {
+    isActive: false,
+    displayName: DEFAULT_MERCADO_PAGO_CHECKOUT_DISPLAY_NAME,
+    accessToken: "",
+    publicKey: null,
+    notificationUrl: null,
+    allowedPaymentTypes: Array.from(DEFAULT_CHECKOUT_PAYMENT_TYPES),
+    allowedPaymentMethods: Array.from(DEFAULT_CHECKOUT_PAYMENT_METHODS),
+    isConfigured: false,
+    updatedAt: null,
+  };
+
+  if (!row) {
+    return defaultConfig;
+  }
+
+  let credentials: Record<string, unknown> = {};
+  if (row.credentials) {
+    try {
+      const parsed = JSON.parse(row.credentials) as unknown;
+      if (parsed && typeof parsed === "object") {
+        credentials = parsed as Record<string, unknown>;
+      }
+    } catch (error) {
+      console.warn("Failed to parse payment credentials", error);
+    }
+  }
+
+  let settings: Record<string, unknown> = {};
+  if (row.settings) {
+    try {
+      const parsed = JSON.parse(row.settings) as unknown;
+      if (parsed && typeof parsed === "object") {
+        settings = parsed as Record<string, unknown>;
+      }
+    } catch (error) {
+      console.warn("Failed to parse payment settings", error);
+    }
+  }
+
+  const accessToken = sanitizeText(credentials.accessToken);
+  const publicKey = sanitizeOptionalText(credentials.publicKey);
+  const notificationUrl =
+    sanitizeOptionalText(settings.notificationUrl) ?? getMercadoPagoNotificationUrl();
+
+  const allowedPaymentTypesRaw = Array.isArray(settings.allowedPaymentTypes)
+    ? settings.allowedPaymentTypes
+    : DEFAULT_CHECKOUT_PAYMENT_TYPES;
+  const allowedPaymentTypes = sanitizeCheckoutPaymentTypes(allowedPaymentTypesRaw);
+
+  const allowedPaymentMethodsRaw = Array.isArray(settings.allowedPaymentMethods)
+    ? settings.allowedPaymentMethods
+    : DEFAULT_CHECKOUT_PAYMENT_METHODS;
+  const allowedPaymentMethods = sanitizeCheckoutPaymentMethods(allowedPaymentMethodsRaw);
+
+  const updatedAt = row.updated_at instanceof Date
+    ? row.updated_at.toISOString()
+    : new Date(row.updated_at).toISOString();
+
+  return {
+    isActive: row.is_active === 1 && accessToken.length > 0,
+    displayName: row.display_name?.trim() || DEFAULT_MERCADO_PAGO_CHECKOUT_DISPLAY_NAME,
+    accessToken,
+    publicKey,
+    notificationUrl,
+    allowedPaymentTypes:
+      allowedPaymentTypes.length > 0
+        ? allowedPaymentTypes
+        : Array.from(DEFAULT_CHECKOUT_PAYMENT_TYPES),
+    allowedPaymentMethods:
+      allowedPaymentMethods.length > 0
+        ? allowedPaymentMethods
+        : Array.from(DEFAULT_CHECKOUT_PAYMENT_METHODS),
+    isConfigured: accessToken.length > 0,
+    updatedAt,
+  } satisfies MercadoPagoCheckoutConfig;
 };
 
 const parseChargeMetadata = (raw: unknown): Record<string, unknown> | null => {
@@ -216,10 +368,27 @@ export const getMercadoPagoPixConfigForUser = async (
   );
 
   if (!Array.isArray(rows) || rows.length === 0) {
-    return mapPaymentMethodRow(null);
+    return mapPixPaymentMethodRow(null);
   }
 
-  return mapPaymentMethodRow(rows[0]);
+  return mapPixPaymentMethodRow(rows[0]);
+};
+
+export const getMercadoPagoCheckoutConfigForUser = async (
+  userId: number,
+): Promise<MercadoPagoCheckoutConfig> => {
+  await ensurePaymentMethodTable();
+  const db = getDb();
+  const [rows] = await db.query<UserPaymentMethodRow[]>(
+    `SELECT * FROM user_payment_methods WHERE user_id = ? AND provider = 'mercadopago_checkout' LIMIT 1`,
+    [userId],
+  );
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return mapCheckoutPaymentMethodRow(null);
+  }
+
+  return mapCheckoutPaymentMethodRow(rows[0]);
 };
 
 export const upsertMercadoPagoPixConfig = async (payload: {
@@ -238,7 +407,8 @@ export const upsertMercadoPagoPixConfig = async (payload: {
   const db = getDb();
 
   const sanitizedAccessToken = sanitizeText(payload.accessToken);
-  const sanitizedDisplayName = payload.displayName?.trim() || DEFAULT_MERCADO_PAGO_DISPLAY_NAME;
+  const sanitizedDisplayName =
+    payload.displayName?.trim() || DEFAULT_MERCADO_PAGO_PIX_DISPLAY_NAME;
   const sanitizedPublicKey = sanitizeOptionalText(payload.publicKey);
   const sanitizedPixKey = sanitizeOptionalText(payload.pixKey);
   const sanitizedNotificationUrl = sanitizeOptionalText(payload.notificationUrl);
@@ -292,6 +462,78 @@ export const upsertMercadoPagoPixConfig = async (payload: {
   );
 
   return getMercadoPagoPixConfigForUser(payload.userId);
+};
+
+export const upsertMercadoPagoCheckoutConfig = async (payload: {
+  userId: number;
+  isActive: boolean;
+  displayName?: string | null;
+  accessToken: string;
+  publicKey?: string | null;
+  notificationUrl?: string | null;
+  allowedPaymentTypes?: MercadoPagoCheckoutPaymentType[];
+  allowedPaymentMethods?: MercadoPagoCheckoutPaymentMethod[];
+}): Promise<MercadoPagoCheckoutConfig> => {
+  await ensurePaymentMethodTable();
+  const db = getDb();
+
+  const sanitizedAccessToken = sanitizeText(payload.accessToken);
+  const sanitizedDisplayName =
+    payload.displayName?.trim() || DEFAULT_MERCADO_PAGO_CHECKOUT_DISPLAY_NAME;
+  const sanitizedPublicKey = sanitizeOptionalText(payload.publicKey);
+  const sanitizedNotificationUrl = sanitizeOptionalText(payload.notificationUrl);
+
+  const paymentTypes = sanitizeCheckoutPaymentTypes(
+    payload.allowedPaymentTypes ?? DEFAULT_CHECKOUT_PAYMENT_TYPES,
+  );
+  const normalizedPaymentTypes =
+    paymentTypes.length > 0 ? paymentTypes : Array.from(DEFAULT_CHECKOUT_PAYMENT_TYPES);
+
+  const paymentMethods = sanitizeCheckoutPaymentMethods(
+    payload.allowedPaymentMethods ?? DEFAULT_CHECKOUT_PAYMENT_METHODS,
+  );
+  const normalizedPaymentMethods =
+    paymentMethods.length > 0 ? paymentMethods : Array.from(DEFAULT_CHECKOUT_PAYMENT_METHODS);
+
+  const credentials = JSON.stringify({
+    accessToken: sanitizedAccessToken,
+    publicKey: sanitizedPublicKey,
+  });
+
+  const settings = JSON.stringify({
+    notificationUrl: sanitizedNotificationUrl,
+    allowedPaymentTypes: normalizedPaymentTypes,
+    allowedPaymentMethods: normalizedPaymentMethods,
+  });
+
+  await db.query<ResultSetHeader>(
+    `
+      INSERT INTO user_payment_methods (
+        user_id,
+        provider,
+        is_active,
+        display_name,
+        credentials,
+        settings,
+        metadata
+      ) VALUES (?, 'mercadopago_checkout', ?, ?, ?, ?, NULL)
+      ON DUPLICATE KEY UPDATE
+        is_active = VALUES(is_active),
+        display_name = VALUES(display_name),
+        credentials = VALUES(credentials),
+        settings = VALUES(settings),
+        metadata = VALUES(metadata)
+    `,
+    [
+      payload.userId,
+      sanitizedAccessToken.length > 0 && payload.isActive ? 1 : 0,
+      sanitizedDisplayName,
+      credentials,
+      settings,
+    ],
+  );
+
+  return getMercadoPagoCheckoutConfigForUser(payload.userId);
 };
 
 export const createMercadoPagoPixCharge = async (payload: {

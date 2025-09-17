@@ -1,9 +1,12 @@
 import { Fragment } from "react";
 import { Metadata } from "next";
 
-import MercadoPagoPixForm from "components/payments/MercadoPagoPixForm";
+import UserPaymentsConfig from "components/payments/UserPaymentsConfig";
 import { getCurrentUser } from "lib/auth";
-import { getMercadoPagoPixConfigForUser } from "lib/payments";
+import {
+  getMercadoPagoCheckoutConfigForUser,
+  getMercadoPagoPixConfigForUser,
+} from "lib/payments";
 
 export const metadata: Metadata = {
   title: "Configuração de pagamentos | StoreBot Dashboard",
@@ -18,7 +21,10 @@ const UserPaymentsConfigPage = async () => {
     return null;
   }
 
-  const pixConfig = await getMercadoPagoPixConfigForUser(user.id);
+  const [pixConfig, checkoutConfig] = await Promise.all([
+    getMercadoPagoPixConfigForUser(user.id),
+    getMercadoPagoCheckoutConfigForUser(user.id),
+  ]);
 
   return (
     <Fragment>
@@ -29,9 +35,7 @@ const UserPaymentsConfigPage = async () => {
         </p>
       </div>
 
-      <div className="d-flex flex-column gap-4">
-        <MercadoPagoPixForm config={pixConfig} />
-      </div>
+      <UserPaymentsConfig pixConfig={pixConfig} checkoutConfig={checkoutConfig} />
     </Fragment>
   );
 };

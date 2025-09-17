@@ -1,3 +1,13 @@
+export type MercadoPagoCheckoutPaymentType =
+  | "credit_card"
+  | "debit_card"
+  | "ticket"
+  | "bank_transfer"
+  | "atm"
+  | "account_money";
+
+export type MercadoPagoCheckoutPaymentMethod = "pix";
+
 export type MercadoPagoPixConfig = {
   isActive: boolean;
   displayName: string;
@@ -8,6 +18,18 @@ export type MercadoPagoPixConfig = {
   pixExpirationMinutes: number;
   amountOptions: number[];
   instructions: string | null;
+  isConfigured: boolean;
+  updatedAt: string | null;
+};
+
+export type MercadoPagoCheckoutConfig = {
+  isActive: boolean;
+  displayName: string;
+  accessToken: string;
+  publicKey: string | null;
+  notificationUrl: string | null;
+  allowedPaymentTypes: MercadoPagoCheckoutPaymentType[];
+  allowedPaymentMethods: MercadoPagoCheckoutPaymentMethod[];
   isConfigured: boolean;
   updatedAt: string | null;
 };
