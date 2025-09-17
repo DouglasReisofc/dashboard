@@ -73,6 +73,27 @@ const MercadoPagoPixForm = ({ config }: MercadoPagoPixFormProps) => {
   const [formState, setFormState] = useState<FormState>(() => buildInitialState(config));
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [lastUpdatedLabel, setLastUpdatedLabel] = useState("-");
+
+  useEffect(() => {
+    if (!config.updatedAt) {
+      setLastUpdatedLabel("-");
+      return;
+    }
+
+    try {
+      const formatter = new Intl.DateTimeFormat("pt-BR", {
+        dateStyle: "short",
+        timeStyle: "short",
+        timeZone: "America/Sao_Paulo",
+      });
+
+      setLastUpdatedLabel(formatter.format(new Date(config.updatedAt)));
+    } catch (error) {
+      console.warn("Failed to format Mercado Pago Pix last update", error);
+      setLastUpdatedLabel("-");
+    }
+  }, [config.updatedAt]);
 
   useEffect(() => {
     setFormState(buildInitialState(config));
@@ -170,7 +191,7 @@ const MercadoPagoPixForm = ({ config }: MercadoPagoPixFormProps) => {
             </Col>
             <Col md={6} className="text-md-end">
               <Form.Text className="text-secondary">
-                Última atualização: {config.updatedAt ? new Date(config.updatedAt).toLocaleString("pt-BR") : "-"}
+                Última atualização: {lastUpdatedLabel}
               </Form.Text>
             </Col>
             <Col md={6}>
