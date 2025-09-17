@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 
 import { getBotMenuConfigForUser } from "lib/bot-config";
-import { renderBotMenuText } from "lib/bot-menu";
+import {
+  renderAddBalanceReply,
+  renderCategoryDetailTemplate,
+  renderNoCategoryMessage,
+  renderSupportReply,
+} from "lib/bot-menu";
+import type { BotTemplateContext } from "lib/bot-menu";
 import {
   decrementProductResaleLimit,
   findAvailableProductForCategory,
@@ -152,8 +158,6 @@ const replyWithBotMenu = async (
     price: Number(category.price),
   }));
 
-  const noCategoryMessage = "No momento não encontramos categorias ativas para compras. Aguarde novas ofertas ou fale com o suporte.";
-
   const resolveBotConfig = async () => {
     if (!botConfigPromise) {
       botConfigPromise = getBotMenuConfigForUser(webhook.user_id);
@@ -162,20 +166,36 @@ const replyWithBotMenu = async (
     return botConfigPromise;
   };
 
+  const getContext = (): BotTemplateContext => ({
+    contactName,
+    contactNumber: recipient,
+    contactBalance: customerBalance,
+  });
+
+  const sendNoCategoryMessage = async () => {
+    const botConfig = await resolveBotConfig();
+    const message = renderNoCategoryMessage(
+      botConfig
+        ? { categoryListEmptyText: botConfig.categoryListEmptyText, variables: botConfig.variables }
+        : null,
+      getContext(),
+    );
+
+    await sendTextMessage({
+      webhook,
+      to: recipient,
+      text: message,
+    });
+  };
+
   const sendMainMenu = async () => {
     const botConfig = await resolveBotConfig();
-    const menuText = renderBotMenuText(botConfig?.menuText, botConfig?.variables, {
-      contactName,
-      contactNumber: recipient,
-      contactBalance: customerBalance,
-      categoryId: null,
-    });
 
     await sendBotMenuReply({
       webhook,
       to: recipient,
-      text: menuText,
-      imagePath: botConfig?.imagePath ?? null,
+      config: botConfig,
+      context: getContext(),
     });
   };
 
@@ -227,20 +247,19 @@ const replyWithBotMenu = async (
       const categories = await loadActiveCategories();
 
       if (categories.length === 0) {
-        await sendTextMessage({
-          webhook,
-          to: recipient,
-          text: noCategoryMessage,
-        });
+        await sendNoCategoryMessage();
         await sendMainMenu();
         return;
       }
 
+      const botConfig = await resolveBotConfig();
       await sendCategoryListReply({
         webhook,
         to: recipient,
         categories: mapCategoriesToEntries(categories),
         page: Number.isFinite(nextPage) && nextPage > 0 ? nextPage : 1,
+        config: botConfig,
+        context: getContext(),
       });
       return;
     }
@@ -251,11 +270,7 @@ const replyWithBotMenu = async (
       const categories = await loadActiveCategories();
 
       if (categories.length === 0) {
-        await sendTextMessage({
-          webhook,
-          to: recipient,
-          text: noCategoryMessage,
-        });
+        await sendNoCategoryMessage();
         await sendMainMenu();
         return;
       }
@@ -271,10 +286,19 @@ const replyWithBotMenu = async (
         return;
       }
 
+      const botConfig = await resolveBotConfig();
       await sendCategoryDetailReply({
         webhook,
         to: recipient,
         category,
+        config: botConfig,
+        context: {
+          ...getContext(),
+          categoryId: category.id.toString(),
+          categoryName: category.name,
+          categoryPrice: category.price,
+          categoryDescription: category.description ?? "",
+        },
       });
       return;
     }
@@ -285,20 +309,19 @@ const replyWithBotMenu = async (
       const categories = await loadActiveCategories();
 
       if (categories.length === 0) {
-        await sendTextMessage({
-          webhook,
-          to: recipient,
-          text: noCategoryMessage,
-        });
+        await sendNoCategoryMessage();
         await sendMainMenu();
         return;
       }
 
+      const botConfig = await resolveBotConfig();
       await sendCategoryListReply({
         webhook,
         to: recipient,
         categories: mapCategoriesToEntries(categories),
         page: 1,
+        config: botConfig,
+        context: getContext(),
       });
       return;
     }
@@ -320,11 +343,7 @@ const replyWithBotMenu = async (
       const categories = await loadActiveCategories();
 
       if (categories.length === 0) {
-        await sendTextMessage({
-          webhook,
-          to: recipient,
-          text: noCategoryMessage,
-        });
+        await sendNoCategoryMessage();
         await sendMainMenu();
         return;
       }
@@ -438,7 +457,28 @@ const replyWithBotMenu = async (
       });
 
       if (availableProduct.filePath) {
-        const caption = `${category.name} - dados complementares`;
+        const botConfig = await resolveBotConfig();
+        const detailTemplate = renderCategoryDetailTemplate(
+          botConfig
+            ? {
+                categoryDetailBodyText: botConfig.categoryDetailBodyText,
+                categoryDetailFooterText: botConfig.categoryDetailFooterText,
+                categoryDetailButtonText: botConfig.categoryDetailButtonText,
+                categoryDetailFileCaption: botConfig.categoryDetailFileCaption,
+                variables: botConfig.variables,
+              }
+            : null,
+          {
+            ...getContext(),
+            categoryId: category.id.toString(),
+            categoryName: category.name,
+            categoryPrice: category.price,
+            categoryDescription: category.description ?? "",
+          },
+        );
+
+        const caption = detailTemplate.fileCaption ?? `${category.name} - dados complementares`;
+
         await sendProductFile({
           webhook,
           to: recipient,
@@ -452,20 +492,36 @@ const replyWithBotMenu = async (
     }
 
     if (buttonReplyId === MENU_BUTTON_IDS.addBalance) {
+      const botConfig = await resolveBotConfig();
+      const message = renderAddBalanceReply(
+        botConfig
+          ? { addBalanceReplyText: botConfig.addBalanceReplyText, variables: botConfig.variables }
+          : null,
+        getContext(),
+      );
+
       await sendTextMessage({
         webhook,
         to: recipient,
-        text: "Para adicionar saldo, informe o valor desejado e aguarde o envio das instruções de pagamento por este canal.",
+        text: message,
       });
       await sendMainMenu();
       return;
     }
 
     if (buttonReplyId === MENU_BUTTON_IDS.support) {
+      const botConfig = await resolveBotConfig();
+      const message = renderSupportReply(
+        botConfig
+          ? { supportReplyText: botConfig.supportReplyText, variables: botConfig.variables }
+          : null,
+        getContext(),
+      );
+
       await sendTextMessage({
         webhook,
         to: recipient,
-        text: "Nossa equipe de suporte foi acionada. Descreva sua necessidade para que possamos auxiliá-lo imediatamente.",
+        text: message,
       });
       await sendMainMenu();
       return;

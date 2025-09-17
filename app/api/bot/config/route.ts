@@ -44,19 +44,97 @@ export async function POST(request: NextRequest) {
     }
 
     const formData = await request.formData();
-    const menuTextRaw = formData.get("menuText");
+
+    const readField = (
+      name: string,
+      options: { required?: boolean; allowEmpty?: boolean } = {},
+    ): string => {
+      const { required = false, allowEmpty = false } = options;
+      const rawValue = formData.get(name);
+
+      if (rawValue === null) {
+        if (required) {
+          throw new Error(`Campo obrigatório ausente: ${name}`);
+        }
+        return "";
+      }
+
+      if (typeof rawValue !== "string") {
+        throw new Error(`Valor inválido recebido para ${name}`);
+      }
+
+      const trimmed = rawValue.trim();
+
+      if (!trimmed && !allowEmpty) {
+        if (required) {
+          throw new Error(`Campo obrigatório ausente: ${name}`);
+        }
+
+        return "";
+      }
+
+      if (!trimmed && allowEmpty) {
+        return "";
+      }
+
+      return trimmed;
+    };
+
+    let menuText: string;
+    let menuFooterText: string;
+    let menuButtonBuyText: string;
+    let menuButtonAddBalanceText: string;
+    let menuButtonSupportText: string;
+    let categoryListHeaderText: string;
+    let categoryListBodyText: string;
+    let categoryListFooterText: string;
+    let categoryListFooterMoreText: string;
+    let categoryListButtonText: string;
+    let categoryListSectionTitle: string;
+    let categoryListNextTitle: string;
+    let categoryListNextDescription: string;
+    let categoryListEmptyText: string;
+    let categoryDetailBodyText: string;
+    let categoryDetailFooterText: string;
+    let categoryDetailButtonText: string;
+    let categoryDetailFileCaption: string | null;
+    let addBalanceReplyText: string;
+    let supportReplyText: string;
+
+    try {
+      menuText = readField("menuText", { required: true });
+      menuFooterText = readField("menuFooterText", { allowEmpty: true });
+      menuButtonBuyText = readField("menuButtonBuyText", { required: true });
+      menuButtonAddBalanceText = readField("menuButtonAddBalanceText", { required: true });
+      menuButtonSupportText = readField("menuButtonSupportText", { required: true });
+      categoryListHeaderText = readField("categoryListHeaderText", { required: true });
+      categoryListBodyText = readField("categoryListBodyText", { required: true });
+      categoryListFooterText = readField("categoryListFooterText", { allowEmpty: true });
+      categoryListFooterMoreText = readField("categoryListFooterMoreText", { allowEmpty: true });
+      categoryListButtonText = readField("categoryListButtonText", { required: true });
+      categoryListSectionTitle = readField("categoryListSectionTitle", { required: true });
+      categoryListNextTitle = readField("categoryListNextTitle", { required: true });
+      categoryListNextDescription = readField("categoryListNextDescription", { required: true });
+      categoryListEmptyText = readField("categoryListEmptyText", { required: true });
+      categoryDetailBodyText = readField("categoryDetailBodyText", { required: true });
+      categoryDetailFooterText = readField("categoryDetailFooterText", { allowEmpty: true });
+      categoryDetailButtonText = readField("categoryDetailButtonText", { required: true });
+      const detailCaptionRaw = readField("categoryDetailFileCaption", { allowEmpty: true });
+      categoryDetailFileCaption = detailCaptionRaw.length > 0 ? detailCaptionRaw : null;
+      addBalanceReplyText = readField("addBalanceReplyText", { required: true });
+      supportReplyText = readField("supportReplyText", { required: true });
+    } catch (validationError) {
+      const message = validationError instanceof Error
+        ? validationError.message
+        : "Não foi possível validar os campos enviados.";
+
+      return NextResponse.json({ message }, { status: 400 });
+    }
+
     const variablesRaw = formData.get("variables");
     const removeImage = (formData.get("removeImage") ?? "") === "true";
     const image = formData.get("image");
 
-    if (typeof menuTextRaw !== "string" || !menuTextRaw.trim()) {
-      return NextResponse.json(
-        { message: "Informe o texto que será enviado no menu principal." },
-        { status: 400 },
-      );
-    }
-
-    const menuText = menuTextRaw.trim();
     const variables = normalizeVariables(variablesRaw);
 
     if (image && !(image instanceof File)) {
@@ -85,6 +163,25 @@ export async function POST(request: NextRequest) {
     const config = await upsertBotMenuConfig({
       userId: user.id,
       menuText,
+      menuFooterText,
+      menuButtonBuyText,
+      menuButtonAddBalanceText,
+      menuButtonSupportText,
+      categoryListHeaderText,
+      categoryListBodyText,
+      categoryListFooterText,
+      categoryListFooterMoreText,
+      categoryListButtonText,
+      categoryListSectionTitle,
+      categoryListNextTitle,
+      categoryListNextDescription,
+      categoryListEmptyText,
+      categoryDetailBodyText,
+      categoryDetailFooterText,
+      categoryDetailButtonText,
+      categoryDetailFileCaption,
+      addBalanceReplyText,
+      supportReplyText,
       variables,
       imagePath,
     });

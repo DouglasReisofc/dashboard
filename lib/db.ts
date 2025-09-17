@@ -206,11 +206,61 @@ export const ensureBotMenuConfigTable = async () => {
       menu_text TEXT NOT NULL,
       variables TEXT NULL,
       image_path VARCHAR(255) NULL,
+      menu_footer_text TEXT NULL,
+      menu_button_buy VARCHAR(120) NULL,
+      menu_button_add_balance VARCHAR(120) NULL,
+      menu_button_support VARCHAR(120) NULL,
+      category_list_header TEXT NULL,
+      category_list_body TEXT NULL,
+      category_list_footer TEXT NULL,
+      category_list_footer_more TEXT NULL,
+      category_list_button VARCHAR(120) NULL,
+      category_list_section VARCHAR(255) NULL,
+      category_list_next_title VARCHAR(120) NULL,
+      category_list_next_description VARCHAR(255) NULL,
+      category_list_empty TEXT NULL,
+      category_detail_body TEXT NULL,
+      category_detail_footer TEXT NULL,
+      category_detail_button VARCHAR(120) NULL,
+      category_detail_caption VARCHAR(255) NULL,
+      menu_add_balance_reply TEXT NULL,
+      menu_support_reply TEXT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       CONSTRAINT fk_bot_menu_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB;
   `);
+
+  const addColumnIfMissing = async (column: string, definition: string) => {
+    const [existing] = await db.query<RowDataPacket[]>(
+      "SHOW COLUMNS FROM bot_menu_configs LIKE ?",
+      [column],
+    );
+
+    if (!Array.isArray(existing) || existing.length === 0) {
+      await db.query(`ALTER TABLE bot_menu_configs ADD COLUMN ${column} ${definition}`);
+    }
+  };
+
+  await addColumnIfMissing("menu_footer_text", "TEXT NULL");
+  await addColumnIfMissing("menu_button_buy", "VARCHAR(120) NULL");
+  await addColumnIfMissing("menu_button_add_balance", "VARCHAR(120) NULL");
+  await addColumnIfMissing("menu_button_support", "VARCHAR(120) NULL");
+  await addColumnIfMissing("category_list_header", "TEXT NULL");
+  await addColumnIfMissing("category_list_body", "TEXT NULL");
+  await addColumnIfMissing("category_list_footer", "TEXT NULL");
+  await addColumnIfMissing("category_list_footer_more", "TEXT NULL");
+  await addColumnIfMissing("category_list_button", "VARCHAR(120) NULL");
+  await addColumnIfMissing("category_list_section", "VARCHAR(255) NULL");
+  await addColumnIfMissing("category_list_next_title", "VARCHAR(120) NULL");
+  await addColumnIfMissing("category_list_next_description", "VARCHAR(255) NULL");
+  await addColumnIfMissing("category_list_empty", "TEXT NULL");
+  await addColumnIfMissing("category_detail_body", "TEXT NULL");
+  await addColumnIfMissing("category_detail_footer", "TEXT NULL");
+  await addColumnIfMissing("category_detail_button", "VARCHAR(120) NULL");
+  await addColumnIfMissing("category_detail_caption", "VARCHAR(255) NULL");
+  await addColumnIfMissing("menu_add_balance_reply", "TEXT NULL");
+  await addColumnIfMissing("menu_support_reply", "TEXT NULL");
 };
 
 export const ensureCustomerTable = async () => {
@@ -354,6 +404,25 @@ export type BotMenuConfigRow = {
   menu_text: string;
   variables: string | null;
   image_path: string | null;
+  menu_footer_text: string | null;
+  menu_button_buy: string | null;
+  menu_button_add_balance: string | null;
+  menu_button_support: string | null;
+  category_list_header: string | null;
+  category_list_body: string | null;
+  category_list_footer: string | null;
+  category_list_footer_more: string | null;
+  category_list_button: string | null;
+  category_list_section: string | null;
+  category_list_next_title: string | null;
+  category_list_next_description: string | null;
+  category_list_empty: string | null;
+  category_detail_body: string | null;
+  category_detail_footer: string | null;
+  category_detail_button: string | null;
+  category_detail_caption: string | null;
+  menu_add_balance_reply: string | null;
+  menu_support_reply: string | null;
   created_at: Date;
   updated_at: Date;
 };

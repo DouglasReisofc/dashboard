@@ -1,8 +1,16 @@
 import path from "path";
 
+import type { CategorySummary, ProductSummary } from "types/catalog";
+import type { BotMenuConfig } from "types/bot";
 import type { UserWebhookRow } from "./db";
 import { formatCurrency } from "./format";
-import type { CategorySummary, ProductSummary } from "types/catalog";
+import {
+  BotTemplateContext,
+  defaultMenuButtonLabels,
+  renderCategoryDetailTemplate,
+  renderCategoryListTemplate,
+  renderMainMenuTemplate,
+} from "./bot-menu";
 
 const getAppBaseUrl = () => {
   const rawUrl = process.env.APP_URL?.trim();
@@ -34,12 +42,6 @@ type ButtonDefinition = {
   id: string;
   title: string;
 };
-
-const DEFAULT_MENU_BUTTONS: ButtonDefinition[] = [
-  { id: MENU_BUTTON_IDS.buy, title: "Comprar contas" },
-  { id: MENU_BUTTON_IDS.addBalance, title: "Adicionar saldo" },
-  { id: MENU_BUTTON_IDS.support, title: "Suporte" },
-];
 
 const MAX_BODY_LENGTH = 1024;
 const MAX_LIST_ROWS = 10;
@@ -96,14 +98,18 @@ const postMetaMessage = async (
 const buildInteractiveMenuPayload = (
   to: string,
   text: string,
-  mediaUrl?: string | null,
+  options: {
+    mediaUrl?: string | null;
+    footerText?: string | null;
+    buttons: ButtonDefinition[];
+  },
 ) => {
   const trimmedText = text.trim();
   const bodyText = trimmedText.length > MAX_BODY_LENGTH
     ? `${trimmedText.slice(0, MAX_BODY_LENGTH - 1)}…`
     : trimmedText;
 
-  const buttonsPayload = DEFAULT_MENU_BUTTONS.map((button) => ({
+  const buttonsPayload = options.buttons.map((button) => ({
     type: "reply" as const,
     reply: {
       id: button.id,
@@ -116,19 +122,22 @@ const buildInteractiveMenuPayload = (
     body: {
       text: bodyText,
     },
-    footer: {
-      text: "Selecione uma das opções para continuar seu atendimento.",
-    },
     action: {
       buttons: buttonsPayload,
     },
   };
 
-  if (mediaUrl) {
+  if (options.footerText && options.footerText.trim().length > 0) {
+    interactive.footer = {
+      text: options.footerText.trim(),
+    };
+  }
+
+  if (options.mediaUrl) {
     interactive.header = {
       type: "image",
       image: {
-        link: mediaUrl,
+        link: options.mediaUrl,
       },
     };
   }
@@ -151,6 +160,8 @@ const buildCategoryListPayload = (
   to: string,
   categories: CategoryListEntry[],
   page: number,
+  config: BotMenuConfig | null | undefined,
+  context: BotTemplateContext,
 ) => {
   const totalPages = Math.max(1, Math.ceil(categories.length / MAX_LIST_ROWS));
   const sanitizedPage = Math.min(Math.max(page, 1), totalPages);
@@ -159,6 +170,34 @@ const buildCategoryListPayload = (
   const hasMore = remaining > MAX_LIST_ROWS;
   const maxRowsForPage = hasMore ? MAX_LIST_ROWS - 1 : MAX_LIST_ROWS;
   const pageEntries = categories.slice(startIndex, startIndex + maxRowsForPage);
+
+  const listContext: BotTemplateContext = {
+    ...context,
+    page: sanitizedPage,
+    totalPages,
+    categoriesCount: categories.length,
+    categoriesOnPage: pageEntries.length,
+    nextPage: hasMore ? sanitizedPage + 1 : sanitizedPage,
+    hasMore,
+  };
+
+  const template = renderCategoryListTemplate(
+    config
+      ? {
+          categoryListHeaderText: config.categoryListHeaderText,
+          categoryListBodyText: config.categoryListBodyText,
+          categoryListFooterText: config.categoryListFooterText,
+          categoryListFooterMoreText: config.categoryListFooterMoreText,
+          categoryListButtonText: config.categoryListButtonText,
+          categoryListSectionTitle: config.categoryListSectionTitle,
+          categoryListNextTitle: config.categoryListNextTitle,
+          categoryListNextDescription: config.categoryListNextDescription,
+          categoryListEmptyText: config.categoryListEmptyText,
+          variables: config.variables,
+        }
+      : null,
+    listContext,
+  );
 
   const rows = pageEntries.map((category) => ({
     id: `${CATEGORY_LIST_ROW_PREFIX}${category.id}`,
@@ -169,14 +208,14 @@ const buildCategoryListPayload = (
   if (hasMore) {
     rows.push({
       id: `${CATEGORY_LIST_NEXT_PREFIX}${sanitizedPage + 1}`,
-      title: "Próxima lista ▶️",
-      description: `Ver mais categorias (${sanitizedPage + 1}/${totalPages})`,
+      title: template.nextTitle,
+      description: template.nextDescription,
     });
   }
 
   const footerText = hasMore
-    ? "Role até o fim e toque em \"Próxima lista\" para visualizar mais categorias."
-    : "Selecione a categoria desejada para continuar sua compra.";
+    ? template.footerMore ?? template.footer
+    : template.footer;
 
   return {
     payload: {
@@ -187,19 +226,23 @@ const buildCategoryListPayload = (
         type: "list" as const,
         header: {
           type: "text" as const,
-          text: "Comprar contas",
+          text: template.header,
         },
         body: {
-          text: `Selecione a categoria desejada (${sanitizedPage}/${totalPages}).`,
+          text: template.body,
         },
-        footer: {
-          text: footerText,
-        },
+        ...(footerText && footerText.trim().length > 0
+          ? {
+              footer: {
+                text: footerText.trim(),
+              },
+            }
+          : {}),
         action: {
-          button: "Ver categorias",
+          button: template.button,
           sections: [
             {
-              title: `Página ${sanitizedPage}/${totalPages}`,
+              title: template.sectionTitle,
               rows,
             },
           ],
@@ -214,30 +257,38 @@ const buildCategoryListPayload = (
 const buildCategoryDetailPayload = (
   to: string,
   category: CategorySummary,
+  config: BotMenuConfig | null | undefined,
+  context: BotTemplateContext,
 ) => {
-  const lines: string[] = [
-    category.name,
-    `Valor: ${formatCurrency(category.price)}`,
-  ];
+  const detailContext: BotTemplateContext = {
+    ...context,
+    categoryId: category.id.toString(),
+    categoryName: category.name,
+    categoryPrice: category.price,
+    categoryDescription: category.description ?? "",
+  };
 
-  const description = category.description?.trim();
+  const template = renderCategoryDetailTemplate(
+    config
+      ? {
+          categoryDetailBodyText: config.categoryDetailBodyText,
+          categoryDetailFooterText: config.categoryDetailFooterText,
+          categoryDetailButtonText: config.categoryDetailButtonText,
+          categoryDetailFileCaption: config.categoryDetailFileCaption,
+          variables: config.variables,
+        }
+      : null,
+    detailContext,
+  );
 
-  if (description) {
-    lines.push("", description);
-  }
-
-  const bodyRaw = lines.join("\n");
-  const bodyText = bodyRaw.length > MAX_BODY_LENGTH
-    ? `${bodyRaw.slice(0, MAX_BODY_LENGTH - 1)}…`
-    : bodyRaw;
+  const bodyText = template.body.length > MAX_BODY_LENGTH
+    ? `${template.body.slice(0, MAX_BODY_LENGTH - 1)}…`
+    : template.body;
 
   const interactive: Record<string, unknown> = {
     type: "button",
     body: {
       text: bodyText,
-    },
-    footer: {
-      text: "Toque em Comprar para receber o produto escolhido.",
     },
     action: {
       buttons: [
@@ -245,12 +296,18 @@ const buildCategoryDetailPayload = (
           type: "reply" as const,
           reply: {
             id: `${CATEGORY_PURCHASE_BUTTON_PREFIX}${category.id}`,
-            title: "Comprar",
+            title: template.button,
           },
         },
       ],
     },
   };
+
+  if (template.footer && template.footer.trim().length > 0) {
+    interactive.footer = {
+      text: template.footer.trim(),
+    };
+  }
 
   if (category.imagePath) {
     interactive.header = {
@@ -262,36 +319,62 @@ const buildCategoryDetailPayload = (
   }
 
   return {
-    messaging_product: "whatsapp" as const,
-    to,
-    type: "interactive" as const,
-    interactive,
-  } satisfies MetaMessagePayload;
+    payload: {
+      messaging_product: "whatsapp" as const,
+      to,
+      type: "interactive" as const,
+      interactive,
+    } satisfies MetaMessagePayload,
+    template,
+  };
 };
 
 export const sendBotMenuReply = async (options: {
   webhook: UserWebhookRow;
   to: string;
-  text: string;
-  imagePath?: string | null;
+  config: BotMenuConfig | null | undefined;
+  context: BotTemplateContext;
 }) => {
-  const { webhook, to, text, imagePath } = options;
+  const { webhook, to, config, context } = options;
 
-  if (!text.trim()) {
+  const template = renderMainMenuTemplate(
+    config
+      ? {
+          menuText: config.menuText,
+          menuFooterText: config.menuFooterText,
+          menuButtonBuyText: config.menuButtonBuyText,
+          menuButtonAddBalanceText: config.menuButtonAddBalanceText,
+          menuButtonSupportText: config.menuButtonSupportText,
+          imagePath: config.imagePath,
+          variables: config.variables,
+        }
+      : null,
+    context,
+  );
+
+  if (!template.body.trim()) {
     console.warn("[Meta Webhook] Mensagem de menu vazia, nada será enviada");
-    return;
+    return template;
   }
 
-  const payload = buildInteractiveMenuPayload(
-    to,
-    text,
-    imagePath ? resolveMediaUrl(imagePath) : null,
-  );
+  const buttons: ButtonDefinition[] = [
+    { id: MENU_BUTTON_IDS.buy, title: template.buttons.buy || defaultMenuButtonLabels.buy },
+    { id: MENU_BUTTON_IDS.addBalance, title: template.buttons.addBalance || defaultMenuButtonLabels.addBalance },
+    { id: MENU_BUTTON_IDS.support, title: template.buttons.support || defaultMenuButtonLabels.support },
+  ];
+
+  const payload = buildInteractiveMenuPayload(to, template.body, {
+    mediaUrl: template.imagePath ? resolveMediaUrl(template.imagePath) : null,
+    footerText: template.footer ?? null,
+    buttons,
+  });
 
   await postMetaMessage(webhook, payload, {
     successLog: `Menu automático enviado para ${to}`,
     failureLog: `Falha ao enviar menu automático para ${to}`,
   });
+
+  return template;
 };
 
 export const sendCategoryListReply = async (options: {
@@ -299,39 +382,49 @@ export const sendCategoryListReply = async (options: {
   to: string;
   categories: CategoryListEntry[];
   page: number;
+  config: BotMenuConfig | null | undefined;
+  context: BotTemplateContext;
 }) => {
-  const { webhook, to, categories, page } = options;
+  const { webhook, to, categories, page, config, context } = options;
 
   if (!Array.isArray(categories) || categories.length === 0) {
     console.warn("[Meta Webhook] Nenhuma categoria ativa disponível para enviar na lista");
-    return;
+    return null;
   }
 
   const { payload, page: sanitizedPage, totalPages } = buildCategoryListPayload(
     to,
     categories,
     page,
+    config,
+    context,
   );
 
   await postMetaMessage(webhook, payload, {
     successLog: `Lista de categorias enviada para ${to} (${sanitizedPage}/${totalPages})`,
     failureLog: `Falha ao enviar lista de categorias para ${to}`,
   });
+
+  return { page: sanitizedPage, totalPages };
 };
 
 export const sendCategoryDetailReply = async (options: {
   webhook: UserWebhookRow;
   to: string;
   category: CategorySummary;
+  config: BotMenuConfig | null | undefined;
+  context: BotTemplateContext;
 }) => {
-  const { webhook, to, category } = options;
+  const { webhook, to, category, config, context } = options;
 
-  const payload = buildCategoryDetailPayload(to, category);
+  const { payload, template } = buildCategoryDetailPayload(to, category, config, context);
 
   await postMetaMessage(webhook, payload, {
     successLog: `Detalhes da categoria ${category.id} enviados para ${to}`,
     failureLog: `Falha ao enviar detalhes da categoria ${category.id} para ${to}`,
   });
+
+  return template;
 };
 
 export const sendTextMessage = async (options: {
