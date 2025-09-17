@@ -30,6 +30,8 @@ import {
   sendCategoryDetailReply,
   sendCategoryListReply,
   sendAddBalanceOptions,
+  sendInteractiveCopyCodeMessage,
+  sendInteractiveCtaUrlMessage,
   sendImageFromUrl,
   sendProductFile,
   sendTextMessage,
@@ -298,43 +300,70 @@ const replyWithBotMenu = async (
           config: paymentConfig,
         });
 
-        if (charge.qrCodeBase64) {
-          const imageUrl = getPixChargeImageUrl(charge.publicId);
-          await sendImageFromUrl({
-            webhook,
-            to: recipient,
-            imageUrl,
-            caption: `Valor: ${formatCurrency(charge.amount)}`,
-          });
-        }
-
         const expirationLine = charge.expiresAt
           ? `Válido até: ${formatDateTime(charge.expiresAt)}`
           : null;
         const pixKeyLine = paymentConfig.pixKey ? `Chave Pix: ${paymentConfig.pixKey}` : null;
-        const ticketLine = charge.ticketUrl ? `Acompanhe o pagamento: ${charge.ticketUrl}` : null;
-
-        const summary = [
+        const summaryLines = [
           "💳 Pagamento via Pix (Mercado Pago)",
           `Valor: ${formatCurrency(charge.amount)}`,
           expirationLine,
           pixKeyLine,
-          "",
-          "Pix copia e cola:",
-          charge.qrCode ?? "Não foi possível gerar o código. Tente novamente em instantes.",
-          "",
-          ticketLine,
           paymentConfig.instructions?.trim() || null,
+          "Use o botão abaixo para abrir o pagamento e escanear o QR Code.",
           "Assim que o pagamento for confirmado, seu saldo será atualizado automaticamente.",
-        ]
-          .filter((line): line is string => typeof line === "string" && line.length > 0)
-          .join("\n");
+        ].filter((line): line is string => typeof line === "string" && line.length > 0);
 
-        await sendTextMessage({
-          webhook,
-          to: recipient,
-          text: summary,
-        });
+        const summaryBody = summaryLines.join("\n");
+        const headerImageUrl = charge.qrCodeBase64 ? getPixChargeImageUrl(charge.publicId) : null;
+
+        let summaryDelivered = false;
+
+        if (charge.ticketUrl) {
+          await sendInteractiveCtaUrlMessage({
+            webhook,
+            to: recipient,
+            bodyText: summaryBody,
+            buttonText: "Pagar com Mercado Pago",
+            buttonUrl: charge.ticketUrl,
+            headerImageUrl,
+            headerText: paymentConfig.displayName,
+          });
+          summaryDelivered = true;
+        } else if (headerImageUrl) {
+          await sendImageFromUrl({
+            webhook,
+            to: recipient,
+            imageUrl: headerImageUrl,
+            caption: `Valor: ${formatCurrency(charge.amount)}`,
+          });
+        }
+
+        if (!summaryDelivered) {
+          await sendTextMessage({
+            webhook,
+            to: recipient,
+            text: summaryBody,
+          });
+        }
+
+        if (charge.qrCode) {
+          const copyBody = [
+            "Pix copia e cola",
+            `Valor: ${formatCurrency(charge.amount)}`,
+            expirationLine,
+          ].filter((line): line is string => typeof line === "string" && line.length > 0)
+            .join("\n");
+
+          await sendInteractiveCopyCodeMessage({
+            webhook,
+            to: recipient,
+            bodyText: copyBody,
+            buttonText: "Copiar código Pix",
+            code: charge.qrCode,
+            footerText: paymentConfig.displayName,
+          });
+        }
       } catch (pixError) {
         console.error("[Meta Webhook] Falha ao gerar cobrança Pix", pixError);
         await sendTextMessage({

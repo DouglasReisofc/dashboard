@@ -49,6 +49,18 @@ const MAX_LIST_ROWS = 10;
 
 const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);
 
+const sanitizeInteractiveText = (text: string) => {
+  const trimmed = text.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  return trimmed.length > MAX_BODY_LENGTH
+    ? `${trimmed.slice(0, MAX_BODY_LENGTH - 1)}…`
+    : trimmed;
+};
+
 type MetaMessagePayload = {
   messaging_product: "whatsapp";
   to: string;
@@ -535,6 +547,161 @@ export const sendTextMessage = async (options: {
   await postMetaMessage(webhook, payload, {
     successLog: `Mensagem de texto enviada para ${to}`,
     failureLog: `Falha ao enviar mensagem de texto para ${to}`,
+  });
+};
+
+export const sendInteractiveCtaUrlMessage = async (options: {
+  webhook: UserWebhookRow;
+  to: string;
+  bodyText: string;
+  buttonText: string;
+  buttonUrl: string;
+  headerImageUrl?: string | null;
+  headerText?: string | null;
+  footerText?: string | null;
+}) => {
+  const {
+    webhook,
+    to,
+    bodyText,
+    buttonText,
+    buttonUrl,
+    headerImageUrl,
+    headerText,
+    footerText,
+  } = options;
+
+  const sanitizedBody = sanitizeInteractiveText(bodyText);
+  const sanitizedButtonText = sanitizeInteractiveText(buttonText);
+  const sanitizedUrl = buttonUrl.trim();
+
+  if (!sanitizedBody) {
+    console.warn("[Meta Webhook] Mensagem CTA URL sem corpo ignorada");
+    return;
+  }
+
+  if (!sanitizedButtonText) {
+    console.warn("[Meta Webhook] Mensagem CTA URL sem texto do botão ignorada");
+    return;
+  }
+
+  if (!sanitizedUrl) {
+    console.warn("[Meta Webhook] Mensagem CTA URL sem link ignorada");
+    return;
+  }
+
+  const interactive: Record<string, unknown> = {
+    type: "cta_url",
+    body: {
+      text: sanitizedBody,
+    },
+    action: {
+      name: "cta_url",
+      parameters: {
+        display_text: sanitizedButtonText,
+        url: sanitizedUrl,
+      },
+    },
+  };
+
+  const sanitizedFooter = sanitizeInteractiveText(footerText ?? "");
+  if (sanitizedFooter) {
+    interactive.footer = {
+      text: sanitizedFooter,
+    };
+  }
+
+  const sanitizedHeaderImage = headerImageUrl?.trim();
+  if (sanitizedHeaderImage) {
+    interactive.header = {
+      type: "image",
+      image: {
+        link: sanitizedHeaderImage,
+      },
+    };
+  } else {
+    const sanitizedHeaderText = sanitizeInteractiveText(headerText ?? "");
+    if (sanitizedHeaderText) {
+      interactive.header = {
+        type: "text",
+        text: sanitizedHeaderText,
+      };
+    }
+  }
+
+  const payload: MetaMessagePayload = {
+    messaging_product: "whatsapp",
+    to,
+    type: "interactive",
+    interactive,
+  };
+
+  await postMetaMessage(webhook, payload, {
+    successLog: `Mensagem CTA URL enviada para ${to}`,
+    failureLog: `Falha ao enviar mensagem CTA URL para ${to}`,
+  });
+};
+
+export const sendInteractiveCopyCodeMessage = async (options: {
+  webhook: UserWebhookRow;
+  to: string;
+  bodyText: string;
+  buttonText: string;
+  code: string;
+  footerText?: string | null;
+}) => {
+  const { webhook, to, bodyText, buttonText, code, footerText } = options;
+
+  const sanitizedBody = sanitizeInteractiveText(bodyText);
+  const sanitizedButtonText = sanitizeInteractiveText(buttonText);
+  const sanitizedCode = code.trim();
+
+  if (!sanitizedBody) {
+    console.warn("[Meta Webhook] Mensagem CTA copiar sem corpo ignorada");
+    return;
+  }
+
+  if (!sanitizedButtonText) {
+    console.warn("[Meta Webhook] Mensagem CTA copiar sem texto do botão ignorada");
+    return;
+  }
+
+  if (!sanitizedCode) {
+    console.warn("[Meta Webhook] Mensagem CTA copiar sem código ignorada");
+    return;
+  }
+
+  const interactive: Record<string, unknown> = {
+    type: "cta_copy",
+    body: {
+      text: sanitizedBody,
+    },
+    action: {
+      name: "cta_copy",
+      parameters: {
+        copy_code: sanitizedCode,
+        display_text: sanitizedButtonText,
+      },
+    },
+  };
+
+  const sanitizedFooter = sanitizeInteractiveText(footerText ?? "");
+  if (sanitizedFooter) {
+    interactive.footer = {
+      text: sanitizedFooter,
+    };
+  }
+
+  const payload: MetaMessagePayload = {
+    messaging_product: "whatsapp",
+    to,
+    type: "interactive",
+    interactive,
+  };
+
+  await postMetaMessage(webhook, payload, {
+    successLog: `Mensagem CTA copiar enviada para ${to}`,
+    failureLog: `Falha ao enviar mensagem CTA copiar para ${to}`,
   });
 };
 
