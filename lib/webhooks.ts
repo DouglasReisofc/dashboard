@@ -22,7 +22,12 @@ const mapWebhookRow = (row: UserWebhookRow): UserWebhookDetails => ({
   id: row.id,
   endpoint: `${getBaseUrl()}/api/webhooks/meta/${row.id}`,
   verifyToken: row.verify_token,
-  apiKey: row.api_key,
+  appId: row.app_id,
+  appSecret: row.app_secret,
+  businessAccountId: row.business_account_id,
+  phoneNumberId: row.phone_number_id,
+  phoneNumber: row.phone_number,
+  accessToken: row.access_token,
   createdAt: row.created_at.toISOString(),
   updatedAt: row.updated_at.toISOString(),
   lastEventAt: row.last_event_at ? row.last_event_at.toISOString() : null,
@@ -51,14 +56,12 @@ export const ensureUserWebhook = async (userId: number) => {
 
   const webhookId = randomUUID();
   const verifyToken = randomBytes(24).toString("hex");
-  const apiKey = randomBytes(32).toString("hex");
-
   await db.query(
     `
-      INSERT INTO user_webhooks (id, user_id, verify_token, api_key)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO user_webhooks (id, user_id, verify_token)
+      VALUES (?, ?, ?)
     `,
-    [webhookId, userId, verifyToken, apiKey],
+    [webhookId, userId, verifyToken],
   );
 
   const [createdRows] = await db.query<UserWebhookRow[]>(
@@ -144,27 +147,63 @@ export const getRecentWebhookEvents = async (
   return rows.map(mapEventRow);
 };
 
-export const rotateWebhookSecrets = async (
+type WebhookConfigUpdate = {
+  verifyToken: string;
+  appId: string | null;
+  appSecret: string | null;
+  businessAccountId: string | null;
+  phoneNumberId: string | null;
+  phoneNumber: string | null;
+  accessToken: string | null;
+};
+
+export const updateWebhookConfig = async (
   userId: number,
+  config: WebhookConfigUpdate,
 ): Promise<UserWebhookDetails | null> => {
   await ensureWebhookTable();
-  const db = getDb();
+  const webhook = await ensureUserWebhook(userId);
 
-  const newVerify = randomBytes(24).toString("hex");
-  const newApiKey = randomBytes(32).toString("hex");
-
-  const [result] = await db.query(
-    `
-      UPDATE user_webhooks
-      SET verify_token = ?, api_key = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE user_id = ?
-    `,
-    [newVerify, newApiKey, userId],
-  );
-
-  if (Array.isArray(result) || (result as { affectedRows?: number }).affectedRows === 0) {
-    return ensureUserWebhook(userId);
+  if (!webhook) {
+    return null;
   }
 
-  return ensureUserWebhook(userId);
+  const db = getDb();
+
+  await db.query(
+    `
+      UPDATE user_webhooks
+      SET
+        verify_token = ?,
+        app_id = ?,
+        app_secret = ?,
+        business_account_id = ?,
+        phone_number_id = ?,
+        phone_number = ?,
+        access_token = ?,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = ?
+    `,
+    [
+      config.verifyToken,
+      config.appId,
+      config.appSecret,
+      config.businessAccountId,
+      config.phoneNumberId,
+      config.phoneNumber,
+      config.accessToken,
+      userId,
+    ],
+  );
+
+  const [rows] = await db.query<UserWebhookRow[]>(
+    "SELECT * FROM user_webhooks WHERE user_id = ? LIMIT 1",
+    [userId],
+  );
+
+  if (!rows.length) {
+    return null;
+  }
+
+  return mapWebhookRow(rows[0]);
 };

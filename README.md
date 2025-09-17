@@ -73,7 +73,7 @@ O layout em `app/(dashboard)/layout.tsx` garante o redirecionamento automático 
 ## Webhooks da Meta Cloud API
 
 - Cada usuário recebe automaticamente um endpoint único disponível em `/api/webhooks/meta/{id}`.
-- O painel do usuário exibe endpoint, verify token e API key, além do histórico dos últimos eventos recebidos.
+- O painel do usuário exibe endpoint, verify token, App ID, App Secret, Business Account ID, Phone Number ID, número vinculado e access token, além do histórico dos últimos eventos recebidos.
 - Durante a verificação do webhook na Meta, utilize o verify token fornecido pelo painel e informe o endpoint gerado.
 
 ## Scripts úteis

@@ -108,15 +108,10 @@ export const ensureUserTable = async () => {
     if (!Array.isArray(webhookRows) || webhookRows.length === 0) {
       await db.query(
         `
-          INSERT INTO user_webhooks (id, user_id, verify_token, api_key)
-          VALUES (?, ?, ?, ?)
+          INSERT INTO user_webhooks (id, user_id, verify_token)
+          VALUES (?, ?, ?)
         `,
-        [
-          randomUUID(),
-          adminId,
-          randomBytes(24).toString("hex"),
-          randomBytes(32).toString("hex"),
-        ],
+        [randomUUID(), adminId, randomBytes(24).toString("hex")],
       );
     }
   }
@@ -207,13 +202,52 @@ export const ensureWebhookTable = async () => {
       id CHAR(36) PRIMARY KEY,
       user_id INT NOT NULL UNIQUE,
       verify_token VARCHAR(128) NOT NULL,
-      api_key VARCHAR(128) NOT NULL,
+      app_id VARCHAR(64) NULL,
+      app_secret VARCHAR(128) NULL,
+      business_account_id VARCHAR(64) NULL,
+      phone_number_id VARCHAR(64) NULL,
+      phone_number VARCHAR(32) NULL,
+      access_token TEXT NULL,
       last_event_at DATETIME NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       CONSTRAINT fk_user_webhooks_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB;
   `);
+
+  const dropLegacyColumn = async (column: string) => {
+    const [existing] = await db.query<RowDataPacket[]>(
+      "SHOW COLUMNS FROM user_webhooks LIKE ?",
+      [column],
+    );
+
+    if (Array.isArray(existing) && existing.length > 0) {
+      await db.query(`ALTER TABLE user_webhooks DROP COLUMN ${column};`);
+    }
+  };
+
+  await dropLegacyColumn("api_key");
+
+  const ensureColumn = async (column: string, definition: string) => {
+    const [existing] = await db.query<RowDataPacket[]>(
+      "SHOW COLUMNS FROM user_webhooks LIKE ?",
+      [column],
+    );
+
+    if (!Array.isArray(existing) || existing.length === 0) {
+      await db.query(`ALTER TABLE user_webhooks ADD COLUMN ${definition};`);
+    }
+  };
+
+  await ensureColumn("app_id", "app_id VARCHAR(64) NULL");
+  await ensureColumn("app_secret", "app_secret VARCHAR(128) NULL");
+  await ensureColumn(
+    "business_account_id",
+    "business_account_id VARCHAR(64) NULL",
+  );
+  await ensureColumn("phone_number_id", "phone_number_id VARCHAR(64) NULL");
+  await ensureColumn("phone_number", "phone_number VARCHAR(32) NULL");
+  await ensureColumn("access_token", "access_token TEXT NULL");
 };
 
 export const ensureWebhookEventTable = async () => {
@@ -263,7 +297,12 @@ export type UserWebhookRow = {
   id: string;
   user_id: number;
   verify_token: string;
-  api_key: string;
+  app_id: string | null;
+  app_secret: string | null;
+  business_account_id: string | null;
+  phone_number_id: string | null;
+  phone_number: string | null;
+  access_token: string | null;
   last_event_at: Date | null;
   created_at: Date;
   updated_at: Date;
