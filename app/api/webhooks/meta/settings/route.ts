@@ -5,10 +5,8 @@ import { updateWebhookConfig } from "lib/webhooks";
 
 const MAX_VERIFY_TOKEN = 128;
 const MAX_APP_ID = 64;
-const MAX_APP_SECRET = 128;
 const MAX_BUSINESS_ACCOUNT_ID = 64;
 const MAX_PHONE_NUMBER_ID = 64;
-const MAX_PHONE_NUMBER = 32;
 const MAX_ACCESS_TOKEN = 4096;
 
 const sanitizeRequiredString = (value: unknown, maxLength: number) => {
@@ -61,22 +59,18 @@ export async function PUT(request: NextRequest) {
     }
 
     const appId = sanitizeOptionalString(payload.appId, MAX_APP_ID);
-    const appSecret = sanitizeOptionalString(payload.appSecret, MAX_APP_SECRET);
     const businessAccountId = sanitizeOptionalString(
       payload.businessAccountId,
       MAX_BUSINESS_ACCOUNT_ID,
     );
     const phoneNumberId = sanitizeOptionalString(payload.phoneNumberId, MAX_PHONE_NUMBER_ID);
-    const phoneNumber = sanitizeOptionalString(payload.phoneNumber, MAX_PHONE_NUMBER);
     const accessToken = sanitizeOptionalString(payload.accessToken, MAX_ACCESS_TOKEN);
 
     const webhook = await updateWebhookConfig(user.id, {
       verifyToken,
       appId,
-      appSecret,
       businessAccountId,
       phoneNumberId,
-      phoneNumber,
       accessToken,
     });
 

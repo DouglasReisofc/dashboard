@@ -3,10 +3,8 @@ export type UserWebhookDetails = {
   endpoint: string;
   verifyToken: string;
   appId: string | null;
-  appSecret: string | null;
   businessAccountId: string | null;
   phoneNumberId: string | null;
-  phoneNumber: string | null;
   accessToken: string | null;
   createdAt: string;
   updatedAt: string;

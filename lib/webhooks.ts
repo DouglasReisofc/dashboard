@@ -23,10 +23,8 @@ const mapWebhookRow = (row: UserWebhookRow): UserWebhookDetails => ({
   endpoint: `${getBaseUrl()}/api/webhooks/meta/${row.id}`,
   verifyToken: row.verify_token,
   appId: row.app_id,
-  appSecret: row.app_secret,
   businessAccountId: row.business_account_id,
   phoneNumberId: row.phone_number_id,
-  phoneNumber: row.phone_number,
   accessToken: row.access_token,
   createdAt: row.created_at.toISOString(),
   updatedAt: row.updated_at.toISOString(),
@@ -150,10 +148,8 @@ export const getRecentWebhookEvents = async (
 type WebhookConfigUpdate = {
   verifyToken: string;
   appId: string | null;
-  appSecret: string | null;
   businessAccountId: string | null;
   phoneNumberId: string | null;
-  phoneNumber: string | null;
   accessToken: string | null;
 };
 
@@ -176,10 +172,10 @@ export const updateWebhookConfig = async (
       SET
         verify_token = ?,
         app_id = ?,
-        app_secret = ?,
         business_account_id = ?,
         phone_number_id = ?,
-        phone_number = ?,
+        app_secret = NULL,
+        phone_number = NULL,
         access_token = ?,
         updated_at = CURRENT_TIMESTAMP
       WHERE user_id = ?
@@ -187,10 +183,8 @@ export const updateWebhookConfig = async (
     [
       config.verifyToken,
       config.appId,
-      config.appSecret,
       config.businessAccountId,
       config.phoneNumberId,
-      config.phoneNumber,
       config.accessToken,
       userId,
     ],

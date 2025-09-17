@@ -16,10 +16,8 @@ type Feedback = { type: "success" | "danger"; message: string } | null;
 type FormState = {
   verifyToken: string;
   appId: string;
-  appSecret: string;
   businessAccountId: string;
   phoneNumberId: string;
-  phoneNumber: string;
   accessToken: string;
 };
 
@@ -34,10 +32,8 @@ const copyToClipboard = async (value: string) => {
 const mapWebhookToFormState = (webhook: UserWebhookDetails): FormState => ({
   verifyToken: webhook.verifyToken,
   appId: webhook.appId ?? "",
-  appSecret: webhook.appSecret ?? "",
   businessAccountId: webhook.businessAccountId ?? "",
   phoneNumberId: webhook.phoneNumberId ?? "",
-  phoneNumber: webhook.phoneNumber ?? "",
   accessToken: webhook.accessToken ?? "",
 });
 
@@ -91,10 +87,8 @@ const UserWebhookDetails = ({ webhook, events }: Props) => {
         body: JSON.stringify({
           verifyToken: formState.verifyToken,
           appId: formState.appId || null,
-          appSecret: formState.appSecret || null,
           businessAccountId: formState.businessAccountId || null,
           phoneNumberId: formState.phoneNumberId || null,
-          phoneNumber: formState.phoneNumber || null,
           accessToken: formState.accessToken || null,
         }),
       });
@@ -143,8 +137,8 @@ const UserWebhookDetails = ({ webhook, events }: Props) => {
             <p className="text-secondary mb-0">
               Configure os dados exigidos pela documentação oficial da Meta para receber
               notificações e realizar ações com a Cloud API do WhatsApp. Preencha o identificador do
-              aplicativo, contas vinculadas, número do WhatsApp e o token de acesso permanente
-              fornecido pelo Business Manager.
+              aplicativo, as contas vinculadas e o token de acesso permanente fornecido pelo Business
+              Manager.
             </p>
 
             {feedback && (
@@ -199,30 +193,15 @@ const UserWebhookDetails = ({ webhook, events }: Props) => {
               </Form.Text>
             </Form.Group>
 
-            <div className="row g-3">
-              <div className="col-md-6">
-                <Form.Group controlId="webhook-app-id">
-                  <Form.Label>ID do aplicativo (App ID)</Form.Label>
-                  <Form.Control
-                    value={formState.appId}
-                    onChange={handleFieldChange("appId")}
-                    placeholder="Ex.: 123456789012345"
-                    disabled={isSubmitting}
-                  />
-                </Form.Group>
-              </div>
-              <div className="col-md-6">
-                <Form.Group controlId="webhook-app-secret">
-                  <Form.Label>App Secret</Form.Label>
-                  <Form.Control
-                    value={formState.appSecret}
-                    onChange={handleFieldChange("appSecret")}
-                    placeholder="Segredo utilizado para validar assinaturas"
-                    disabled={isSubmitting}
-                  />
-                </Form.Group>
-              </div>
-            </div>
+            <Form.Group controlId="webhook-app-id">
+              <Form.Label>ID do aplicativo (App ID)</Form.Label>
+              <Form.Control
+                value={formState.appId}
+                onChange={handleFieldChange("appId")}
+                placeholder="Ex.: 123456789012345"
+                disabled={isSubmitting}
+              />
+            </Form.Group>
 
             <div className="row g-3">
               <div className="col-md-6">
@@ -249,36 +228,20 @@ const UserWebhookDetails = ({ webhook, events }: Props) => {
               </div>
             </div>
 
-            <div className="row g-3">
-              <div className="col-md-6">
-                <Form.Group controlId="webhook-phone-number">
-                  <Form.Label>Número do WhatsApp</Form.Label>
-                  <Form.Control
-                    value={formState.phoneNumber}
-                    onChange={handleFieldChange("phoneNumber")}
-                    placeholder="Ex.: 5599998888777"
-                    disabled={isSubmitting}
-                  />
-                  <Form.Text>Informe o número completo com código do país e DDD.</Form.Text>
-                </Form.Group>
-              </div>
-              <div className="col-md-6">
-                <Form.Group controlId="webhook-access-token">
-                  <Form.Label>Access Token</Form.Label>
-                  <Form.Control
-                    as="textarea"
-                    rows={3}
-                    value={formState.accessToken}
-                    onChange={handleFieldChange("accessToken")}
-                    placeholder="Token permanente gerado no Business Manager"
-                    disabled={isSubmitting}
-                  />
-                  <Form.Text>
-                    Necessário para enviar mensagens e consultar a API oficial do WhatsApp.
-                  </Form.Text>
-                </Form.Group>
-              </div>
-            </div>
+            <Form.Group controlId="webhook-access-token">
+              <Form.Label>Access Token</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={3}
+                value={formState.accessToken}
+                onChange={handleFieldChange("accessToken")}
+                placeholder="Token permanente gerado no Business Manager"
+                disabled={isSubmitting}
+              />
+              <Form.Text>
+                Necessário para enviar mensagens e consultar a API oficial do WhatsApp.
+              </Form.Text>
+            </Form.Group>
 
             <div className="d-flex justify-content-end">
               <Button type="submit" disabled={isSubmitting}>
