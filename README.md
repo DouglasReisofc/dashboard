@@ -27,7 +27,8 @@ DATABASE_USER=storebot
 DATABASE_PASSWORD=storebot
 DATABASE_NAME=storebot
 JWT_SECRET=super-secret-jwt-key-change-me
-APP_URL=http://localhost:3000
+APP_URL=http://localhost:4478
+PORT=4478
 ```
 
 > **Importante:** altere `JWT_SECRET` em produção para um valor forte e mantenha as credenciais em local seguro.
@@ -39,7 +40,9 @@ npm install
 npm run dev
 ```
 
-O servidor ficará disponível em `http://localhost:3000`.
+O servidor ficará disponível em `http://localhost:4478`.
+
+> Para alterar a porta, execute `npm run dev -- -p <porta>` ou ajuste o script em `package.json` conforme necessário.
 
 ## Estrutura de autenticação
 
