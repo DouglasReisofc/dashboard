@@ -75,7 +75,8 @@ export async function POST(
         timestamp: new Date().toISOString(),
       },
     );
-    console.info("[Meta Webhook] Payload bruto", body);
+    const prettyPayload = JSON.stringify(body, null, 2);
+    console.info("[Meta Webhook] Payload bruto\n%s", prettyPayload);
 
     await recordWebhookEvent(webhook.id, webhook.user_id, eventType, body);
 
