@@ -56,6 +56,10 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
         description: "Substitui pelo número de WhatsApp do cliente.",
       },
       {
+        token: "{{saldo_cliente}}",
+        description: "Exibe o saldo atual salvo para o cliente no painel de Clientes.",
+      },
+      {
         token: "{{id_categoria}}",
         description: "Permite informar a categoria atual quando um produto estiver vinculado.",
       },
