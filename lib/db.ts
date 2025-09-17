@@ -42,6 +42,7 @@ export const ensureUserTable = async () => {
       password VARCHAR(255) NOT NULL,
       role ENUM('admin', 'user') NOT NULL DEFAULT 'user',
       is_active TINYINT(1) NOT NULL DEFAULT 1,
+      balance DECIMAL(12, 2) NOT NULL DEFAULT 0,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB;
@@ -59,13 +60,25 @@ export const ensureUserTable = async () => {
     `);
   }
 
+  const [balanceColumn] = await db.query<RowDataPacket[]>(
+    "SHOW COLUMNS FROM users LIKE 'balance'",
+  );
+
+  if (!Array.isArray(balanceColumn) || balanceColumn.length === 0) {
+    await db.query(`
+      ALTER TABLE users
+      ADD COLUMN balance DECIMAL(12, 2) NOT NULL DEFAULT 0
+        AFTER is_active;
+    `);
+  }
+
   const normalizedEmail = DEFAULT_ADMIN_EMAIL.toLowerCase().trim();
   const hashedPassword = await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, 10);
 
   await db.query(
     `
-      INSERT INTO users (name, email, password, role, is_active)
-      VALUES (?, ?, ?, 'admin', 1)
+      INSERT INTO users (name, email, password, role, is_active, balance)
+      VALUES (?, ?, ?, 'admin', 1, 0)
       ON DUPLICATE KEY UPDATE
         name = VALUES(name),
         password = VALUES(password),
@@ -83,6 +96,7 @@ export type UserRow = {
   password: string;
   role: "admin" | "user";
   is_active: number;
+  balance: string;
   created_at: Date;
   updated_at: Date;
 };

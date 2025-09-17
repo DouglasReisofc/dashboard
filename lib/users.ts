@@ -1,3 +1,4 @@
+import bcrypt from "bcryptjs";
 import type { ResultSetHeader } from "mysql2";
 
 import { ensureSessionTable, ensureUserTable, getDb, UserRow } from "lib/db";
@@ -34,6 +35,13 @@ export const getAdminUsers = async (): Promise<AdminUserSummary[]> => {
     email: row.email,
     role: row.role,
     isActive: Boolean(row.is_active),
+    balance: (() => {
+      const parsed = Number.parseFloat(row.balance ?? "0");
+      if (Number.isNaN(parsed)) {
+        return 0;
+      }
+      return Math.round(parsed * 100) / 100;
+    })(),
     createdAt: normalizeDate(row.created_at).toISOString(),
     updatedAt: normalizeDate(row.updated_at).toISOString(),
     activeSessions: Number(row.active_sessions ?? 0),
@@ -69,12 +77,70 @@ export const getUserMetrics = async (): Promise<UserMetrics> => {
   } satisfies UserMetrics;
 };
 
-export const setUserActiveState = async (userId: number, isActive: boolean) => {
+type AdminUpdatableFields = {
+  name?: string;
+  email?: string;
+  role?: "admin" | "user";
+  password?: string;
+  isActive?: boolean;
+  balance?: number;
+};
+
+export const updateAdminUser = async (
+  userId: number,
+  updates: AdminUpdatableFields,
+) => {
   await ensureUserTable();
   const db = getDb();
+
+  const fields: string[] = [];
+  const values: Array<string | number> = [];
+
+  if (typeof updates.name === "string" && updates.name.trim().length > 0) {
+    fields.push("name = ?");
+    values.push(updates.name.trim());
+  }
+
+  if (typeof updates.email === "string" && updates.email.trim().length > 0) {
+    fields.push("email = ?");
+    values.push(updates.email.trim().toLowerCase());
+  }
+
+  if (updates.role === "admin" || updates.role === "user") {
+    fields.push("role = ?");
+    values.push(updates.role);
+  }
+
+  if (typeof updates.isActive === "boolean") {
+    fields.push("is_active = ?");
+    values.push(updates.isActive ? 1 : 0);
+  }
+
+  if (
+    typeof updates.balance === "number" &&
+    Number.isFinite(updates.balance) &&
+    updates.balance >= 0
+  ) {
+    const normalizedBalance = Math.round(updates.balance * 100) / 100;
+    fields.push("balance = ?");
+    values.push(normalizedBalance);
+  }
+
+  if (typeof updates.password === "string" && updates.password.length > 0) {
+    const hashedPassword = await bcrypt.hash(updates.password, 10);
+    fields.push("password = ?");
+    values.push(hashedPassword);
+  }
+
+  if (fields.length === 0) {
+    return;
+  }
+
+  fields.push("updated_at = CURRENT_TIMESTAMP");
+
   const [result] = await db.query<ResultSetHeader>(
-    `UPDATE users SET is_active = ? WHERE id = ?`,
-    [isActive ? 1 : 0, userId],
+    `UPDATE users SET ${fields.join(", ")} WHERE id = ?`,
+    [...values, userId],
   );
 
   if (result.affectedRows === 0) {

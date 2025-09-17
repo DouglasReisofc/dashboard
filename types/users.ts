@@ -4,6 +4,7 @@ export type AdminUserSummary = {
   email: string;
   role: "admin" | "user";
   isActive: boolean;
+  balance: number;
   createdAt: string;
   updatedAt: string;
   activeSessions: number;

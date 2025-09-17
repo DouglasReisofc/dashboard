@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getCurrentUser, revokeSessionsForUser } from "lib/auth";
-import { getAdminUserById, setUserActiveState } from "lib/users";
+import { getAdminUserById, updateAdminUser } from "lib/users";
 
 export async function PATCH(
   request: NextRequest,
@@ -27,24 +27,77 @@ export async function PATCH(
     }
 
     const payload = await request.json().catch(() => ({}));
-    const { isActive, revokeSessions } = payload as {
+    const {
+      name,
+      email,
+      role,
+      password,
+      balance,
+      isActive,
+      revokeSessions,
+    } = payload as {
+      name?: unknown;
+      email?: unknown;
+      role?: unknown;
+      password?: unknown;
+      balance?: unknown;
       isActive?: unknown;
       revokeSessions?: unknown;
     };
 
-    if (typeof isActive !== "boolean" && revokeSessions !== true) {
+    const updates: {
+      name?: string;
+      email?: string;
+      role?: "admin" | "user";
+      password?: string;
+      balance?: number;
+      isActive?: boolean;
+    } = {};
+
+    if (typeof name === "string") {
+      updates.name = name;
+    }
+
+    if (typeof email === "string") {
+      updates.email = email;
+    }
+
+    if (role === "admin" || role === "user") {
+      updates.role = role;
+    }
+
+    if (typeof password === "string") {
+      updates.password = password;
+    }
+
+    if (typeof balance === "number" && Number.isFinite(balance) && balance >= 0) {
+      updates.balance = balance;
+    } else if (typeof balance === "string" && balance.trim().length > 0) {
+      const parsed = Number.parseFloat(balance.replace(/,/g, "."));
+      if (!Number.isNaN(parsed) && parsed >= 0) {
+        updates.balance = parsed;
+      }
+    }
+
+    if (typeof isActive === "boolean") {
+      updates.isActive = isActive;
+    }
+
+    const hasUpdates = Object.keys(updates).length > 0;
+
+    if (!hasUpdates && revokeSessions !== true) {
       return NextResponse.json(
         {
           message:
-            "Informe se deseja alterar o status do usuário ou encerrar suas sessões.",
+            "Informe os dados que deseja atualizar ou selecione para encerrar as sessões do usuário.",
         },
         { status: 400 },
       );
     }
 
-    if (typeof isActive === "boolean") {
-      await setUserActiveState(userId, isActive);
-      if (!isActive) {
+    if (hasUpdates) {
+      await updateAdminUser(userId, updates);
+      if (updates.isActive === false) {
         await revokeSessionsForUser(userId);
       }
     }
