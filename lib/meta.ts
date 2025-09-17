@@ -173,12 +173,6 @@ const buildCategoryListPayload = (
 
   const listContext: BotTemplateContext = {
     ...context,
-    page: sanitizedPage,
-    totalPages,
-    categoriesCount: categories.length,
-    categoriesOnPage: pageEntries.length,
-    nextPage: hasMore ? sanitizedPage + 1 : sanitizedPage,
-    hasMore,
   };
 
   const template = renderCategoryListTemplate(

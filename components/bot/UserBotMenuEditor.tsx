@@ -24,7 +24,6 @@ import {
   defaultMenuFooterText,
   defaultMenuText,
   defaultMenuVariables,
-  paginationTemplateTokens,
   defaultSupportReplyText,
 } from "lib/bot-menu";
 
@@ -60,7 +59,7 @@ type FormState = {
 
 type ViewId = "menu" | "categoryList" | "categoryDetail" | "autoReplies" | "variables";
 
-type VariableGroupId = "global" | "categoryList" | "categoryDetail";
+type VariableGroupId = "global" | "categoryDetail";
 
 type VariableDefinition = {
   token: string;
@@ -75,12 +74,6 @@ const VARIABLE_DESCRIPTIONS: Record<string, string> = {
   "{{nome_categoria}}": "Mostra o título da categoria selecionada pelo cliente.",
   "{{preco_categoria}}": "Exibe o valor configurado para a categoria atual com formatação monetária.",
   "{{descricao_categoria}}": "Inclui a descrição detalhada da categoria, se disponível.",
-  "{{pagina_atual}}": "Indica o número da página atual na lista de categorias.",
-  "{{total_paginas}}": "Mostra o total de páginas disponíveis na lista de categorias.",
-  "{{categorias_total}}": "Quantidade total de categorias ativas que podem ser exibidas.",
-  "{{categorias_pagina}}": "Quantidade de categorias listadas na página atual.",
-  "{{proxima_pagina}}": "Número da próxima página disponível na listagem, quando existir.",
-  "{{possui_proxima_pagina}}": "Retorna 'Sim' quando há mais páginas disponíveis ou 'Não' caso contrário.",
 };
 
 const toVariableDefinitions = (tokens: readonly string[]): VariableDefinition[] =>
@@ -101,11 +94,6 @@ const VARIABLE_GROUPS: Record<VariableGroupId, {
     description: "Disponíveis em qualquer mensagem enviada pelo bot.",
     tokens: toVariableDefinitions(defaultMenuVariables),
   },
-  categoryList: {
-    title: "Lista de categorias",
-    description: "Utilize ao editar a lista interativa enviada no botão de compras.",
-    tokens: toVariableDefinitions(paginationTemplateTokens),
-  },
   categoryDetail: {
     title: "Detalhes da categoria",
     description: "Aplicam-se aos cartões com imagem e botão 'Comprar' de cada categoria.",
@@ -115,10 +103,10 @@ const VARIABLE_GROUPS: Record<VariableGroupId, {
 
 const VIEW_VARIABLE_GROUPS: Record<ViewId, VariableGroupId[]> = {
   menu: ["global"],
-  categoryList: ["global", "categoryList"],
+  categoryList: ["global"],
   categoryDetail: ["global", "categoryDetail"],
   autoReplies: ["global"],
-  variables: ["global", "categoryList", "categoryDetail"],
+  variables: ["global", "categoryDetail"],
 };
 
 interface ViewOption {
@@ -570,7 +558,7 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
                     rows={2}
                     value={formState.categoryListBodyText}
                     onChange={(event) => handleFieldChange("categoryListBodyText", event.target.value)}
-                    placeholder="Ex: Selecione a categoria desejada ({{pagina_atual}}/{{total_paginas}})."
+                    placeholder="Ex: Selecione a categoria que deseja comprar."
                     required
                   />
                 </Form.Group>
@@ -593,7 +581,7 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
                       <Form.Control
                         value={formState.categoryListSectionTitle}
                         onChange={(event) => handleFieldChange("categoryListSectionTitle", event.target.value)}
-                        placeholder="Ex: Página {{pagina_atual}}/{{total_paginas}}"
+                        placeholder="Ex: Categorias disponíveis"
                         required
                       />
                     </Form.Group>

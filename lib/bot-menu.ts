@@ -13,22 +13,12 @@ export const categoryTemplateTokens = [
   "{{descricao_categoria}}",
 ] as const;
 
-export const paginationTemplateTokens = [
-  "{{pagina_atual}}",
-  "{{total_paginas}}",
-  "{{categorias_total}}",
-  "{{categorias_pagina}}",
-  "{{proxima_pagina}}",
-  "{{possui_proxima_pagina}}",
-] as const;
-
 export const defaultMenuVariables = globalTemplateTokens;
 
 const DEFAULT_TEMPLATE_TOKENS = Array.from(
   new Set([
     ...globalTemplateTokens,
     ...categoryTemplateTokens,
-    ...paginationTemplateTokens,
   ]),
 );
 
@@ -53,16 +43,16 @@ export const defaultMenuButtonLabels = {
 
 export const defaultCategoryListHeaderText = "Comprar contas";
 export const defaultCategoryListBodyText =
-  "Selecione a categoria desejada ({{pagina_atual}}/{{total_paginas}}).";
+  "Selecione a categoria que deseja comprar.";
 export const defaultCategoryListFooterText =
   "Selecione a categoria desejada para continuar sua compra.";
 export const defaultCategoryListFooterMoreText =
-  "Role até o fim e toque em \"Próxima lista\" para visualizar mais categorias.";
+  "Role até o fim e toque em \"Próxima lista\" para visualizar mais opções.";
 export const defaultCategoryListButtonText = "Ver categorias";
-export const defaultCategoryListSectionTitle = "Página {{pagina_atual}}/{{total_paginas}}";
+export const defaultCategoryListSectionTitle = "Categorias disponíveis";
 export const defaultCategoryListNextTitle = "Próxima lista ▶️";
 export const defaultCategoryListNextDescription =
-  "Ver mais categorias ({{proxima_pagina}}/{{total_paginas}})";
+  "Ver mais categorias";
 export const defaultCategoryListEmptyText =
   "No momento não encontramos categorias ativas para compras. Aguarde novas ofertas ou fale com o suporte.";
 
@@ -88,12 +78,6 @@ export type BotTemplateContext = {
   categoryName?: string | null;
   categoryPrice?: number | null;
   categoryDescription?: string | null;
-  page?: number | null;
-  totalPages?: number | null;
-  categoriesCount?: number | null;
-  categoriesOnPage?: number | null;
-  nextPage?: number | null;
-  hasMore?: boolean | null;
 };
 
 const resolveReplacement = (token: string, context: BotTemplateContext): string => {
@@ -127,40 +111,6 @@ const resolveReplacement = (token: string, context: BotTemplateContext): string 
     }
     case "{{descricao_categoria}}":
       return context.categoryDescription?.toString().trim() ?? "";
-    case "{{pagina_atual}}": {
-      const pageNumber = Number.isFinite(context.page) && context.page !== null
-        ? Number(context.page)
-        : 1;
-      return pageNumber.toString();
-    }
-    case "{{total_paginas}}": {
-      const totalPages = Number.isFinite(context.totalPages) && context.totalPages !== null
-        ? Number(context.totalPages)
-        : 1;
-      return totalPages.toString();
-    }
-    case "{{categorias_total}}": {
-      const total = Number.isFinite(context.categoriesCount) && context.categoriesCount !== null
-        ? Number(context.categoriesCount)
-        : 0;
-      return total.toString();
-    }
-    case "{{categorias_pagina}}": {
-      const total = Number.isFinite(context.categoriesOnPage) && context.categoriesOnPage !== null
-        ? Number(context.categoriesOnPage)
-        : 0;
-      return total.toString();
-    }
-    case "{{proxima_pagina}}": {
-      const next = Number.isFinite(context.nextPage) && context.nextPage !== null
-        ? Number(context.nextPage)
-        : Number.isFinite(context.page) && context.page !== null
-          ? Number(context.page)
-          : 1;
-      return next.toString();
-    }
-    case "{{possui_proxima_pagina}}":
-      return context.hasMore ? "Sim" : "Não";
     default:
       return "";
   }
