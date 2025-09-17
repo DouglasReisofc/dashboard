@@ -2,10 +2,10 @@
 import type { ReactNode } from "react";
 import { v4 as uuid } from "uuid";
 import {
-  IconChartHistogram,
   IconHome,
-  IconNews,
-  IconSettings,
+  IconLayoutDashboard,
+  IconPackage,
+  IconTags,
 } from "@tabler/icons-react";
 
 type UserMenuRole = "admin" | "user";
@@ -23,28 +23,28 @@ export const UserMenuItem: UserMenuLink[] = [
     id: uuid(),
     link: "/dashboard/admin",
     title: "Painel administrativo",
-    icon: <IconChartHistogram size={20} strokeWidth={1.5} />,
+    icon: <IconLayoutDashboard size={20} strokeWidth={1.5} />,
     roles: ["admin"],
   },
   {
     id: uuid(),
     link: "/dashboard/user",
-    title: "Minha área",
+    title: "Meu catálogo",
     icon: <IconHome size={20} strokeWidth={1.5} />,
     roles: ["admin", "user"],
   },
   {
     id: uuid(),
-    link: "/dashboard/blog",
-    title: "Blog interno",
-    icon: <IconNews size={20} strokeWidth={1.5} />,
+    link: "/dashboard/user#categories",
+    title: "Categorias",
+    icon: <IconTags size={20} strokeWidth={1.5} />,
     roles: ["admin", "user"],
   },
   {
     id: uuid(),
-    link: "/dashboard/ecommerce",
-    title: "Catálogo",
-    icon: <IconSettings size={20} strokeWidth={1.5} />,
-    roles: ["admin"],
+    link: "/dashboard/user#products",
+    title: "Produtos digitais",
+    icon: <IconPackage size={20} strokeWidth={1.5} />,
+    roles: ["admin", "user"],
   },
 ];

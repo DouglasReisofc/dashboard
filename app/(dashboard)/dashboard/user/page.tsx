@@ -1,43 +1,33 @@
 import { Fragment } from "react";
 import { Metadata } from "next";
-import { Col, Row } from "react-bootstrap";
 
-import TaskProgress from "components/dashboard/TaskProgress";
-import TaskList from "components/dashboard/TaskList";
-import ActivityLog from "components/dashboard/ActivityLog";
-import UpcomingMeetingSlider from "components/dashboard/UpcomingMeetingSlider";
-import ProjectBudget from "components/dashboard/ProjectBudget";
-
+import UserCatalogManager from "components/catalog/UserCatalogManager";
 import { getCurrentUser } from "lib/auth";
+import { getCategoriesForUser, getProductsForUser } from "lib/catalog";
 
 export const metadata: Metadata = {
-  title: "Área do usuário | StoreBot Dashboard",
-  description: "Acompanhe atividades pessoais e entregas no StoreBot.",
+  title: "Gestão de catálogo | StoreBot Dashboard",
+  description:
+    "Crie categorias, publique produtos digitais e controle o limite de revendas diretamente do painel StoreBot.",
 };
 
 const UserDashboard = async () => {
   const user = await getCurrentUser();
 
+  const [categories, products] = user
+    ? await Promise.all([getCategoriesForUser(user.id), getProductsForUser(user.id)])
+    : [[], []];
+
   return (
     <Fragment>
       <div className="mb-6">
-        <h1 className="mb-2">Minha área</h1>
+        <h1 className="mb-2">Meu catálogo digital</h1>
         <p className="text-secondary mb-0">
           {user ? `${user.name}, ` : ""}
-          acompanhe suas atividades, reuniões e andamento de tarefas em um único lugar.
+          centralize a criação de categorias e produtos digitais, defina preços e limite o número de revendas.
         </p>
       </div>
-      <Row className="g-6 mb-6">
-        <Col xl={8}>
-          <TaskList />
-          <ActivityLog />
-        </Col>
-        <Col xl={4}>
-          <TaskProgress />
-          <ProjectBudget />
-          <UpcomingMeetingSlider />
-        </Col>
-      </Row>
+      <UserCatalogManager categories={categories} products={products} />
     </Fragment>
   );
 };

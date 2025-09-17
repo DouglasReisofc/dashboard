@@ -24,10 +24,14 @@ const Sidebar: React.FC<SidebarProps> = ({ hideLogo = false, containerId, role }
 
   const isActiveLink = (link?: string) => {
     if (!link) return false;
-    if (link === "/") {
+
+    const [basePath] = link.split("#");
+
+    if (basePath === "/") {
       return pathname === "/";
     }
-    return pathname === link || pathname.startsWith(`${link}/`);
+
+    return pathname === basePath || pathname.startsWith(`${basePath}/`);
   };
 
   return (

@@ -7,6 +7,7 @@ Projeto full-stack baseado em Next.js com autenticação integrada, landing page
 - ✅ **Landing page** pronta para apresentar o produto e direcionar para login/cadastro.
 - 🔐 **Autenticação completa** com registro, login, cookies HttpOnly e hashing de senha com `bcryptjs`.
 - 🗂️ **Dashboards separados** para perfis `admin` e `user`, incluindo navegação dinâmica e layout protegido.
+- 🛒 **Gestão de catálogo digital** com criação de categorias (nome, preço, SKU, descrição, status e imagem) e produtos vinculados com texto secreto, anexo opcional e limite de revendas.
 - 🗄️ **Integração direta com MySQL** (`mysql2/promise`) usando variáveis de ambiente centralizadas.
 - 🍪 **Sessões baseadas em JWT** armazenadas em cookie seguro para controlar acesso.
 - 🎨 Base construída sobre componentes Bootstrap 5 já otimizados.

@@ -1,55 +1,30 @@
-//import node module libraries
 import { Fragment } from "react";
 import { Metadata } from "next";
-import { Col, Row } from "react-bootstrap";
 
-//import custom components
-import DashboardStats from "components/dashboard/DashboardStats";
-import ActiveProject from "components/dashboard/ActiveProject";
-import TaskProgress from "components/dashboard/TaskProgress";
-import TeamsTable from "components/dashboard/TeamsTable";
-import AIBanner from "components/dashboard/AIBanner";
-import ActivityLog from "components/dashboard/ActivityLog";
-import ProjectBudget from "components/dashboard/ProjectBudget";
-import TaskList from "components/dashboard/TaskList";
-import UpcomingMeetingSlider from "components/dashboard/UpcomingMeetingSlider";
-
+import AdminCatalogOverview from "components/catalog/AdminCatalogOverview";
 import { getCurrentUser } from "lib/auth";
+import { getAllCategories, getAllProducts } from "lib/catalog";
 
 export const metadata: Metadata = {
-  title: "Admin | StoreBot Dashboard",
-  description: "Painel administrativo com visão completa da operação StoreBot.",
+  title: "Administração do catálogo | StoreBot Dashboard",
+  description:
+    "Monitore categorias e produtos digitais cadastrados pelos usuários e mantenha o controle de status e segurança.",
 };
 
 const AdminDashboard = async () => {
   const user = await getCurrentUser();
+  const [categories, products] = await Promise.all([getAllCategories(), getAllProducts()]);
 
   return (
     <Fragment>
       <div className="mb-6">
-        <h1 className="mb-2">Painel administrativo</h1>
+        <h1 className="mb-2">Supervisão do catálogo digital</h1>
         <p className="text-secondary mb-0">
-          Bem-vindo{user ? `, ${user.name}` : ""}! Monitore indicadores chave, acompanhe equipes e gerencie
-          resultados em tempo real.
+          Bem-vindo{user ? `, ${user.name}` : ""}! Acompanhe as categorias criadas pela base de usuários,
+          revise conteúdos sensíveis e ative ou desative produtos quando necessário.
         </p>
       </div>
-      <Row className="g-6 mb-6">
-        <DashboardStats />
-      </Row>
-      <Row className="g-6 mb-6">
-        <Col xl={8}>
-          <ActiveProject />
-          <TeamsTable />
-          <ActivityLog />
-          <TaskList />
-        </Col>
-        <Col xl={4}>
-          <TaskProgress />
-          <AIBanner />
-          <ProjectBudget />
-          <UpcomingMeetingSlider />
-        </Col>
-      </Row>
+      <AdminCatalogOverview categories={categories} products={products} />
     </Fragment>
   );
 };
