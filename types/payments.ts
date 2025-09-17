@@ -8,6 +8,15 @@ export type MercadoPagoCheckoutPaymentType =
 
 export type MercadoPagoCheckoutPaymentMethod = "pix";
 
+export type PaymentMethodProvider = "mercadopago_pix" | "mercadopago_checkout";
+
+export type PaymentMethodSummary = {
+  provider: PaymentMethodProvider;
+  displayName: string;
+  isActive: boolean;
+  isConfigured: boolean;
+};
+
 export type MercadoPagoPixConfig = {
   isActive: boolean;
   displayName: string;
@@ -34,10 +43,11 @@ export type MercadoPagoCheckoutConfig = {
   updatedAt: string | null;
 };
 
-export type MercadoPagoPixCharge = {
+export type PaymentCharge = {
   id: number;
   publicId: string;
   userId: number;
+  provider: string;
   providerPaymentId: string;
   status: string;
   amount: number;
@@ -51,4 +61,12 @@ export type MercadoPagoPixCharge = {
   metadata: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type MercadoPagoPixCharge = PaymentCharge & {
+  provider: "mercadopago_pix";
+};
+
+export type MercadoPagoCheckoutCharge = PaymentCharge & {
+  provider: "mercadopago_checkout";
 };

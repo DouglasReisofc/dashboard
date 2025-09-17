@@ -38,6 +38,7 @@ export const CATEGORY_LIST_ROW_PREFIX = "storebot_category_";
 export const CATEGORY_LIST_NEXT_PREFIX = "storebot_list_next_";
 export const CATEGORY_PURCHASE_BUTTON_PREFIX = "storebot_buy_category_";
 export const ADD_BALANCE_OPTION_PREFIX = "storebot_add_balance_";
+export const PAYMENT_METHOD_OPTION_PREFIX = "storebot_payment_method_";
 
 type ButtonDefinition = {
   id: string;

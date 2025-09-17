@@ -3,9 +3,10 @@ import { NextResponse } from "next/server";
 import { creditCustomerBalanceByWhatsapp } from "lib/customers";
 import { fetchMercadoPagoPayment } from "lib/mercadopago";
 import {
-  getMercadoPagoPixChargeByProviderPaymentId,
+  getMercadoPagoCheckoutConfigForUser,
   getMercadoPagoPixConfigForUser,
-  updateMercadoPagoPixChargeStatus,
+  getPaymentChargeByProviderPaymentId,
+  updatePaymentChargeStatus,
 } from "lib/payments";
 
 const extractPaymentIdFromResource = (resource: unknown): string | null => {
@@ -79,21 +80,39 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Evento ignorado." });
     }
 
-    const charge = await getMercadoPagoPixChargeByProviderPaymentId(paymentId);
+    const charge = await getPaymentChargeByProviderPaymentId(paymentId);
 
     if (!charge) {
       return NextResponse.json({ message: "Cobrança não localizada." });
     }
 
-    const config = await getMercadoPagoPixConfigForUser(charge.userId);
+    let accessToken: string | null = null;
 
-    if (!config.isConfigured || !config.accessToken) {
-      console.warn("[Mercado Pago Webhook] Configuração indisponível para o usuário", charge.userId);
-      return NextResponse.json({ message: "Configuração indisponível." });
+    if (charge.provider === "mercadopago_pix") {
+      const config = await getMercadoPagoPixConfigForUser(charge.userId);
+
+      if (!config.isConfigured || !config.accessToken) {
+        console.warn("[Mercado Pago Webhook] Configuração Pix indisponível", charge.userId);
+        return NextResponse.json({ message: "Configuração indisponível." });
+      }
+
+      accessToken = config.accessToken;
+    } else if (charge.provider === "mercadopago_checkout") {
+      const config = await getMercadoPagoCheckoutConfigForUser(charge.userId);
+
+      if (!config.isConfigured || !config.accessToken) {
+        console.warn("[Mercado Pago Webhook] Configuração de checkout indisponível", charge.userId);
+        return NextResponse.json({ message: "Configuração indisponível." });
+      }
+
+      accessToken = config.accessToken;
+    } else {
+      console.warn("[Mercado Pago Webhook] Provedor de cobrança não suportado", charge.provider);
+      return NextResponse.json({ message: "Provedor não suportado." });
     }
 
     const payment = await fetchMercadoPagoPayment({
-      accessToken: config.accessToken,
+      accessToken,
       paymentId,
     });
 
@@ -109,7 +128,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const updatedCharge = await updateMercadoPagoPixChargeStatus({
+    const updatedCharge = await updatePaymentChargeStatus({
       chargeId: charge.id,
       status: payment.status,
       statusDetail: payment.statusDetail,

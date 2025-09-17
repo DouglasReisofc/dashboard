@@ -2,11 +2,14 @@ import { randomUUID } from "crypto";
 import { ResultSetHeader } from "mysql2";
 
 import type {
+  MercadoPagoCheckoutCharge,
   MercadoPagoCheckoutConfig,
   MercadoPagoCheckoutPaymentMethod,
   MercadoPagoCheckoutPaymentType,
   MercadoPagoPixCharge,
   MercadoPagoPixConfig,
+  PaymentCharge,
+  PaymentMethodSummary,
 } from "types/payments";
 import {
   UserPaymentChargeRow,
@@ -15,10 +18,13 @@ import {
   ensurePaymentMethodTable,
   getDb,
 } from "./db";
-import { createMercadoPagoPixPayment } from "./mercadopago";
+import {
+  createMercadoPagoCheckoutPreference,
+  createMercadoPagoPixPayment,
+} from "./mercadopago";
 
 const DEFAULT_MERCADO_PAGO_PIX_DISPLAY_NAME = "Pagamento Pix";
-const DEFAULT_MERCADO_PAGO_CHECKOUT_DISPLAY_NAME = "Checkout Mercado Pago";
+const DEFAULT_MERCADO_PAGO_CHECKOUT_DISPLAY_NAME = "Pagamento online";
 const DEFAULT_EXPIRATION_MINUTES = 30;
 const DEFAULT_AMOUNT_OPTIONS = [25, 50, 100];
 const CHECKOUT_PAYMENT_TYPES: readonly MercadoPagoCheckoutPaymentType[] = [
@@ -327,10 +333,11 @@ const parseChargeMetadata = (raw: unknown): Record<string, unknown> | null => {
   return null;
 };
 
-const mapChargeRow = (row: UserPaymentChargeRow): MercadoPagoPixCharge => ({
+const mapChargeRow = (row: UserPaymentChargeRow): PaymentCharge => ({
   id: row.id,
   publicId: row.public_id,
   userId: row.user_id,
+  provider: row.provider,
   providerPaymentId: row.provider_payment_id,
   status: row.status,
   amount: Number.parseFloat(row.amount),
@@ -389,6 +396,32 @@ export const getMercadoPagoCheckoutConfigForUser = async (
   }
 
   return mapCheckoutPaymentMethodRow(rows[0]);
+};
+
+export const getPaymentMethodSummariesForUser = async (
+  userId: number,
+): Promise<PaymentMethodSummary[]> => {
+  const [pixConfig, checkoutConfig] = await Promise.all([
+    getMercadoPagoPixConfigForUser(userId),
+    getMercadoPagoCheckoutConfigForUser(userId),
+  ]);
+
+  const summaries: PaymentMethodSummary[] = [
+    {
+      provider: "mercadopago_pix",
+      displayName: pixConfig.displayName,
+      isActive: pixConfig.isActive,
+      isConfigured: pixConfig.isConfigured,
+    },
+    {
+      provider: "mercadopago_checkout",
+      displayName: checkoutConfig.displayName,
+      isActive: checkoutConfig.isActive,
+      isConfigured: checkoutConfig.isConfigured,
+    },
+  ];
+
+  return summaries;
 };
 
 export const upsertMercadoPagoPixConfig = async (payload: {
@@ -644,12 +677,121 @@ export const createMercadoPagoPixCharge = async (payload: {
     throw new Error("Não foi possível recuperar a cobrança Pix recém-criada.");
   }
 
-  return mapChargeRow(rows[0]);
+  const charge = mapChargeRow(rows[0]);
+
+  if (charge.provider !== "mercadopago_pix") {
+    throw new Error("Cobrança criada com provedor inesperado.");
+  }
+
+  return charge as MercadoPagoPixCharge;
 };
 
-export const getMercadoPagoPixChargeByPublicId = async (
+export const createMercadoPagoCheckoutCharge = async (payload: {
+  userId: number;
+  amount: number;
+  customerWhatsapp: string;
+  customerName?: string | null;
+  config: MercadoPagoCheckoutConfig;
+}): Promise<MercadoPagoCheckoutCharge> => {
+  await ensurePaymentChargeTable();
+  const db = getDb();
+
+  if (!payload.config.isConfigured || !payload.config.accessToken) {
+    throw new Error("Mercado Pago Checkout não configurado para este usuário.");
+  }
+
+  const sanitizedAmount = Number(payload.amount);
+  if (!Number.isFinite(sanitizedAmount) || sanitizedAmount <= 0) {
+    throw new Error("Valor inválido para geração de cobrança no checkout.");
+  }
+
+  const customerWhatsapp = payload.customerWhatsapp.trim();
+  const customerName = sanitizeOptionalText(payload.customerName);
+
+  const reference = `storebot:${payload.userId}:${Date.now()}:${Math.floor(Math.random() * 1_000_000)}`;
+  const payerEmail = `cliente+${payload.userId}+${Date.now()}@storebot.app`;
+
+  const nameParts = customerName ? customerName.split(" ").filter(Boolean) : [];
+  const payerFirstName = nameParts.length > 0 ? nameParts[0] : "Cliente";
+  const payerLastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : undefined;
+
+  const allowedTypeSet = new Set(payload.config.allowedPaymentTypes);
+  const excludedPaymentTypes = CHECKOUT_PAYMENT_TYPES.filter((type) => !allowedTypeSet.has(type));
+
+  const allowedMethodSet = new Set(payload.config.allowedPaymentMethods);
+  const excludedPaymentMethods = CHECKOUT_PAYMENT_METHODS.filter((method) => !allowedMethodSet.has(method));
+
+  const preference = await createMercadoPagoCheckoutPreference({
+    accessToken: payload.config.accessToken,
+    amount: sanitizedAmount,
+    title: payload.config.displayName,
+    description: `${payload.config.displayName} - saldo StoreBot`,
+    externalReference: reference,
+    notificationUrl: payload.config.notificationUrl,
+    payer: {
+      email: payerEmail,
+      firstName: payerFirstName,
+      lastName: payerLastName ?? null,
+    },
+    metadata: {
+      storebot_user_id: payload.userId,
+      storebot_customer_whatsapp: customerWhatsapp,
+    },
+    excludedPaymentTypes,
+    excludedPaymentMethods,
+  });
+
+  const chargePublicId = randomUUID();
+  const checkoutUrl = preference.initPoint ?? preference.sandboxInitPoint ?? null;
+
+  const metadataPayload: Record<string, unknown> = {
+    createdAt: new Date().toISOString(),
+    initialPreferencePayload: preference.raw ?? {},
+  };
+
+  await db.query<ResultSetHeader>(
+    `
+      INSERT INTO user_payment_charges (
+        public_id,
+        user_id,
+        provider,
+        provider_payment_id,
+        status,
+        amount,
+        currency,
+        qr_code,
+        qr_code_base64,
+        ticket_url,
+        expires_at,
+        customer_whatsapp,
+        customer_name,
+        metadata
+      ) VALUES (?, ?, 'mercadopago_checkout', ?, 'pending', ?, 'BRL', NULL, NULL, ?, NULL, ?, ?, ?)
+    `,
+    [
+      chargePublicId,
+      payload.userId,
+      preference.id,
+      Number(sanitizedAmount.toFixed(2)),
+      checkoutUrl,
+      customerWhatsapp || null,
+      customerName,
+      JSON.stringify(metadataPayload),
+    ],
+  );
+
+  const charge = await getPaymentChargeByPublicId(chargePublicId);
+
+  if (!charge || charge.provider !== "mercadopago_checkout") {
+    throw new Error("Não foi possível recuperar a cobrança de checkout recém-criada.");
+  }
+
+  return charge as MercadoPagoCheckoutCharge;
+};
+
+export const getPaymentChargeByPublicId = async (
   publicId: string,
-): Promise<MercadoPagoPixCharge | null> => {
+): Promise<PaymentCharge | null> => {
   await ensurePaymentChargeTable();
   const db = getDb();
   const trimmed = publicId.trim();
@@ -666,9 +808,9 @@ export const getMercadoPagoPixChargeByPublicId = async (
   return mapChargeRow(rows[0]);
 };
 
-export const getMercadoPagoPixChargeByProviderPaymentId = async (
+export const getPaymentChargeByProviderPaymentId = async (
   providerPaymentId: string,
-): Promise<MercadoPagoPixCharge | null> => {
+): Promise<PaymentCharge | null> => {
   await ensurePaymentChargeTable();
   const db = getDb();
   const trimmed = providerPaymentId.trim();
@@ -678,7 +820,7 @@ export const getMercadoPagoPixChargeByProviderPaymentId = async (
   }
 
   const [rows] = await db.query<UserPaymentChargeRow[]>(
-    `SELECT * FROM user_payment_charges WHERE provider = 'mercadopago_pix' AND provider_payment_id = ? LIMIT 1`,
+    `SELECT * FROM user_payment_charges WHERE provider_payment_id = ? LIMIT 1`,
     [trimmed],
   );
 
@@ -689,7 +831,21 @@ export const getMercadoPagoPixChargeByProviderPaymentId = async (
   return mapChargeRow(rows[0]);
 };
 
-type UpdatePixChargeStatusInput = {
+export const getMercadoPagoPixChargeByPublicId = async (
+  publicId: string,
+): Promise<MercadoPagoPixCharge | null> => {
+  const charge = await getPaymentChargeByPublicId(publicId);
+  return charge && charge.provider === "mercadopago_pix" ? (charge as MercadoPagoPixCharge) : null;
+};
+
+export const getMercadoPagoPixChargeByProviderPaymentId = async (
+  providerPaymentId: string,
+): Promise<MercadoPagoPixCharge | null> => {
+  const charge = await getPaymentChargeByProviderPaymentId(providerPaymentId);
+  return charge && charge.provider === "mercadopago_pix" ? (charge as MercadoPagoPixCharge) : null;
+};
+
+type UpdateChargeStatusInput = {
   chargeId: number;
   status: string;
   statusDetail?: string | null;
@@ -705,9 +861,9 @@ type UpdatePixChargeStatusInput = {
   } | null;
 };
 
-export const updateMercadoPagoPixChargeStatus = async (
-  input: UpdatePixChargeStatusInput,
-): Promise<MercadoPagoPixCharge | null> => {
+export const updatePaymentChargeStatus = async (
+  input: UpdateChargeStatusInput,
+): Promise<PaymentCharge | null> => {
   await ensurePaymentChargeTable();
   const db = getDb();
 
@@ -763,6 +919,10 @@ export const updateMercadoPagoPixChargeStatus = async (
     `SELECT * FROM user_payment_charges WHERE id = ? LIMIT 1`,
     [input.chargeId],
   );
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return null;
+  }
 
   if (!Array.isArray(rows) || rows.length === 0) {
     return null;

@@ -26,6 +26,30 @@ export type MercadoPagoPixPaymentResponse = {
   raw: Record<string, unknown>;
 };
 
+export type CreateCheckoutPreferenceOptions = {
+  accessToken: string;
+  amount: number;
+  title: string;
+  description: string;
+  externalReference: string;
+  notificationUrl?: string | null;
+  payer?: {
+    email: string;
+    firstName?: string | null;
+    lastName?: string | null;
+  } | null;
+  metadata?: Record<string, unknown> | null;
+  excludedPaymentTypes?: string[] | null;
+  excludedPaymentMethods?: string[] | null;
+};
+
+export type MercadoPagoCheckoutPreferenceResponse = {
+  id: string;
+  initPoint: string | null;
+  sandboxInitPoint: string | null;
+  raw: Record<string, unknown>;
+};
+
 export type MercadoPagoPaymentDetails = {
   id: string;
   status: string;
@@ -121,6 +145,101 @@ export const createMercadoPagoPixPayment = async (
     ticketUrl,
     dateOfExpiration: dateOfExpirationRaw,
     raw: rawData as Record<string, unknown>,
+  };
+};
+
+export const createMercadoPagoCheckoutPreference = async (
+  options: CreateCheckoutPreferenceOptions,
+): Promise<MercadoPagoCheckoutPreferenceResponse> => {
+  const {
+    accessToken,
+    amount,
+    title,
+    description,
+    externalReference,
+    notificationUrl,
+    payer,
+    metadata,
+    excludedPaymentTypes,
+    excludedPaymentMethods,
+  } = options;
+
+  const sanitizedAmount = Number.isFinite(amount) ? Math.max(amount, 0) : 0;
+  const payload: Record<string, unknown> = {
+    items: [
+      {
+        id: "storebot_balance",
+        title: title.trim() || "Recarga de saldo",
+        description: description.trim() || undefined,
+        quantity: 1,
+        unit_price: Number(sanitizedAmount.toFixed(2)),
+        currency_id: "BRL",
+      },
+    ],
+    external_reference: externalReference,
+    auto_return: "approved",
+  };
+
+  if (notificationUrl && notificationUrl.trim()) {
+    payload.notification_url = notificationUrl.trim();
+  }
+
+  if (metadata && Object.keys(metadata).length > 0) {
+    payload.metadata = metadata;
+  }
+
+  const paymentMethods: Record<string, unknown> = {};
+  if (excludedPaymentTypes && excludedPaymentTypes.length > 0) {
+    paymentMethods.excluded_payment_types = excludedPaymentTypes.map((id) => ({ id }));
+  }
+
+  if (excludedPaymentMethods && excludedPaymentMethods.length > 0) {
+    paymentMethods.excluded_payment_methods = excludedPaymentMethods.map((id) => ({ id }));
+  }
+
+  if (Object.keys(paymentMethods).length > 0) {
+    payload.payment_methods = paymentMethods;
+  }
+
+  if (payer && payer.email && payer.email.trim()) {
+    payload.payer = {
+      email: payer.email.trim(),
+      name: payer.firstName ?? undefined,
+      surname: payer.lastName ?? undefined,
+    };
+  }
+
+  const response = await fetch(`${MERCADO_PAGO_BASE_URL}/checkout/preferences`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+      "User-Agent": "StoreBotDashboard/1.0",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(
+      `Mercado Pago checkout preference creation failed: ${response.status} ${response.statusText} ${errorText}`,
+    );
+  }
+
+  const data = await response.json().catch(() => ({}));
+  const rawData = data && typeof data === "object" ? data : {};
+
+  const normalized = rawData as Record<string, unknown>;
+  const initPoint = typeof normalized.init_point === "string" ? normalized.init_point : null;
+  const sandboxInitPoint = typeof normalized.sandbox_init_point === "string"
+    ? normalized.sandbox_init_point
+    : null;
+
+  return {
+    id: String(normalized.id ?? ""),
+    initPoint,
+    sandboxInitPoint,
+    raw: normalized,
   };
 };
 
