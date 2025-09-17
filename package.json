@@ -16,11 +16,12 @@
     "@tabler/icons-react": "^3.34.0",
     "@tabler/icons-webfont": "^3.34.0",
     "@tanstack/react-table": "^8.21.3",
-    "bcryptjs": "^2.4.3",
     "@tippyjs/react": "^4.2.6",
     "apexcharts": "^4.7.0",
+    "bcryptjs": "^2.4.3",
     "bootstrap": "^5.3.7",
     "bootstrap-icons": "^1.13.1",
+    "mysql2": "^3.11.4",
     "next": "15.3.5",
     "quill": "^2.0.3",
     "react": "^19.0.0",
@@ -36,8 +37,6 @@
     "react-responsive": "^10.0.1",
     "redux": "^5.0.1",
     "simplebar-react": "^3.3.2",
-    "jsonwebtoken": "^9.0.2",
-    "mysql2": "^3.11.4",
     "swiper": "^11.2.10",
     "uuid": "^11.1.0"
   },
@@ -53,7 +52,6 @@
     "gulp-sass": "^6.0.1",
     "sass": "^1.89.2",
     "sass-loader": "^16.0.5",
-    "@types/jsonwebtoken": "^9.0.6",
     "typescript": "^5",
     "webpack": "^5.99.9"
   }

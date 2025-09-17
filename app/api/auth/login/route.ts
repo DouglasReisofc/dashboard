@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 
 import { ensureUserTable, getDb, UserRow } from "lib/db";
-import { createAuthToken, setSessionCookie } from "lib/auth";
+import { createSession, setSessionCookie } from "lib/auth";
 
 export async function POST(request: Request) {
   try {
@@ -38,6 +38,16 @@ export async function POST(request: Request) {
 
     const user = users[0];
 
+    if (!user.is_active) {
+      return NextResponse.json(
+        {
+          message:
+            "Sua conta está desativada. Entre em contato com o suporte para reativação.",
+        },
+        { status: 403 },
+      );
+    }
+
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
@@ -47,7 +57,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const token = createAuthToken({ userId: user.id, role: user.role });
+    const session = await createSession(user.id);
     const response = NextResponse.json(
       {
         user: {
@@ -55,13 +65,14 @@ export async function POST(request: Request) {
           name: user.name,
           email: user.email,
           role: user.role,
+          isActive: Boolean(user.is_active),
         },
         message: "Login realizado com sucesso.",
       },
       { status: 200 },
     );
 
-    setSessionCookie(response, token);
+    setSessionCookie(response, session.id, session.expiresAt);
 
     return response;
   } catch (error) {

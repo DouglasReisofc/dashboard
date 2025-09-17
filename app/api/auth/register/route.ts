@@ -3,7 +3,7 @@ import type { ResultSetHeader } from "mysql2";
 import { NextResponse } from "next/server";
 
 import { ensureUserTable, getDb, UserRow } from "lib/db";
-import { createAuthToken, setSessionCookie } from "lib/auth";
+import { createSession, setSessionCookie } from "lib/auth";
 
 export async function POST(request: Request) {
   try {
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
 
     const userId = result.insertId;
 
-    const token = createAuthToken({ userId, role: "user" });
+    const session = await createSession(userId);
     const response = NextResponse.json(
       {
         user: {
@@ -54,13 +54,14 @@ export async function POST(request: Request) {
           name: name.trim(),
           email: normalizedEmail,
           role: "user",
+          isActive: true,
         },
         message: "Conta criada com sucesso.",
       },
       { status: 201 },
     );
 
-    setSessionCookie(response, token);
+    setSessionCookie(response, session.id, session.expiresAt);
 
     return response;
   } catch (error) {

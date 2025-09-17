@@ -5,6 +5,7 @@ import {
   IconLayoutDashboard,
   IconPackage,
   IconTags,
+  IconUsers,
 } from "@tabler/icons-react";
 
 //import custom type
@@ -28,6 +29,12 @@ const adminMenu: MenuItemType[] = [
     title: "Produtos digitais",
     link: "/dashboard/admin/products",
     icon: <IconPackage size={20} strokeWidth={1.5} />,
+  },
+  {
+    id: uuid(),
+    title: "Usuários",
+    link: "/dashboard/admin/users",
+    icon: <IconUsers size={20} strokeWidth={1.5} />,
   },
 ];
 

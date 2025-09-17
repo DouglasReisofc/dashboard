@@ -3,6 +3,7 @@ import { Metadata } from "next";
 
 import { getCurrentUser } from "lib/auth";
 import { getAllCategories, getAllProducts } from "lib/catalog";
+import { getAdminUsers } from "lib/users";
 import { formatDate } from "lib/format";
 
 export const metadata: Metadata = {
@@ -13,14 +14,22 @@ export const metadata: Metadata = {
 
 const AdminPanelPage = async () => {
   const user = await getCurrentUser();
-  const [categories, products] = await Promise.all([getAllCategories(), getAllProducts()]);
+  const [categories, products, users] = await Promise.all([
+    getAllCategories(),
+    getAllProducts(),
+    getAdminUsers(),
+  ]);
 
   const activeCategories = categories.filter((category) => category.isActive).length;
   const totalAttachments = products.filter((product) => Boolean(product.filePath)).length;
   const uniqueOwners = new Set(products.map((product) => product.ownerEmail)).size;
+  const activeUsers = users.filter((user) => user.isActive).length;
+  const inactiveUsers = users.length - activeUsers;
+  const activeSessions = users.reduce((total, user) => total + user.activeSessions, 0);
 
   const recentCategories = categories.slice(0, 5);
   const recentProducts = products.slice(0, 5);
+  const recentUsers = users.slice(0, 5);
 
   return (
     <Fragment>
@@ -62,6 +71,15 @@ const AdminPanelPage = async () => {
             <div className="card-body">
               <p className="text-secondary mb-1">Produtores únicos</p>
               <h3 className="mb-0">{uniqueOwners}</h3>
+            </div>
+          </div>
+        </div>
+        <div className="col-sm-6 col-xl-3">
+          <div className="card h-100">
+            <div className="card-body">
+              <p className="text-secondary mb-1">Usuários ativos</p>
+              <h3 className="mb-0">{activeUsers}</h3>
+              <span className="text-secondary small">{inactiveUsers} inativo(s)</span>
             </div>
           </div>
         </div>
@@ -141,6 +159,49 @@ const AdminPanelPage = async () => {
             <div className="card-body">
               <p className="text-secondary mb-1">Produtos com anexo</p>
               <h3 className="mb-0">{totalAttachments}</h3>
+            </div>
+          </div>
+        </div>
+        <div className="col-sm-6 col-xl-3">
+          <div className="card h-100">
+            <div className="card-body">
+              <p className="text-secondary mb-1">Sessões ativas</p>
+              <h3 className="mb-0">{activeSessions}</h3>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="row g-4 mt-1">
+        <div className="col-12">
+          <div className="card h-100">
+            <div className="card-header">
+              <h2 className="h5 mb-0">Novos usuários</h2>
+            </div>
+            <div className="card-body">
+              {recentUsers.length === 0 ? (
+                <p className="text-secondary mb-0">Nenhum usuário cadastrado até o momento.</p>
+              ) : (
+                <ul className="list-unstyled mb-0 d-flex flex-column gap-3">
+                  {recentUsers.map((userSummary) => (
+                    <li key={userSummary.id}>
+                      <div className="d-flex justify-content-between">
+                        <div className="me-3">
+                          <strong className="d-block">{userSummary.name}</strong>
+                          <span className="text-secondary small">
+                            {userSummary.email} • {userSummary.isActive ? "Ativo" : "Inativo"}
+                          </span>
+                        </div>
+                        <span className="text-secondary small">
+                          {userSummary.lastSessionAt
+                            ? `Último acesso: ${formatDate(userSummary.lastSessionAt)}`
+                            : `Criado em ${formatDate(userSummary.createdAt)}`}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         </div>

@@ -3,4 +3,5 @@ export type SessionUser = {
   name: string;
   email: string;
   role: "admin" | "user";
+  isActive: boolean;
 };

@@ -41,9 +41,16 @@ export const ensureUserTable = async () => {
       email VARCHAR(255) NOT NULL UNIQUE,
       password VARCHAR(255) NOT NULL,
       role ENUM('admin', 'user') NOT NULL DEFAULT 'user',
+      is_active TINYINT(1) NOT NULL DEFAULT 1,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB;
+  `);
+
+  await db.query(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS is_active TINYINT(1) NOT NULL DEFAULT 1
+      AFTER role
   `);
 
   const normalizedEmail = DEFAULT_ADMIN_EMAIL.toLowerCase().trim();
@@ -51,12 +58,13 @@ export const ensureUserTable = async () => {
 
   await db.query(
     `
-      INSERT INTO users (name, email, password, role)
-      VALUES (?, ?, ?, 'admin')
+      INSERT INTO users (name, email, password, role, is_active)
+      VALUES (?, ?, ?, 'admin', 1)
       ON DUPLICATE KEY UPDATE
         name = VALUES(name),
         password = VALUES(password),
-        role = 'admin'
+        role = 'admin',
+        is_active = 1
     `,
     [DEFAULT_ADMIN_NAME.trim(), normalizedEmail, hashedPassword],
   );
@@ -68,8 +76,34 @@ export type UserRow = {
   email: string;
   password: string;
   role: "admin" | "user";
+  is_active: number;
   created_at: Date;
   updated_at: Date;
+};
+
+export const ensureSessionTable = async () => {
+  const db = getDb();
+  await ensureUserTable();
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      id CHAR(36) PRIMARY KEY,
+      user_id INT NOT NULL,
+      expires_at DATETIME NOT NULL,
+      revoked_at DATETIME NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_sessions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      INDEX idx_sessions_user (user_id),
+      INDEX idx_sessions_active (user_id, expires_at, revoked_at)
+    ) ENGINE=InnoDB;
+  `);
+};
+
+export type SessionRow = {
+  id: string;
+  user_id: number;
+  expires_at: Date;
+  revoked_at: Date | null;
+  created_at: Date;
 };
 
 export const ensureCategoryTable = async () => {
