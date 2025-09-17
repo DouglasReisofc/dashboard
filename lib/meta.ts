@@ -16,25 +16,66 @@ const resolveMediaUrl = (relativePath: string) => {
 
 const getMetaApiVersion = () => process.env.META_API_VERSION?.trim() || "v19.0";
 
-const buildTextPayload = (to: string, text: string) => ({
-  messaging_product: "whatsapp",
-  to,
-  type: "text" as const,
-  text: {
-    preview_url: false,
-    body: text,
-  },
-});
+type ButtonDefinition = {
+  id: string;
+  title: string;
+};
 
-const buildImagePayload = (to: string, mediaUrl: string, caption: string) => ({
-  messaging_product: "whatsapp",
-  to,
-  type: "image" as const,
-  image: {
-    link: mediaUrl,
-    caption,
-  },
-});
+const DEFAULT_MENU_BUTTONS: ButtonDefinition[] = [
+  { id: "storebot_ver_catalogo", title: "Ver catálogo" },
+  { id: "storebot_ver_categorias", title: "Ver categorias" },
+  { id: "storebot_falar_atendente", title: "Falar com atendente" },
+];
+
+const MAX_BODY_LENGTH = 1024;
+
+const buildInteractiveMenuPayload = (
+  to: string,
+  text: string,
+  mediaUrl?: string | null,
+) => {
+  const trimmedText = text.trim();
+  const bodyText = trimmedText.length > MAX_BODY_LENGTH
+    ? `${trimmedText.slice(0, MAX_BODY_LENGTH - 1)}…`
+    : trimmedText;
+
+  const buttonsPayload = DEFAULT_MENU_BUTTONS.map((button) => ({
+    type: "reply" as const,
+    reply: {
+      id: button.id,
+      title: button.title,
+    },
+  }));
+
+  const interactive: Record<string, unknown> = {
+    type: "button",
+    body: {
+      text: bodyText,
+    },
+    footer: {
+      text: "Selecione uma opção para continuar.",
+    },
+    action: {
+      buttons: buttonsPayload,
+    },
+  };
+
+  if (mediaUrl) {
+    interactive.header = {
+      type: "image",
+      image: {
+        link: mediaUrl,
+      },
+    };
+  }
+
+  return {
+    messaging_product: "whatsapp" as const,
+    to,
+    type: "interactive" as const,
+    interactive,
+  };
+};
 
 export const sendBotMenuReply = async (options: {
   webhook: UserWebhookRow;
@@ -59,9 +100,11 @@ export const sendBotMenuReply = async (options: {
   const version = getMetaApiVersion();
   const url = `https://graph.facebook.com/${version}/${webhook.phone_number_id}/messages`;
 
-  const payload = imagePath
-    ? buildImagePayload(to, resolveMediaUrl(imagePath), text)
-    : buildTextPayload(to, text);
+  const payload = buildInteractiveMenuPayload(
+    to,
+    text,
+    imagePath ? resolveMediaUrl(imagePath) : null,
+  );
 
   try {
     const response = await fetch(url, {
