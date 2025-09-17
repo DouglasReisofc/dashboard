@@ -75,6 +75,7 @@ export const ensureUserTable = async () => {
 
   await ensureWebhookTable();
   await ensureWebhookEventTable();
+  await ensureCustomerTable();
 
   const normalizedEmail = DEFAULT_ADMIN_EMAIL.toLowerCase().trim();
   const hashedPassword = await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, 10);
@@ -212,6 +213,28 @@ export const ensureBotMenuConfigTable = async () => {
   `);
 };
 
+export const ensureCustomerTable = async () => {
+  const db = getDb();
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS customers (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      whatsapp_id VARCHAR(32) NOT NULL,
+      phone_number VARCHAR(32) NOT NULL,
+      display_name VARCHAR(255) NULL,
+      profile_name VARCHAR(255) NULL,
+      notes TEXT NULL,
+      balance DECIMAL(12, 2) NOT NULL DEFAULT 0,
+      is_blocked TINYINT(1) NOT NULL DEFAULT 0,
+      last_interaction DATETIME NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_customers_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      CONSTRAINT unique_customer_user_whatsapp UNIQUE KEY unique_customer_user_whatsapp (user_id, whatsapp_id)
+    ) ENGINE=InnoDB;
+  `);
+};
+
 export const ensureWebhookTable = async () => {
   const db = getDb();
   await db.query(`
@@ -306,6 +329,21 @@ export type ProductRow = {
   details: string;
   file_path: string | null;
   resale_limit: number;
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type CustomerRow = {
+  id: number;
+  user_id: number;
+  whatsapp_id: string;
+  phone_number: string;
+  display_name: string | null;
+  profile_name: string | null;
+  notes: string | null;
+  balance: string;
+  is_blocked: number;
+  last_interaction: Date | null;
   created_at: Date;
   updated_at: Date;
 };

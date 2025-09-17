@@ -61,6 +61,12 @@ const userMenu: MenuItemType[] = [
   },
   {
     id: uuid(),
+    title: "Clientes",
+    link: "/dashboard/user/clientes",
+    icon: <IconUsers size={20} strokeWidth={1.5} />,
+  },
+  {
+    id: uuid(),
     title: "Configurar bot",
     link: "/dashboard/user/configurar-bot",
     icon: <IconRobot size={20} strokeWidth={1.5} />,

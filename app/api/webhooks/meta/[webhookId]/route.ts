@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getBotMenuConfigForUser } from "lib/bot-config";
 import { renderBotMenuText } from "lib/bot-menu";
+import { upsertCustomerInteraction } from "lib/customers";
 import { sendBotMenuReply } from "lib/meta";
 import { getWebhookByPublicId, recordWebhookEvent } from "lib/webhooks";
 
@@ -38,6 +39,19 @@ const resolveContactName = (value: ChangeValue, waId: string) => {
   return contact?.profile?.name ?? null;
 };
 
+const parseTimestamp = (raw: unknown): number | null => {
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    return raw;
+  }
+
+  if (typeof raw === "string" && raw.trim()) {
+    const parsed = Number.parseInt(raw.trim(), 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+};
+
 const replyWithBotMenu = async (webhook: Awaited<ReturnType<typeof getWebhookByPublicId>>, value: ChangeValue) => {
   if (!webhook) {
     return;
@@ -58,8 +72,22 @@ const replyWithBotMenu = async (webhook: Awaited<ReturnType<typeof getWebhookByP
     return;
   }
 
-  const botConfig = await getBotMenuConfigForUser(webhook.user_id);
   const contactName = resolveContactName(value, incomingMessage.from);
+  const timestampSeconds = parseTimestamp((incomingMessage as Record<string, unknown>).timestamp);
+
+  try {
+    await upsertCustomerInteraction({
+      userId: webhook.user_id,
+      whatsappId: incomingMessage.from,
+      phoneNumber: incomingMessage.from,
+      profileName: contactName,
+      messageTimestamp: timestampSeconds,
+    });
+  } catch (customerError) {
+    console.error("[Meta Webhook] Não foi possível registrar o cliente", customerError);
+  }
+
+  const botConfig = await getBotMenuConfigForUser(webhook.user_id);
   const menuText = renderBotMenuText(botConfig?.menuText, botConfig?.variables, {
     contactName,
     contactNumber: incomingMessage.from,
