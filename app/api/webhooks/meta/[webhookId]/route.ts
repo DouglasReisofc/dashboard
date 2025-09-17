@@ -372,6 +372,8 @@ const replyWithBotMenu = async (
             code: charge.qrCode,
           });
         }
+
+        return;
       } catch (pixError) {
         console.error("[Meta Webhook] Falha ao gerar cobrança Pix", pixError);
         await sendTextMessage({
@@ -379,10 +381,9 @@ const replyWithBotMenu = async (
           to: recipient,
           text: "Não foi possível gerar o Pix agora. Tente novamente em alguns minutos.",
         });
+        await sendMainMenu();
+        return;
       }
-
-      await sendMainMenu();
-      return;
     }
 
     if (listReplyId.startsWith(CATEGORY_LIST_NEXT_PREFIX)) {

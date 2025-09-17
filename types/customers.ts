@@ -34,3 +34,10 @@ export type DebitCustomerBalanceResult = {
   customer?: CustomerSummary;
   reason?: "not_found" | "blocked" | "insufficient" | "invalid_amount";
 };
+
+export type CreditCustomerBalanceResult = {
+  success: boolean;
+  balance: number;
+  customer?: CustomerSummary;
+  reason?: "invalid_amount" | "not_found";
+};

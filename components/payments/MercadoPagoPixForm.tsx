@@ -224,14 +224,15 @@ const MercadoPagoPixForm = ({ config }: MercadoPagoPixFormProps) => {
             </Col>
             <Col md={6}>
               <Form.Group className="mb-3" controlId="notificationUrl">
-                <Form.Label>Notification URL (opcional)</Form.Label>
+                <Form.Label>Notification URL (automática)</Form.Label>
                 <Form.Control
                   value={formState.notificationUrl}
-                  onChange={(event) => handleChange("notificationUrl", event.target.value)}
+                  readOnly
                   placeholder="https://"
+                  title="Esta URL é definida automaticamente pelo sistema."
                 />
                 <Form.Text className="text-secondary">
-                  Informe uma URL pública para receber notificações assíncronas do Mercado Pago.
+                  Utilizamos este endereço por padrão para confirmar pagamentos e creditar o saldo do cliente automaticamente.
                 </Form.Text>
               </Form.Group>
             </Col>

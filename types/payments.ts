@@ -26,6 +26,7 @@ export type MercadoPagoPixCharge = {
   expiresAt: string | null;
   customerWhatsapp: string | null;
   customerName: string | null;
+  metadata: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
 };

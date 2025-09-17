@@ -15,6 +15,18 @@ const DEFAULT_MERCADO_PAGO_DISPLAY_NAME = "Pagamento Pix";
 const DEFAULT_EXPIRATION_MINUTES = 30;
 const DEFAULT_AMOUNT_OPTIONS = [25, 50, 100];
 
+const getAppBaseUrl = () => {
+  const raw = process.env.APP_URL?.trim();
+  if (!raw) {
+    return "http://localhost:4478";
+  }
+
+  return raw.endsWith("/") ? raw.slice(0, -1) : raw;
+};
+
+export const getMercadoPagoNotificationUrl = () =>
+  `${getAppBaseUrl()}/api/payments/mercadopago/webhook`;
+
 const sanitizeText = (value: unknown): string => {
   if (typeof value !== "string") {
     return "";
@@ -109,7 +121,8 @@ const mapPaymentMethodRow = (row: UserPaymentMethodRow | null): MercadoPagoPixCo
   const publicKey = sanitizeOptionalText(credentials.publicKey);
   const pixKey = sanitizeOptionalText(credentials.pixKey);
 
-  const notificationUrl = sanitizeOptionalText(settings.notificationUrl);
+  const notificationUrl =
+    sanitizeOptionalText(settings.notificationUrl) ?? getMercadoPagoNotificationUrl();
   const pixExpirationMinutesRaw = typeof settings.pixExpirationMinutes === "number"
     ? settings.pixExpirationMinutes
     : typeof settings.pixExpirationMinutes === "string"
@@ -145,6 +158,23 @@ const mapPaymentMethodRow = (row: UserPaymentMethodRow | null): MercadoPagoPixCo
   } satisfies MercadoPagoPixConfig;
 };
 
+const parseChargeMetadata = (raw: unknown): Record<string, unknown> | null => {
+  if (typeof raw !== "string" || raw.trim().length === 0) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch (error) {
+    console.warn("Failed to parse charge metadata", error);
+  }
+
+  return null;
+};
+
 const mapChargeRow = (row: UserPaymentChargeRow): MercadoPagoPixCharge => ({
   id: row.id,
   publicId: row.public_id,
@@ -161,6 +191,7 @@ const mapChargeRow = (row: UserPaymentChargeRow): MercadoPagoPixCharge => ({
     : new Date(row.expires_at).toISOString()) : null,
   customerWhatsapp: row.customer_whatsapp,
   customerName: row.customer_name,
+  metadata: parseChargeMetadata(row.metadata),
   createdAt: row.created_at instanceof Date
     ? row.created_at.toISOString()
     : new Date(row.created_at).toISOString(),
@@ -168,15 +199,6 @@ const mapChargeRow = (row: UserPaymentChargeRow): MercadoPagoPixCharge => ({
     ? row.updated_at.toISOString()
     : new Date(row.updated_at).toISOString(),
 });
-
-const getAppBaseUrl = () => {
-  const raw = process.env.APP_URL?.trim();
-  if (!raw) {
-    return "http://localhost:4478";
-  }
-
-  return raw.endsWith("/") ? raw.slice(0, -1) : raw;
-};
 
 export const getPixChargeImageUrl = (publicId: string) => {
   const trimmed = publicId.trim();
@@ -331,6 +353,11 @@ export const createMercadoPagoPixCharge = async (payload: {
     ? new Date(pixPayment.dateOfExpiration)
     : expiresAt;
 
+  const metadataPayload: Record<string, unknown> = {
+    createdAt: new Date().toISOString(),
+    initialPaymentPayload: pixPayment.raw ?? {},
+  };
+
   await db.query<ResultSetHeader>(
     `
       INSERT INTO user_payment_charges (
@@ -362,7 +389,7 @@ export const createMercadoPagoPixCharge = async (payload: {
       expiresAtDate && Number.isFinite(expiresAtDate.getTime()) ? expiresAtDate : null,
       customerWhatsapp || null,
       customerName,
-      JSON.stringify(pixPayment.raw ?? {}),
+      JSON.stringify(metadataPayload),
     ],
   );
 
@@ -388,6 +415,111 @@ export const getMercadoPagoPixChargeByPublicId = async (
   const [rows] = await db.query<UserPaymentChargeRow[]>(
     `SELECT * FROM user_payment_charges WHERE public_id = ? LIMIT 1`,
     [trimmed],
+  );
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return null;
+  }
+
+  return mapChargeRow(rows[0]);
+};
+
+export const getMercadoPagoPixChargeByProviderPaymentId = async (
+  providerPaymentId: string,
+): Promise<MercadoPagoPixCharge | null> => {
+  await ensurePaymentChargeTable();
+  const db = getDb();
+  const trimmed = providerPaymentId.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  const [rows] = await db.query<UserPaymentChargeRow[]>(
+    `SELECT * FROM user_payment_charges WHERE provider = 'mercadopago_pix' AND provider_payment_id = ? LIMIT 1`,
+    [trimmed],
+  );
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return null;
+  }
+
+  return mapChargeRow(rows[0]);
+};
+
+type UpdatePixChargeStatusInput = {
+  chargeId: number;
+  status: string;
+  statusDetail?: string | null;
+  rawPayload?: Record<string, unknown> | null;
+  creditResult?: {
+    success: boolean;
+    amount: number;
+    balance: number;
+    customerId: number | null;
+    customerWhatsapp: string | null;
+    creditedAt: string;
+    reason?: string | null;
+  } | null;
+};
+
+export const updateMercadoPagoPixChargeStatus = async (
+  input: UpdatePixChargeStatusInput,
+): Promise<MercadoPagoPixCharge | null> => {
+  await ensurePaymentChargeTable();
+  const db = getDb();
+
+  const [existingRows] = await db.query<UserPaymentChargeRow[]>(
+    `SELECT * FROM user_payment_charges WHERE id = ? LIMIT 1`,
+    [input.chargeId],
+  );
+
+  if (!Array.isArray(existingRows) || existingRows.length === 0) {
+    return null;
+  }
+
+  const existingRow = existingRows[0];
+  const metadata = parseChargeMetadata(existingRow.metadata) ?? {};
+
+  const history = Array.isArray(metadata.webhookHistory)
+    ? (metadata.webhookHistory as unknown[])
+    : [];
+  history.push({
+    receivedAt: new Date().toISOString(),
+    status: input.status,
+    statusDetail: input.statusDetail ?? null,
+    payload: input.rawPayload ?? null,
+  });
+
+  const trimmedHistory = history.slice(-20);
+
+  const metadataPayload: Record<string, unknown> = {
+    ...metadata,
+    lastPaymentStatus: {
+      status: input.status,
+      updatedAt: new Date().toISOString(),
+      statusDetail: input.statusDetail ?? null,
+      payload: input.rawPayload ?? null,
+    },
+    webhookHistory: trimmedHistory,
+  };
+
+  if (input.creditResult) {
+    metadataPayload.lastCreditResult = input.creditResult;
+  }
+
+  await db.query(
+    `
+      UPDATE user_payment_charges
+      SET status = ?, metadata = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `,
+    [input.status, JSON.stringify(metadataPayload), input.chargeId],
+  );
+
+  const [rows] = await db.query<UserPaymentChargeRow[]>(
+    `SELECT * FROM user_payment_charges WHERE id = ? LIMIT 1`,
+    [input.chargeId],
   );
 
   if (!Array.isArray(rows) || rows.length === 0) {

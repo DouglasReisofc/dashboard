@@ -26,6 +26,16 @@ export type MercadoPagoPixPaymentResponse = {
   raw: Record<string, unknown>;
 };
 
+export type MercadoPagoPaymentDetails = {
+  id: string;
+  status: string;
+  statusDetail: string | null;
+  transactionAmount: number | null;
+  currencyId: string | null;
+  metadata: Record<string, unknown> | null;
+  raw: Record<string, unknown>;
+};
+
 const buildExpiration = (expiresAt?: Date | null) => {
   if (!expiresAt) {
     return undefined;
@@ -112,4 +122,70 @@ export const createMercadoPagoPixPayment = async (
     dateOfExpiration: dateOfExpirationRaw,
     raw: rawData as Record<string, unknown>,
   };
+};
+
+type FetchPaymentOptions = {
+  accessToken: string;
+  paymentId: string;
+};
+
+const parseTransactionAmount = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number.parseFloat(value.trim());
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+};
+
+const parseMetadata = (value: unknown): Record<string, unknown> | null => {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+
+  return null;
+};
+
+export const fetchMercadoPagoPayment = async (
+  options: FetchPaymentOptions,
+): Promise<MercadoPagoPaymentDetails> => {
+  const { accessToken, paymentId } = options;
+  const trimmedId = paymentId.trim();
+
+  const response = await fetch(`${MERCADO_PAGO_BASE_URL}/v1/payments/${trimmedId}`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+      "User-Agent": "StoreBotDashboard/1.0",
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Mercado Pago payment fetch failed: ${response.status} ${response.statusText} ${errorText}`);
+  }
+
+  const data = await response.json().catch(() => ({}));
+  const rawData = data && typeof data === "object" ? data : {};
+
+  const status = typeof rawData.status === "string" ? rawData.status : "unknown";
+  const statusDetail = typeof rawData.status_detail === "string" ? rawData.status_detail : null;
+  const transactionAmount = parseTransactionAmount(rawData.transaction_amount);
+  const currencyId = typeof rawData.currency_id === "string" ? rawData.currency_id : null;
+  const metadata = parseMetadata(rawData.metadata);
+
+  return {
+    id: String(rawData.id ?? trimmedId),
+    status,
+    statusDetail,
+    transactionAmount,
+    currencyId,
+    metadata,
+    raw: rawData as Record<string, unknown>,
+  } satisfies MercadoPagoPaymentDetails;
 };

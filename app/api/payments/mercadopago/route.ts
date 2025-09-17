@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "lib/auth";
-import { upsertMercadoPagoPixConfig } from "lib/payments";
+import { getMercadoPagoNotificationUrl, upsertMercadoPagoPixConfig } from "lib/payments";
 
 const parseAmountOptions = (input: unknown): number[] => {
   if (!Array.isArray(input)) {
@@ -61,7 +61,11 @@ export async function PUT(request: Request) {
     const sanitizedDisplayName = typeof displayName === "string" ? displayName : null;
     const sanitizedPublicKey = typeof publicKey === "string" ? publicKey : null;
     const sanitizedPixKey = typeof pixKey === "string" ? pixKey : null;
-    const sanitizedNotificationUrl = typeof notificationUrl === "string" ? notificationUrl : null;
+    const defaultNotificationUrl = getMercadoPagoNotificationUrl();
+    const sanitizedNotificationUrl =
+      typeof notificationUrl === "string" && notificationUrl.trim().length > 0
+        ? notificationUrl
+        : defaultNotificationUrl;
     const sanitizedInstructions = typeof instructions === "string" ? instructions : null;
 
     const expirationMinutes = typeof pixExpirationMinutes === "number"
