@@ -1,3 +1,5 @@
+import { ResultSetHeader } from "mysql2";
+
 import {
   CustomerRow,
   ensureCustomerTable,
@@ -7,6 +9,7 @@ import type {
   CustomerInteractionPayload,
   CustomerSummary,
   CustomerUpdateInput,
+  DebitCustomerBalanceResult,
 } from "types/customers";
 
 const mapCustomerRow = (row: CustomerRow): CustomerSummary => ({
@@ -90,6 +93,19 @@ const sanitizeBalance = (value: number) => {
 
   const rounded = Number.parseFloat(value.toFixed(2));
   return Number.isFinite(rounded) ? Math.max(rounded, 0) : 0;
+};
+
+const parseDatabaseBalance = (value: unknown): number => {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  return 0;
 };
 
 export const updateCustomerForUser = async (
@@ -176,4 +192,92 @@ export const upsertCustomerInteraction = async (
     `,
     [userId, trimmedWhatsappId, phoneNumber || trimmedWhatsappId, payload.profileName ?? null, timestamp],
   );
+};
+
+export const debitCustomerBalanceByWhatsapp = async (
+  userId: number,
+  whatsappId: string,
+  amount: number,
+): Promise<DebitCustomerBalanceResult> => {
+  const normalizedWhatsappId = whatsappId.trim();
+
+  if (!normalizedWhatsappId) {
+    return { success: false, balance: 0, reason: "not_found" };
+  }
+
+  await ensureCustomerTable();
+  const db = getDb();
+
+  const [rows] = await db.query<CustomerRow[]>(
+    `SELECT * FROM customers WHERE user_id = ? AND whatsapp_id = ? LIMIT 1`,
+    [userId, normalizedWhatsappId],
+  );
+
+  if (rows.length === 0) {
+    return { success: false, balance: 0, reason: "not_found" };
+  }
+
+  const customerRow = rows[0];
+  const currentBalance = parseDatabaseBalance(customerRow.balance);
+  const customerSummary = mapCustomerRow(customerRow);
+
+  if (customerRow.is_blocked === 1) {
+    return {
+      success: false,
+      balance: currentBalance,
+      customer: customerSummary,
+      reason: "blocked",
+    };
+  }
+
+  const normalizedAmount = sanitizeBalance(amount);
+
+  if (normalizedAmount <= 0) {
+    return {
+      success: true,
+      balance: currentBalance,
+      customer: customerSummary,
+    };
+  }
+
+  if (currentBalance < normalizedAmount) {
+    return {
+      success: false,
+      balance: currentBalance,
+      customer: customerSummary,
+      reason: "insufficient",
+    };
+  }
+
+  const [result] = await db.query<ResultSetHeader>(
+    `
+      UPDATE customers
+      SET balance = balance - ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ? AND balance >= ? AND is_blocked = 0
+    `,
+    [normalizedAmount.toFixed(2), customerRow.id, userId, normalizedAmount.toFixed(2)],
+  );
+
+  if (result.affectedRows === 0) {
+    return {
+      success: false,
+      balance: currentBalance,
+      customer: customerSummary,
+      reason: "insufficient",
+    };
+  }
+
+  const [updatedRows] = await db.query<CustomerRow[]>(
+    `SELECT * FROM customers WHERE id = ? LIMIT 1`,
+    [customerRow.id],
+  );
+
+  const updatedRow = updatedRows[0] ?? customerRow;
+  const updatedSummary = mapCustomerRow(updatedRow);
+
+  return {
+    success: true,
+    balance: updatedSummary.balance,
+    customer: updatedSummary,
+  };
 };

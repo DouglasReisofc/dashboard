@@ -1,5 +1,8 @@
+import path from "path";
+
 import type { UserWebhookRow } from "./db";
 import { formatCurrency } from "./format";
+import type { CategorySummary, ProductSummary } from "types/catalog";
 
 const getAppBaseUrl = () => {
   const rawUrl = process.env.APP_URL?.trim();
@@ -25,6 +28,7 @@ export const MENU_BUTTON_IDS = {
 
 export const CATEGORY_LIST_ROW_PREFIX = "storebot_category_";
 export const CATEGORY_LIST_NEXT_PREFIX = "storebot_list_next_";
+export const CATEGORY_PURCHASE_BUTTON_PREFIX = "storebot_buy_category_";
 
 type ButtonDefinition = {
   id: string;
@@ -39,6 +43,8 @@ const DEFAULT_MENU_BUTTONS: ButtonDefinition[] = [
 
 const MAX_BODY_LENGTH = 1024;
 const MAX_LIST_ROWS = 10;
+
+const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);
 
 type MetaMessagePayload = {
   messaging_product: "whatsapp";
@@ -205,6 +211,64 @@ const buildCategoryListPayload = (
   };
 };
 
+const buildCategoryDetailPayload = (
+  to: string,
+  category: CategorySummary,
+) => {
+  const lines: string[] = [
+    category.name,
+    `Valor: ${formatCurrency(category.price)}`,
+  ];
+
+  const description = category.description?.trim();
+
+  if (description) {
+    lines.push("", description);
+  }
+
+  const bodyRaw = lines.join("\n");
+  const bodyText = bodyRaw.length > MAX_BODY_LENGTH
+    ? `${bodyRaw.slice(0, MAX_BODY_LENGTH - 1)}…`
+    : bodyRaw;
+
+  const interactive: Record<string, unknown> = {
+    type: "button",
+    body: {
+      text: bodyText,
+    },
+    footer: {
+      text: "Toque em Comprar para receber o produto escolhido.",
+    },
+    action: {
+      buttons: [
+        {
+          type: "reply" as const,
+          reply: {
+            id: `${CATEGORY_PURCHASE_BUTTON_PREFIX}${category.id}`,
+            title: "Comprar",
+          },
+        },
+      ],
+    },
+  };
+
+  if (category.imagePath) {
+    interactive.header = {
+      type: "image",
+      image: {
+        link: resolveMediaUrl(category.imagePath),
+      },
+    };
+  }
+
+  return {
+    messaging_product: "whatsapp" as const,
+    to,
+    type: "interactive" as const,
+    interactive,
+  } satisfies MetaMessagePayload;
+};
+
 export const sendBotMenuReply = async (options: {
   webhook: UserWebhookRow;
   to: string;
@@ -255,6 +319,21 @@ export const sendCategoryListReply = async (options: {
   });
 };
 
+export const sendCategoryDetailReply = async (options: {
+  webhook: UserWebhookRow;
+  to: string;
+  category: CategorySummary;
+}) => {
+  const { webhook, to, category } = options;
+
+  const payload = buildCategoryDetailPayload(to, category);
+
+  await postMetaMessage(webhook, payload, {
+    successLog: `Detalhes da categoria ${category.id} enviados para ${to}`,
+    failureLog: `Falha ao enviar detalhes da categoria ${category.id} para ${to}`,
+  });
+};
+
 export const sendTextMessage = async (options: {
   webhook: UserWebhookRow;
   to: string;
@@ -281,5 +360,52 @@ export const sendTextMessage = async (options: {
   await postMetaMessage(webhook, payload, {
     successLog: `Mensagem de texto enviada para ${to}`,
     failureLog: `Falha ao enviar mensagem de texto para ${to}`,
+  });
+};
+
+export const sendProductFile = async (options: {
+  webhook: UserWebhookRow;
+  to: string;
+  product: ProductSummary;
+  caption?: string;
+}) => {
+  const { webhook, to, product, caption } = options;
+
+  if (!product.filePath) {
+    return;
+  }
+
+  const extension = path.extname(product.filePath).toLowerCase();
+  const isImage = IMAGE_EXTENSIONS.has(extension);
+  const mediaUrl = resolveMediaUrl(product.filePath);
+  const trimmedCaption = caption?.trim();
+  const safeCaption = trimmedCaption
+    ? (trimmedCaption.length > MAX_BODY_LENGTH
+      ? `${trimmedCaption.slice(0, MAX_BODY_LENGTH - 1)}…`
+      : trimmedCaption)
+    : undefined;
+
+  const mediaPayload: Record<string, unknown> = {
+    link: mediaUrl,
+  };
+
+  if (safeCaption) {
+    mediaPayload.caption = safeCaption;
+  }
+
+  if (!isImage) {
+    mediaPayload.filename = path.basename(product.filePath);
+  }
+
+  const payload: MetaMessagePayload = {
+    messaging_product: "whatsapp",
+    to,
+    type: isImage ? "image" : "document",
+    [isImage ? "image" : "document"]: mediaPayload,
+  };
+
+  await postMetaMessage(webhook, payload, {
+    successLog: `Arquivo do produto ${product.id} enviado para ${to}`,
+    failureLog: `Falha ao enviar arquivo do produto ${product.id} para ${to}`,
   });
 };

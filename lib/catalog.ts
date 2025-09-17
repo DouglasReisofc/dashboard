@@ -98,6 +98,36 @@ export const getCategoriesForUser = async (userId: number): Promise<CategorySumm
   return rows.map((row) => mapCategoryRow(row) as CategorySummary);
 };
 
+export const getCategoryByIdForUser = async (
+  userId: number,
+  categoryId: number,
+): Promise<CategorySummary | null> => {
+  await ensureCategoryTable();
+  const db = getDb();
+
+  const [rows] = await db.query<
+    (CategoryRow & { product_count: number })[]
+  >(
+    `
+      SELECT c.*, (
+        SELECT COUNT(p.id)
+        FROM products p
+        WHERE p.category_id = c.id
+      ) AS product_count
+      FROM categories c
+      WHERE c.user_id = ? AND c.id = ?
+      LIMIT 1
+    `,
+    [userId, categoryId],
+  );
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  return mapCategoryRow(rows[0]) as CategorySummary;
+};
+
 export const getAllCategories = async (): Promise<AdminCategorySummary[]> => {
   await ensureCategoryTable();
   const db = getDb();
@@ -140,6 +170,34 @@ export const getProductsForUser = async (userId: number): Promise<ProductSummary
   );
 
   return rows.map((row) => mapProductRow(row) as ProductSummary);
+};
+
+export const findAvailableProductForCategory = async (
+  userId: number,
+  categoryId: number,
+): Promise<ProductSummary | null> => {
+  await ensureProductTable();
+  const db = getDb();
+
+  const [rows] = await db.query<
+    (ProductRow & { category_name: string })[]
+  >(
+    `
+      SELECT p.*, c.name AS category_name
+      FROM products p
+      INNER JOIN categories c ON c.id = p.category_id
+      WHERE p.user_id = ? AND p.category_id = ? AND p.resale_limit > 0
+      ORDER BY p.updated_at ASC, p.id ASC
+      LIMIT 1
+    `,
+    [userId, categoryId],
+  );
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  return mapProductRow(rows[0]) as ProductSummary;
 };
 
 export const getAllProducts = async (): Promise<AdminProductSummary[]> => {
@@ -319,4 +377,34 @@ export const deleteProduct = async (productId: number) => {
   await ensureProductTable();
   const db = getDb();
   await db.query("DELETE FROM products WHERE id = ?", [productId]);
+};
+
+export const decrementProductResaleLimit = async (productId: number): Promise<boolean> => {
+  await ensureProductTable();
+  const db = getDb();
+
+  const [result] = await db.query<ResultSetHeader>(
+    `
+      UPDATE products
+      SET resale_limit = resale_limit - 1, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND resale_limit > 0
+    `,
+    [productId],
+  );
+
+  return result.affectedRows > 0;
+};
+
+export const restoreProductResaleLimit = async (productId: number) => {
+  await ensureProductTable();
+  const db = getDb();
+
+  await db.query(
+    `
+      UPDATE products
+      SET resale_limit = resale_limit + 1, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `,
+    [productId],
+  );
 };

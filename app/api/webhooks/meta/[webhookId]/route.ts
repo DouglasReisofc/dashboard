@@ -2,15 +2,27 @@ import { NextResponse } from "next/server";
 
 import { getBotMenuConfigForUser } from "lib/bot-config";
 import { renderBotMenuText } from "lib/bot-menu";
-import { getCategoriesForUser } from "lib/catalog";
-import { findCustomerByWhatsappForUser, upsertCustomerInteraction } from "lib/customers";
+import {
+  decrementProductResaleLimit,
+  findAvailableProductForCategory,
+  getCategoriesForUser,
+  restoreProductResaleLimit,
+} from "lib/catalog";
+import {
+  debitCustomerBalanceByWhatsapp,
+  findCustomerByWhatsappForUser,
+  upsertCustomerInteraction,
+} from "lib/customers";
 import { formatCurrency } from "lib/format";
 import {
   CATEGORY_LIST_NEXT_PREFIX,
   CATEGORY_LIST_ROW_PREFIX,
+  CATEGORY_PURCHASE_BUTTON_PREFIX,
   MENU_BUTTON_IDS,
   sendBotMenuReply,
+  sendCategoryDetailReply,
   sendCategoryListReply,
+  sendProductFile,
   sendTextMessage,
 } from "lib/meta";
 import { getWebhookByPublicId, recordWebhookEvent } from "lib/webhooks";
@@ -259,19 +271,11 @@ const replyWithBotMenu = async (
         return;
       }
 
-      const confirmationMessage = [
-        `Categoria selecionada: ${category.name}`,
-        `Valor unitário: ${formatCurrency(category.price)}`,
-        "",
-        "Envie a quantidade desejada ou aguarde nosso suporte para finalizar sua compra.",
-      ].join("\n");
-
-      await sendTextMessage({
+      await sendCategoryDetailReply({
         webhook,
         to: recipient,
-        text: confirmationMessage,
+        category,
       });
-      await sendMainMenu();
       return;
     }
   }
@@ -296,6 +300,154 @@ const replyWithBotMenu = async (
         categories: mapCategoriesToEntries(categories),
         page: 1,
       });
+      return;
+    }
+
+    if (buttonReplyId.startsWith(CATEGORY_PURCHASE_BUTTON_PREFIX)) {
+      const categoryIdRaw = buttonReplyId.slice(CATEGORY_PURCHASE_BUTTON_PREFIX.length);
+      const categoryId = Number.parseInt(categoryIdRaw, 10);
+
+      if (!Number.isFinite(categoryId) || categoryId <= 0) {
+        await sendTextMessage({
+          webhook,
+          to: recipient,
+          text: "Não foi possível identificar a categoria selecionada. Tente novamente pelo menu principal.",
+        });
+        await sendMainMenu();
+        return;
+      }
+
+      const categories = await loadActiveCategories();
+
+      if (categories.length === 0) {
+        await sendTextMessage({
+          webhook,
+          to: recipient,
+          text: noCategoryMessage,
+        });
+        await sendMainMenu();
+        return;
+      }
+
+      const category = categories.find((entry) => entry.id === categoryId && entry.isActive);
+
+      if (!category) {
+        await sendTextMessage({
+          webhook,
+          to: recipient,
+          text: "Essa categoria não está mais disponível. Atualize o menu para ver as opções em estoque.",
+        });
+        await sendMainMenu();
+        return;
+      }
+
+      const availableProduct = await findAvailableProductForCategory(webhook.user_id, category.id);
+
+      if (!availableProduct) {
+        await sendTextMessage({
+          webhook,
+          to: recipient,
+          text: "Todos os produtos dessa categoria foram vendidos. Em breve teremos novas unidades.",
+        });
+        await sendMainMenu();
+        return;
+      }
+
+      const reserved = await decrementProductResaleLimit(availableProduct.id);
+
+      if (!reserved) {
+        await sendTextMessage({
+          webhook,
+          to: recipient,
+          text: "Não conseguimos reservar esse produto. Atualize o menu e tente novamente.",
+        });
+        await sendMainMenu();
+        return;
+      }
+
+      const debitResult = await debitCustomerBalanceByWhatsapp(
+        webhook.user_id,
+        recipient,
+        category.price,
+      );
+
+      if (!debitResult.success) {
+        await restoreProductResaleLimit(availableProduct.id);
+
+        if (debitResult.reason === "blocked") {
+          await sendTextMessage({
+            webhook,
+            to: recipient,
+            text: "Seu acesso está bloqueado. Fale com o suporte para regularizar sua conta.",
+          });
+          await sendMainMenu();
+          return;
+        }
+
+        if (debitResult.reason === "insufficient") {
+          const currentBalance = debitResult.balance;
+          const shortage = Math.max(category.price - currentBalance, 0);
+          const shortageMessage = [
+            "Saldo insuficiente para concluir a compra.",
+            `Valor da categoria: ${formatCurrency(category.price)}`,
+            `Seu saldo atual: ${formatCurrency(currentBalance)}`,
+            shortage > 0
+              ? `Recarregue pelo menos ${formatCurrency(shortage)} para finalizar a compra.`
+              : "Adicione saldo para continuar.",
+          ].join("\n");
+
+          await sendTextMessage({
+            webhook,
+            to: recipient,
+            text: shortageMessage,
+          });
+          await sendMainMenu();
+          return;
+        }
+
+        await sendTextMessage({
+          webhook,
+          to: recipient,
+          text: "Não localizamos seu cadastro ativo. Reenvie uma mensagem para o menu principal e tente novamente.",
+        });
+        await sendMainMenu();
+        return;
+      }
+
+      customerBalance = debitResult.balance;
+
+      const purchaseSummary = [
+        "✅ Compra confirmada!",
+        `Categoria: ${category.name}`,
+        `Valor cobrado: ${formatCurrency(category.price)}`,
+        `Saldo disponível: ${formatCurrency(customerBalance)}`,
+        "",
+        category.description?.trim()
+          ? `Descrição da categoria:\n${category.description.trim()}`
+          : "",
+        "Detalhes do produto:",
+        availableProduct.details.trim(),
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+
+      await sendTextMessage({
+        webhook,
+        to: recipient,
+        text: purchaseSummary,
+      });
+
+      if (availableProduct.filePath) {
+        const caption = `${category.name} - dados complementares`;
+        await sendProductFile({
+          webhook,
+          to: recipient,
+          product: availableProduct,
+          caption,
+        });
+      }
+
+      await sendMainMenu();
       return;
     }
 

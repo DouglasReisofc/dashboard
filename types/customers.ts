@@ -27,3 +27,10 @@ export type CustomerInteractionPayload = {
   profileName: string | null;
   messageTimestamp?: number | null;
 };
+
+export type DebitCustomerBalanceResult = {
+  success: boolean;
+  balance: number;
+  customer?: CustomerSummary;
+  reason?: "not_found" | "blocked" | "insufficient" | "invalid_amount";
+};
