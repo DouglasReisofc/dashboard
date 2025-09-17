@@ -27,9 +27,8 @@ const DashboardLayout = async ({ children }: DashboardProps) => {
       <div id="content" className="position-relative h-100">
         <Header user={user} />
         <div className="custom-container py-4">{children}</div>
-        <div className="custom-container pb-4">
-          <span className="me-1">StoreBot Dashboard © {currentYear}</span>
-          <span className="text-secondary">Projeto full-stack Next.js + MySQL.</span>
+        <div className="custom-container pb-4 text-secondary">
+          StoreBot Dashboard © {currentYear}. Todos os direitos reservados.
         </div>
       </div>
     </div>

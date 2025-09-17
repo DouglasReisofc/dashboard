@@ -20,29 +20,29 @@ import {
 import { getAssetPath } from "helper/assetPath";
 
 export const metadata: Metadata = {
-  title: "StoreBot | Plataforma inteligente de dashboards",
+  title: "StoreBot | Chatbots de vendas para produtos digitais",
   description:
-    "Gerencie operações, vendas e integrações do StoreBot com dashboards personalizados para administradores e usuários.",
+    "Crie um chatbot oficial do WhatsApp com a Meta Cloud API para vender gifts, recargas, contas premium e mais com o StoreBot.",
 };
 
 const features = [
   {
     icon: <IconChartBar size={32} />,
-    title: "Insights completos",
+    title: "Catálogo inteligente",
     description:
-      "Visualize indicadores estratégicos em tempo real, com relatórios prontos para uso e personalização fácil.",
+      "Organize gifts, recargas, acessos premium e quaisquer ativos digitais em categorias com preços, SKUs e estoque controlado.",
   },
   {
     icon: <IconSettingsAutomation size={32} />,
-    title: "Fluxos automatizados",
+    title: "Fluxos com botões e listas",
     description:
-      "Configure processos automáticos e alertas inteligentes para acompanhar seu time sem perder nenhum detalhe.",
+      "Dispare mensagens interativas, menus em lista e botões de compra direto pelo seu chatbot conectado à Meta Cloud API.",
   },
   {
     icon: <IconLock size={32} />,
-    title: "Segurança em primeiro lugar",
+    title: "Entrega segura",
     description:
-      "Controle de acesso por perfil, criptografia e autenticação segura integrada ao seu banco de dados MySQL.",
+      "Armazene detalhes secretos dos produtos, libere downloads e monitore sessões com autenticação e MySQL integrados.",
   },
 ];
 
@@ -54,14 +54,14 @@ const LandingPage = () => {
           <Row className="align-items-center gy-6">
             <Col lg={6}>
               <Badge bg="primary" className="mb-3 text-uppercase">
-                StoreBot Dashboard
+                StoreBot Chatbot
               </Badge>
               <h1 className="display-4 fw-bold mb-3">
-                Transforme dados em decisões com um painel pronto para uso
+                Venda produtos digitais com um chatbot oficial no WhatsApp
               </h1>
               <p className="lead text-secondary mb-4">
-                Comece agora mesmo com autenticação integrada, dashboards separados para administradores e usuários
-                e integrações Node.js com MySQL em um único projeto Next.js.
+                Conecte-se à API oficial da Meta, ofereça botões e listas interativas e entregue códigos, contas e
+                documentos digitais automaticamente.
               </p>
               <div className="d-flex flex-wrap gap-3">
                 <Button as={Link} href="/sign-up" variant="primary" size="lg">
@@ -80,7 +80,7 @@ const LandingPage = () => {
             <Col lg={6}>
               <Image
                 src={getAssetPath("/images/png/dasher-ai.png")}
-                alt="Interface StoreBot"
+                alt="Chatbot StoreBot para WhatsApp"
                 className="img-fluid rounded-4 shadow-sm"
               />
             </Col>
@@ -112,23 +112,22 @@ const LandingPage = () => {
             <Col lg={6}>
               <Image
                 src={getAssetPath("/images/png/dasher-ui-bootstrap-5.jpg")}
-                alt="Análises avançadas"
+                alt="Fluxo do chatbot"
                 className="img-fluid rounded-4 shadow-sm"
               />
             </Col>
             <Col lg={6}>
-              <h2 className="fw-bold mb-3">Experiência pensada para o seu time</h2>
+              <h2 className="fw-bold mb-3">Experiência completa para times de automação</h2>
               <p className="text-secondary mb-4">
-                Painéis dedicados para cada perfil de usuário garantem foco nas métricas importantes.
-                Administradores acompanham metas, receita e times, enquanto usuários têm uma visão simplificada das
-                atividades, tarefas e resultados individuais.
+                Configure catálogos, integre gateways de pagamento e monitore interações em um só lugar. O StoreBot une o
+                poder do Next.js com a Meta Cloud API para entregar respostas imediatas aos seus clientes.
               </p>
               <ul className="list-unstyled d-flex flex-column gap-2">
                 <li className="d-flex align-items-center gap-2">
-                  <IconSparkles className="text-primary" size={20} /> Visão geral executiva para administradores
+                  <IconSparkles className="text-primary" size={20} /> Mensagens interativas com botões, listas e CTAs
                 </li>
                 <li className="d-flex align-items-center gap-2">
-                  <IconSparkles className="text-primary" size={20} /> Painel colaborativo para membros do time
+                  <IconSparkles className="text-primary" size={20} /> Painéis separados para administradores e operadores
                 </li>
                 <li className="d-flex align-items-center gap-2">
                   <IconSparkles className="text-primary" size={20} /> Integração segura com base MySQL StoreBot
@@ -143,9 +142,10 @@ const LandingPage = () => {
         <Container>
           <Row className="align-items-center gy-4">
             <Col lg={8}>
-              <h2 className="fw-bold mb-2">Pronto para acelerar sua operação?</h2>
+              <h2 className="fw-bold mb-2">Pronto para lançar seu chatbot vendedor?</h2>
               <p className="text-secondary mb-0">
-                Configure o .env, execute o projeto e tenha uma stack completa com Next.js, Node.js e MySQL em minutos.
+                Configure o .env, conecte sua conta Meta Business e ative um funil automático de vendas de produtos
+                digitais em poucos minutos.
               </p>
             </Col>
             <Col lg={4} className="text-lg-end">
