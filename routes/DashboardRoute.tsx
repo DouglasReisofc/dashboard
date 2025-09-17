@@ -3,6 +3,7 @@ import { v4 as uuid } from "uuid";
 import {
   IconHome,
   IconLayoutDashboard,
+  IconPlugConnected,
   IconPackage,
   IconTags,
   IconUsers,
@@ -56,6 +57,12 @@ const userMenu: MenuItemType[] = [
     title: "Produtos digitais",
     link: "/dashboard/user/products",
     icon: <IconPackage size={20} strokeWidth={1.5} />,
+  },
+  {
+    id: uuid(),
+    title: "Webhook",
+    link: "/dashboard/user/webhook",
+    icon: <IconPlugConnected size={20} strokeWidth={1.5} />,
   },
 ];
 

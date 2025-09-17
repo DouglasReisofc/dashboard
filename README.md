@@ -8,6 +8,7 @@ Projeto full-stack baseado em Next.js com autenticação integrada, landing page
 - 🔐 **Autenticação completa** com registro, login, cookies HttpOnly e hashing de senha com `bcryptjs`.
 - 🗂️ **Dashboards separados** para perfis `admin` e `user`, incluindo navegação dinâmica e layout protegido.
 - 🛒 **Gestão de catálogo digital** com criação de categorias (nome, preço, SKU, descrição, status e imagem) e produtos vinculados com texto secreto, anexo opcional e limite de revendas.
+- 📡 **Webhook individual por usuário** já pronto para a Meta Cloud API, com endpoint dedicado, verify token e histórico de eventos.
 - 🗄️ **Integração direta com MySQL** (`mysql2/promise`) usando variáveis de ambiente centralizadas.
 - 🍪 **Sessões baseadas em JWT** armazenadas em cookie seguro para controlar acesso.
 - 🎨 Base construída sobre componentes Bootstrap 5 já otimizados.
@@ -58,6 +59,7 @@ O servidor ficará disponível em `http://localhost:4478`.
 - `app/api/auth/login` – valida credenciais e gera o cookie de sessão.
 - `app/api/auth/logout` – remove o cookie de sessão.
 - `app/api/auth/session` – retorna o usuário autenticado atual.
+- `app/api/webhooks/meta/[webhookId]` – endpoint dinâmico para verificar e receber notificações da Meta Cloud API por usuário.
 - `lib/db.ts` – conexão compartilhada com MySQL e criação automática da tabela `users`.
 - `lib/auth.ts` – geração e validação de tokens JWT.
 
@@ -67,6 +69,12 @@ O layout em `app/(dashboard)/layout.tsx` garante o redirecionamento automático 
 
 - O primeiro administrador é criado automaticamente com o e-mail `contactgestorvip@gmail.com` e senha `Dev7766@#$%` (altere no `.env` se necessário).
 - O formulário de cadastro cria apenas contas de usuário final; administradores adicionais devem ser configurados diretamente no banco de dados.
+
+## Webhooks da Meta Cloud API
+
+- Cada usuário recebe automaticamente um endpoint único disponível em `/api/webhooks/meta/{id}`.
+- O painel do usuário exibe endpoint, verify token e API key, além do histórico dos últimos eventos recebidos.
+- Durante a verificação do webhook na Meta, utilize o verify token fornecido pelo painel e informe o endpoint gerado.
 
 ## Scripts úteis
 

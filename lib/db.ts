@@ -1,3 +1,4 @@
+import { randomBytes, randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 import mysql, { Pool, RowDataPacket } from "mysql2/promise";
 
@@ -69,8 +70,11 @@ export const ensureUserTable = async () => {
       ALTER TABLE users
       ADD COLUMN balance DECIMAL(12, 2) NOT NULL DEFAULT 0
         AFTER is_active;
-    `);
+  `);
   }
+
+  await ensureWebhookTable();
+  await ensureWebhookEventTable();
 
   const normalizedEmail = DEFAULT_ADMIN_EMAIL.toLowerCase().trim();
   const hashedPassword = await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, 10);
@@ -87,6 +91,35 @@ export const ensureUserTable = async () => {
     `,
     [DEFAULT_ADMIN_NAME.trim(), normalizedEmail, hashedPassword],
   );
+
+  const [adminRows] = await db.query<RowDataPacket[]>(
+    "SELECT id FROM users WHERE email = ? LIMIT 1",
+    [normalizedEmail],
+  );
+
+  if (Array.isArray(adminRows) && adminRows.length > 0) {
+    const adminId = Number(adminRows[0].id);
+
+    const [webhookRows] = await db.query<RowDataPacket[]>(
+      "SELECT id FROM user_webhooks WHERE user_id = ? LIMIT 1",
+      [adminId],
+    );
+
+    if (!Array.isArray(webhookRows) || webhookRows.length === 0) {
+      await db.query(
+        `
+          INSERT INTO user_webhooks (id, user_id, verify_token, api_key)
+          VALUES (?, ?, ?, ?)
+        `,
+        [
+          randomUUID(),
+          adminId,
+          randomBytes(24).toString("hex"),
+          randomBytes(32).toString("hex"),
+        ],
+      );
+    }
+  }
 };
 
 export type UserRow = {
@@ -167,6 +200,40 @@ export const ensureProductTable = async () => {
   `);
 };
 
+export const ensureWebhookTable = async () => {
+  const db = getDb();
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS user_webhooks (
+      id CHAR(36) PRIMARY KEY,
+      user_id INT NOT NULL UNIQUE,
+      verify_token VARCHAR(128) NOT NULL,
+      api_key VARCHAR(128) NOT NULL,
+      last_event_at DATETIME NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_user_webhooks_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB;
+  `);
+};
+
+export const ensureWebhookEventTable = async () => {
+  const db = getDb();
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS user_webhook_events (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      webhook_id CHAR(36) NOT NULL,
+      user_id INT NOT NULL,
+      event_type VARCHAR(191) NULL,
+      payload LONGTEXT NOT NULL,
+      received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_webhook_events_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      CONSTRAINT fk_webhook_events_webhook FOREIGN KEY (webhook_id) REFERENCES user_webhooks(id) ON DELETE CASCADE,
+      INDEX idx_webhook_events_user (user_id),
+      INDEX idx_webhook_events_webhook (webhook_id, received_at)
+    ) ENGINE=InnoDB;
+  `);
+};
+
 export type CategoryRow = {
   id: number;
   user_id: number;
@@ -190,4 +257,23 @@ export type ProductRow = {
   resale_limit: number;
   created_at: Date;
   updated_at: Date;
+};
+
+export type UserWebhookRow = {
+  id: string;
+  user_id: number;
+  verify_token: string;
+  api_key: string;
+  last_event_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type WebhookEventRow = {
+  id: number;
+  webhook_id: string;
+  user_id: number;
+  event_type: string | null;
+  payload: string;
+  received_at: Date;
 };

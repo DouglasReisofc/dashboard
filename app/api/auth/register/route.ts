@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 
 import { ensureUserTable, getDb, UserRow } from "lib/db";
 import { createSession, setSessionCookie } from "lib/auth";
+import { ensureUserWebhook } from "lib/webhooks";
 
 export async function POST(request: Request) {
   try {
@@ -45,6 +46,8 @@ export async function POST(request: Request) {
     );
 
     const userId = result.insertId;
+
+    await ensureUserWebhook(userId);
 
     const session = await createSession(userId);
     const response = NextResponse.json(
