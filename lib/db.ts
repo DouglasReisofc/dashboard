@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import mysql, { Pool } from "mysql2/promise";
+import mysql, { Pool, RowDataPacket } from "mysql2/promise";
 
 const DATABASE_HOST = process.env.DATABASE_HOST ?? "localhost";
 const DATABASE_PORT = Number(process.env.DATABASE_PORT ?? 3306);
@@ -47,11 +47,17 @@ export const ensureUserTable = async () => {
     ) ENGINE=InnoDB;
   `);
 
-  await db.query(`
-    ALTER TABLE users
-    ADD COLUMN IF NOT EXISTS is_active TINYINT(1) NOT NULL DEFAULT 1
-      AFTER role
-  `);
+  const [isActiveColumn] = await db.query<RowDataPacket[]>(
+    "SHOW COLUMNS FROM users LIKE 'is_active'",
+  );
+
+  if (!Array.isArray(isActiveColumn) || isActiveColumn.length === 0) {
+    await db.query(`
+      ALTER TABLE users
+      ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1
+        AFTER role;
+    `);
+  }
 
   const normalizedEmail = DEFAULT_ADMIN_EMAIL.toLowerCase().trim();
   const hashedPassword = await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, 10);
