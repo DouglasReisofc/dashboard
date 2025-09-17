@@ -29,7 +29,7 @@ DATABASE_USER=storebot
 DATABASE_PASSWORD=storebot
 DATABASE_NAME=storebot
 JWT_SECRET=super-secret-jwt-key-change-me
-APP_URL=http://localhost:4478
+APP_URL=https://zap2.botadmin.shop
 PORT=4478
 DEFAULT_ADMIN_EMAIL=contactgestorvip@gmail.com
 DEFAULT_ADMIN_PASSWORD="Dev7766@#$%"
@@ -49,9 +49,9 @@ npm install
 npm run dev
 ```
 
-O servidor ficará disponível em `http://localhost:4478`.
+O servidor local ficará disponível em `http://localhost:4478`, mas `APP_URL` aponta para o domínio público `https://zap2.botadmin.shop` para que webhooks, mídias e callbacks utilizem a URL externa correta.
 
-> Para alterar a porta, execute `npm run dev -- -p <porta>` ou ajuste o script em `package.json` conforme necessário.
+> Para alterar a porta, execute `npm run dev -- -p <porta>` ou ajuste o script em `package.json` conforme necessário. Caso utilize outro domínio público, atualize `APP_URL` no `.env`.
 
 ## Estrutura de autenticação
 
