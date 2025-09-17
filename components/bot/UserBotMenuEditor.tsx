@@ -19,10 +19,12 @@ import {
   defaultCategoryListNextDescription,
   defaultCategoryListNextTitle,
   defaultCategoryListSectionTitle,
+  categoryTemplateTokens,
   defaultMenuButtonLabels,
   defaultMenuFooterText,
   defaultMenuText,
   defaultMenuVariables,
+  paginationTemplateTokens,
   defaultSupportReplyText,
 } from "lib/bot-menu";
 
@@ -57,6 +59,67 @@ type FormState = {
 };
 
 type ViewId = "menu" | "categoryList" | "categoryDetail" | "autoReplies" | "variables";
+
+type VariableGroupId = "global" | "categoryList" | "categoryDetail";
+
+type VariableDefinition = {
+  token: string;
+  description: string;
+};
+
+const VARIABLE_DESCRIPTIONS: Record<string, string> = {
+  "{{nome_cliente}}": "Substitui pelo nome exibido no contato recebido pelo webhook.",
+  "{{numero_cliente}}": "Substitui pelo número de WhatsApp do cliente.",
+  "{{saldo_cliente}}": "Exibe o saldo atual salvo para o cliente no painel de Clientes.",
+  "{{id_categoria}}": "Permite informar a categoria atual quando um produto estiver vinculado.",
+  "{{nome_categoria}}": "Mostra o título da categoria selecionada pelo cliente.",
+  "{{preco_categoria}}": "Exibe o valor configurado para a categoria atual com formatação monetária.",
+  "{{descricao_categoria}}": "Inclui a descrição detalhada da categoria, se disponível.",
+  "{{pagina_atual}}": "Indica o número da página atual na lista de categorias.",
+  "{{total_paginas}}": "Mostra o total de páginas disponíveis na lista de categorias.",
+  "{{categorias_total}}": "Quantidade total de categorias ativas que podem ser exibidas.",
+  "{{categorias_pagina}}": "Quantidade de categorias listadas na página atual.",
+  "{{proxima_pagina}}": "Número da próxima página disponível na listagem, quando existir.",
+  "{{possui_proxima_pagina}}": "Retorna 'Sim' quando há mais páginas disponíveis ou 'Não' caso contrário.",
+};
+
+const toVariableDefinitions = (tokens: readonly string[]): VariableDefinition[] =>
+  Array.from(new Set(tokens)).map((token) => ({
+    token,
+    description:
+      VARIABLE_DESCRIPTIONS[token] ??
+      "Essa variável será substituída automaticamente quando o bot enviar a mensagem.",
+  }));
+
+const VARIABLE_GROUPS: Record<VariableGroupId, {
+  title: string;
+  description: string;
+  tokens: VariableDefinition[];
+}> = {
+  global: {
+    title: "Variáveis globais",
+    description: "Disponíveis em qualquer mensagem enviada pelo bot.",
+    tokens: toVariableDefinitions(defaultMenuVariables),
+  },
+  categoryList: {
+    title: "Lista de categorias",
+    description: "Utilize ao editar a lista interativa enviada no botão de compras.",
+    tokens: toVariableDefinitions(paginationTemplateTokens),
+  },
+  categoryDetail: {
+    title: "Detalhes da categoria",
+    description: "Aplicam-se aos cartões com imagem e botão 'Comprar' de cada categoria.",
+    tokens: toVariableDefinitions(categoryTemplateTokens),
+  },
+};
+
+const VIEW_VARIABLE_GROUPS: Record<ViewId, VariableGroupId[]> = {
+  menu: ["global"],
+  categoryList: ["global", "categoryList"],
+  categoryDetail: ["global", "categoryDetail"],
+  autoReplies: ["global"],
+  variables: ["global", "categoryList", "categoryDetail"],
+};
 
 interface ViewOption {
   id: ViewId;
@@ -116,64 +179,6 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
     };
   }, [previewUrl]);
 
-  const availableVariables = useMemo(
-    () => [
-      {
-        token: "{{nome_cliente}}",
-        description: "Substitui pelo nome exibido no contato recebido pelo webhook.",
-      },
-      {
-        token: "{{numero_cliente}}",
-        description: "Substitui pelo número de WhatsApp do cliente.",
-      },
-      {
-        token: "{{saldo_cliente}}",
-        description: "Exibe o saldo atual salvo para o cliente no painel de Clientes.",
-      },
-      {
-        token: "{{id_categoria}}",
-        description: "Permite informar a categoria atual quando um produto estiver vinculado.",
-      },
-      {
-        token: "{{nome_categoria}}",
-        description: "Mostra o título da categoria selecionada pelo cliente.",
-      },
-      {
-        token: "{{preco_categoria}}",
-        description: "Exibe o valor configurado para a categoria atual com formatação monetária.",
-      },
-      {
-        token: "{{descricao_categoria}}",
-        description: "Inclui a descrição detalhada da categoria, se disponível.",
-      },
-      {
-        token: "{{pagina_atual}}",
-        description: "Indica o número da página atual na lista de categorias.",
-      },
-      {
-        token: "{{total_paginas}}",
-        description: "Mostra o total de páginas disponíveis na lista de categorias.",
-      },
-      {
-        token: "{{categorias_total}}",
-        description: "Quantidade total de categorias ativas que podem ser exibidas.",
-      },
-      {
-        token: "{{categorias_pagina}}",
-        description: "Quantidade de categorias listadas na página atual.",
-      },
-      {
-        token: "{{proxima_pagina}}",
-        description: "Número da próxima página disponível na listagem, quando existir.",
-      },
-      {
-        token: "{{possui_proxima_pagina}}",
-        description: "Retorna 'Sim' quando há mais páginas disponíveis ou 'Não' caso contrário.",
-      },
-    ],
-    [],
-  );
-
   const viewOptions = useMemo<ViewOption[]>(
     () => [
       {
@@ -214,6 +219,52 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
     () => viewOptions.find((option) => option.id === activeView) ?? viewOptions[0],
     [activeView, viewOptions],
   );
+
+  const renderVariableHelper = (view: ViewId) => {
+    const groupIds = VIEW_VARIABLE_GROUPS[view] ?? [];
+
+    if (groupIds.length === 0) {
+      return null;
+    }
+
+    const isVariablesView = view === "variables";
+
+    return (
+      <div className="bg-light border rounded p-3">
+        <p className="text-secondary small mb-3">
+          {isVariablesView
+            ? "Confira as variáveis disponíveis por contexto antes de adicionar novas personalizações."
+            : "Variáveis disponíveis para personalizar este menu."}
+        </p>
+
+        {groupIds.map((groupId, index) => {
+          const group = VARIABLE_GROUPS[groupId];
+
+          if (!group || group.tokens.length === 0) {
+            return null;
+          }
+
+          const marginClass = index === groupIds.length - 1 ? "mb-0" : "mb-3";
+
+          return (
+            <div key={groupId} className={marginClass}>
+              <h3 className="h6 mb-2">{group.title}</h3>
+              <p className="text-secondary small mb-2">{group.description}</p>
+
+              <ul className="list-unstyled d-flex flex-column gap-2 mb-0">
+                {group.tokens.map((variable) => (
+                  <li key={variable.token}>
+                    <strong className="d-block">{variable.token}</strong>
+                    <span className="text-secondary small">{variable.description}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
   const handleFieldChange = <T extends keyof FormState>(field: T, value: FormState[T]) => {
     setFormState((previous) => ({ ...previous, [field]: value }));
@@ -392,6 +443,8 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
                   botões e imagem de destaque.
                 </Form.Text>
 
+                {renderVariableHelper("menu")}
+
                 <Form.Group controlId="bot-menu-text">
                   <Form.Label>Texto do menu</Form.Label>
                   <Form.Control
@@ -497,6 +550,8 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
                   Ajuste os textos exibidos quando o cliente abre a lista interativa de categorias e quando
                   há mais páginas disponíveis.
                 </Form.Text>
+
+                {renderVariableHelper("categoryList")}
 
                 <Form.Group controlId="bot-list-header">
                   <Form.Label>Título da lista</Form.Label>
@@ -613,6 +668,8 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
                   categoria for selecionada.
                 </Form.Text>
 
+                {renderVariableHelper("categoryDetail")}
+
                 <Form.Group controlId="bot-detail-body">
                   <Form.Label>Descrição do cartão</Form.Label>
                   <Form.Control
@@ -671,6 +728,8 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
                   saldo ou suporte.
                 </Form.Text>
 
+                {renderVariableHelper("autoReplies")}
+
                 <Form.Group controlId="bot-reply-balance">
                   <Form.Label>Mensagem para adicionar saldo</Form.Label>
                   <Form.Control
@@ -699,6 +758,8 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
 
             {activeView === "variables" && (
               <section className="d-flex flex-column gap-3">
+                {renderVariableHelper("variables")}
+
                 <Form.Group controlId="bot-menu-variables">
                   <Form.Label>Variáveis personalizadas</Form.Label>
                   <Form.Control
@@ -709,8 +770,8 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
                     placeholder="{{nome_cliente}}, {{numero_cliente}}"
                   />
                   <Form.Text className="text-secondary">
-                    Separe as variáveis por vírgulas ou linhas. Elas serão substituídas automaticamente ao
-                    enviar qualquer mensagem configurada.
+                    Separe as variáveis por vírgulas ou linhas. As variáveis globais (nome, número e saldo)
+                    já ficam disponíveis em todos os menus.
                   </Form.Text>
                 </Form.Group>
               </section>
@@ -725,26 +786,6 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
         </Card.Body>
       </Card>
 
-      <Card>
-        <Card.Body>
-          <Card.Title as="h3" className="h5">
-            Variáveis disponíveis
-          </Card.Title>
-          <Card.Text className="text-secondary">
-            Você pode utilizar as variáveis abaixo em qualquer mensagem configurada acima. Elas serão
-            substituídas dinamicamente quando a resposta for disparada pelo webhook da Meta Cloud API.
-          </Card.Text>
-
-          <ul className="list-unstyled d-flex flex-column gap-3 mb-0">
-            {availableVariables.map((variable) => (
-              <li key={variable.token}>
-                <strong className="d-block">{variable.token}</strong>
-                <span className="text-secondary small">{variable.description}</span>
-              </li>
-            ))}
-          </ul>
-        </Card.Body>
-      </Card>
     </section>
   );
 };

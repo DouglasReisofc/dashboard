@@ -2,6 +2,27 @@ import { ResultSetHeader } from "mysql2";
 
 import type { BotMenuConfig } from "types/bot";
 
+import {
+  defaultAddBalanceReplyText,
+  defaultCategoryDetailBodyText,
+  defaultCategoryDetailButtonText,
+  defaultCategoryDetailFileCaption,
+  defaultCategoryDetailFooterText,
+  defaultCategoryListBodyText,
+  defaultCategoryListButtonText,
+  defaultCategoryListEmptyText,
+  defaultCategoryListFooterMoreText,
+  defaultCategoryListFooterText,
+  defaultCategoryListHeaderText,
+  defaultCategoryListNextDescription,
+  defaultCategoryListNextTitle,
+  defaultCategoryListSectionTitle,
+  defaultMenuButtonLabels,
+  defaultMenuFooterText,
+  defaultMenuText,
+  defaultMenuVariables,
+  defaultSupportReplyText,
+} from "./bot-menu";
 import { BotMenuConfigRow, ensureBotMenuConfigTable, getDb } from "./db";
 
 const mapRow = (row: BotMenuConfigRow): BotMenuConfig => {
@@ -63,7 +84,31 @@ export const getBotMenuConfigForUser = async (
   );
 
   if (!Array.isArray(rows) || rows.length === 0) {
-    return null;
+    return upsertBotMenuConfig({
+      userId,
+      menuText: defaultMenuText,
+      menuFooterText: defaultMenuFooterText,
+      menuButtonBuyText: defaultMenuButtonLabels.buy,
+      menuButtonAddBalanceText: defaultMenuButtonLabels.addBalance,
+      menuButtonSupportText: defaultMenuButtonLabels.support,
+      categoryListHeaderText: defaultCategoryListHeaderText,
+      categoryListBodyText: defaultCategoryListBodyText,
+      categoryListFooterText: defaultCategoryListFooterText,
+      categoryListFooterMoreText: defaultCategoryListFooterMoreText,
+      categoryListButtonText: defaultCategoryListButtonText,
+      categoryListSectionTitle: defaultCategoryListSectionTitle,
+      categoryListNextTitle: defaultCategoryListNextTitle,
+      categoryListNextDescription: defaultCategoryListNextDescription,
+      categoryListEmptyText: defaultCategoryListEmptyText,
+      categoryDetailBodyText: defaultCategoryDetailBodyText,
+      categoryDetailFooterText: defaultCategoryDetailFooterText,
+      categoryDetailButtonText: defaultCategoryDetailButtonText,
+      categoryDetailFileCaption: defaultCategoryDetailFileCaption,
+      addBalanceReplyText: defaultAddBalanceReplyText,
+      supportReplyText: defaultSupportReplyText,
+      variables: Array.from(defaultMenuVariables),
+      imagePath: null,
+    });
   }
 
   return mapRow(rows[0]);

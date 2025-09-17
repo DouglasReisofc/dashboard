@@ -1,19 +1,19 @@
 import { formatCurrency } from "./format";
 
-export const defaultMenuVariables = [
+export const globalTemplateTokens = [
   "{{nome_cliente}}",
   "{{numero_cliente}}",
   "{{saldo_cliente}}",
-  "{{id_categoria}}",
 ] as const;
 
-const categoryTemplateTokens = [
+export const categoryTemplateTokens = [
+  "{{id_categoria}}",
   "{{nome_categoria}}",
   "{{preco_categoria}}",
   "{{descricao_categoria}}",
 ] as const;
 
-const paginationTemplateTokens = [
+export const paginationTemplateTokens = [
   "{{pagina_atual}}",
   "{{total_paginas}}",
   "{{categorias_total}}",
@@ -22,9 +22,11 @@ const paginationTemplateTokens = [
   "{{possui_proxima_pagina}}",
 ] as const;
 
+export const defaultMenuVariables = globalTemplateTokens;
+
 const DEFAULT_TEMPLATE_TOKENS = Array.from(
   new Set([
-    ...defaultMenuVariables,
+    ...globalTemplateTokens,
     ...categoryTemplateTokens,
     ...paginationTemplateTokens,
   ]),
