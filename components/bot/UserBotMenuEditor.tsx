@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Alert, Button, Card, Form, Image } from "react-bootstrap";
 import { useRouter } from "next/navigation";
 
+import { defaultMenuText, defaultMenuVariables } from "lib/bot-menu";
+
 import type { BotMenuConfig } from "types/bot";
 
 type Feedback = { type: "success" | "danger"; message: string } | null;
@@ -14,10 +16,6 @@ type FormState = {
   imageFile: File | null;
   removeImage: boolean;
 };
-
-const defaultVariables = ["{{nome_cliente}}", "{{numero_cliente}}", "{{id_categoria}}"];
-
-const defaultMenuText = `Olá {{nome_cliente}}! 👋\n\nConfira nosso menu principal:\n1️⃣ - Ver novidades digitais\n2️⃣ - Listar categorias disponíveis\n3️⃣ - Falar com o suporte humano`;
 
 interface UserBotMenuEditorProps {
   config: BotMenuConfig | null;
@@ -32,7 +30,7 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
     variables:
       config?.variables && config.variables.length > 0
         ? config.variables.join(", ")
-        : defaultVariables.join(", "),
+        : defaultMenuVariables.join(", "),
     imageFile: null,
     removeImage: false,
   });
