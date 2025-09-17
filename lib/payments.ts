@@ -11,7 +11,7 @@ import {
 } from "./db";
 import { createMercadoPagoPixPayment } from "./mercadopago";
 
-const DEFAULT_MERCADO_PAGO_DISPLAY_NAME = "Mercado Pago Pix";
+const DEFAULT_MERCADO_PAGO_DISPLAY_NAME = "Pagamento Pix";
 const DEFAULT_EXPIRATION_MINUTES = 30;
 const DEFAULT_AMOUNT_OPTIONS = [25, 50, 100];
 

@@ -300,21 +300,23 @@ const replyWithBotMenu = async (
           config: paymentConfig,
         });
 
-        const expirationLine = charge.expiresAt
-          ? `Válido até: ${formatDateTime(charge.expiresAt)}`
-          : null;
+        const expirationText = charge.expiresAt ? formatDateTime(charge.expiresAt) : null;
         const pixKeyLine = paymentConfig.pixKey ? `Chave Pix: ${paymentConfig.pixKey}` : null;
-        const summaryLines = [
-          "💳 Pagamento via Pix (Mercado Pago)",
+        const detailLines = [
           `Valor: ${formatCurrency(charge.amount)}`,
-          expirationLine,
+          expirationText ? `Expira em: ${expirationText}` : null,
           pixKeyLine,
-          paymentConfig.instructions?.trim() || null,
-          "Use o botão abaixo para abrir o pagamento e escanear o QR Code.",
-          "Assim que o pagamento for confirmado, seu saldo será atualizado automaticamente.",
         ].filter((line): line is string => typeof line === "string" && line.length > 0);
 
-        const summaryBody = summaryLines.join("\n");
+        const summaryBody = [
+          "💳 Pagamento Pix",
+          detailLines.join("\n"),
+          paymentConfig.instructions?.trim() || null,
+          "Use o botão abaixo para abrir o QR Code e finalizar o pagamento.",
+          "O saldo será atualizado automaticamente após a confirmação.",
+        ]
+          .filter((line): line is string => typeof line === "string" && line.trim().length > 0)
+          .join("\n\n");
         const headerImageUrl = charge.qrCodeBase64 ? getPixChargeImageUrl(charge.publicId) : null;
 
         let summaryDelivered = false;
@@ -324,18 +326,26 @@ const replyWithBotMenu = async (
             webhook,
             to: recipient,
             bodyText: summaryBody,
-            buttonText: "Pagar com Mercado Pago",
+            buttonText: "Abrir pagamento Pix",
             buttonUrl: charge.ticketUrl,
             headerImageUrl,
-            headerText: paymentConfig.displayName,
+            headerText: "Pagamento Pix",
           });
           summaryDelivered = true;
         } else if (headerImageUrl) {
+          const caption = [
+            "💳 Pagamento Pix",
+            `Valor: ${formatCurrency(charge.amount)}`,
+            expirationText ? `Expira em: ${expirationText}` : null,
+          ]
+            .filter((line): line is string => typeof line === "string" && line.length > 0)
+            .join("\n");
+
           await sendImageFromUrl({
             webhook,
             to: recipient,
             imageUrl: headerImageUrl,
-            caption: `Valor: ${formatCurrency(charge.amount)}`,
+            caption,
           });
         }
 
@@ -348,20 +358,18 @@ const replyWithBotMenu = async (
         }
 
         if (charge.qrCode) {
-          const copyBody = [
-            "Pix copia e cola",
-            `Valor: ${formatCurrency(charge.amount)}`,
-            expirationLine,
-          ].filter((line): line is string => typeof line === "string" && line.length > 0)
-            .join("\n");
+          await sendTextMessage({
+            webhook,
+            to: recipient,
+            text: charge.qrCode,
+          });
 
           await sendInteractiveCopyCodeMessage({
             webhook,
             to: recipient,
-            bodyText: copyBody,
+            bodyText: "Copiar código Pix",
             buttonText: "Copiar código Pix",
             code: charge.qrCode,
-            footerText: paymentConfig.displayName,
           });
         }
       } catch (pixError) {
