@@ -64,6 +64,17 @@ export async function POST(
 
     const eventType = messageType ?? statusType ?? body.object ?? null;
 
+    console.info(
+      "[Meta Webhook] Evento recebido",
+      {
+        webhookId: webhook.public_id,
+        userId: webhook.user_id,
+        eventType,
+        timestamp: new Date().toISOString(),
+      },
+    );
+    console.debug("[Meta Webhook] Payload bruto", body);
+
     await recordWebhookEvent(webhook.id, webhook.user_id, eventType, body);
 
     return NextResponse.json({ status: "received" }, { status: 200 });
