@@ -195,6 +195,23 @@ export const ensureProductTable = async () => {
   `);
 };
 
+export const ensureBotMenuConfigTable = async () => {
+  const db = getDb();
+  await ensureUserTable();
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS bot_menu_configs (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL UNIQUE,
+      menu_text TEXT NOT NULL,
+      variables TEXT NULL,
+      image_path VARCHAR(255) NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_bot_menu_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB;
+  `);
+};
+
 export const ensureWebhookTable = async () => {
   const db = getDb();
   await db.query(`
@@ -289,6 +306,16 @@ export type ProductRow = {
   details: string;
   file_path: string | null;
   resale_limit: number;
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type BotMenuConfigRow = {
+  id: number;
+  user_id: number;
+  menu_text: string;
+  variables: string | null;
+  image_path: string | null;
   created_at: Date;
   updated_at: Date;
 };

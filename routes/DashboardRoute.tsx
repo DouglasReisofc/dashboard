@@ -5,6 +5,7 @@ import {
   IconLayoutDashboard,
   IconPlugConnected,
   IconPackage,
+  IconRobot,
   IconTags,
   IconUsers,
 } from "@tabler/icons-react";
@@ -57,6 +58,12 @@ const userMenu: MenuItemType[] = [
     title: "Produtos digitais",
     link: "/dashboard/user/products",
     icon: <IconPackage size={20} strokeWidth={1.5} />,
+  },
+  {
+    id: uuid(),
+    title: "Configurar bot",
+    link: "/dashboard/user/configurar-bot",
+    icon: <IconRobot size={20} strokeWidth={1.5} />,
   },
   {
     id: uuid(),
