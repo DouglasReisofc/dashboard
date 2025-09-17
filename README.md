@@ -31,11 +31,13 @@ JWT_SECRET=super-secret-jwt-key-change-me
 APP_URL=http://localhost:4478
 PORT=4478
 DEFAULT_ADMIN_EMAIL=contactgestorvip@gmail.com
-DEFAULT_ADMIN_PASSWORD=Dev7766@#$%
+DEFAULT_ADMIN_PASSWORD="Dev7766@#$%"
 DEFAULT_ADMIN_NAME=Administrador StoreBot
 ```
 
 > **Importante:** altere `JWT_SECRET` em produção para um valor forte e mantenha as credenciais em local seguro.
+
+> A senha padrão está entre aspas porque contém `#`; sem as aspas o restante seria interpretado como comentário pelo parser de variáveis de ambiente.
 
 As variáveis `DEFAULT_ADMIN_*` garantem que um administrador inicial seja provisionado automaticamente. Ajuste-as caso precise de outro e-mail ou senha.
 
