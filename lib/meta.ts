@@ -44,7 +44,27 @@ const resolveMediaUrl = (relativePath: string) => {
   return `${getAppBaseUrl()}/${normalized}`;
 };
 
-export const getMetaApiVersion = () => process.env.META_API_VERSION?.trim() || "v19.0";
+const DEFAULT_META_API_VERSION = "v19.0";
+
+export const getMetaApiVersion = () => {
+  const raw = process.env.META_API_VERSION?.trim();
+
+  if (!raw) {
+    return DEFAULT_META_API_VERSION;
+  }
+
+  const normalized = raw.startsWith("v") ? raw : `v${raw}`;
+
+  if (/^v\d+(\.\d+)?$/.test(normalized)) {
+    return normalized;
+  }
+
+  console.warn(
+    `[Meta] META_API_VERSION inválida "${raw}". Usando ${DEFAULT_META_API_VERSION} por padrão.`,
+  );
+
+  return DEFAULT_META_API_VERSION;
+};
 
 export const MENU_BUTTON_IDS = {
   buy: "storebot_menu_buy",
