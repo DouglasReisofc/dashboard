@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "lib/auth";
 import { fetchMetaBusinessProfile, updateMetaBusinessProfile } from "lib/meta-profile";
+import { coerceMetaProfileVertical, DEFAULT_META_PROFILE_VERTICAL } from "lib/meta-profile-verticals";
 import { getWebhookRowForUser } from "lib/webhooks";
 
 const ABOUT_LIMIT = 139;
@@ -10,29 +11,6 @@ const DESCRIPTION_LIMIT = 512;
 const EMAIL_LIMIT = 128;
 const WEBSITE_LIMIT = 256;
 const MAX_WEBSITES = 2;
-
-const ALLOWED_VERTICALS = new Set([
-  "UNDEFINED",
-  "OTHER",
-  "AUTO",
-  "BEAUTY",
-  "APPAREL",
-  "EDUCATION",
-  "ENTERTAINMENT",
-  "EVENT_PLANNING",
-  "FINANCE",
-  "GROCERY",
-  "GOVERNMENT",
-  "HOTEL_AND_LODGING",
-  "MEDICAL_HEALTH",
-  "NONPROFIT",
-  "PROFESSIONAL_SERVICES",
-  "PUBLIC_SERVICE",
-  "RESTAURANT",
-  "RETAIL",
-  "SPORTS_RECREATION",
-  "TRAVEL",
-]);
 
 const sanitizeTextField = (value: unknown, limit: number) => {
   if (typeof value !== "string") {
@@ -74,19 +52,7 @@ const sanitizeWebsites = (value: unknown): string[] => {
   return [];
 };
 
-const sanitizeVertical = (value: unknown) => {
-  if (typeof value !== "string") {
-    return "UNDEFINED";
-  }
-
-  const upper = value.trim().toUpperCase();
-
-  if (upper.length === 0) {
-    return "UNDEFINED";
-  }
-
-  return ALLOWED_VERTICALS.has(upper) ? upper : "UNDEFINED";
-};
+const sanitizeVertical = (value: unknown) => coerceMetaProfileVertical(value);
 
 export async function GET() {
   try {
@@ -103,6 +69,10 @@ export async function GET() {
     }
 
     const profile = await fetchMetaBusinessProfile(webhook);
+
+    if (profile) {
+      profile.vertical = profile.vertical ?? DEFAULT_META_PROFILE_VERTICAL;
+    }
 
     return NextResponse.json({ profile });
   } catch (error) {

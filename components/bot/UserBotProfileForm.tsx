@@ -3,39 +3,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Button, Card, Col, Form, Image, Row, Spinner } from "react-bootstrap";
 
+import {
+  coerceMetaProfileVertical,
+  DEFAULT_META_PROFILE_VERTICAL,
+  META_PROFILE_VERTICAL_OPTIONS,
+} from "lib/meta-profile-verticals";
+
 import type { MetaBusinessProfile } from "types/meta";
 
 const MAX_WEBSITES = 2;
-
-const VERTICAL_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: "UNDEFINED", label: "Não especificado" },
-  { value: "OTHER", label: "Outro" },
-  { value: "AUTO", label: "Automotivo" },
-  { value: "BEAUTY", label: "Beleza" },
-  { value: "APPAREL", label: "Moda e vestuário" },
-  { value: "EDUCATION", label: "Educação" },
-  { value: "ENTERTAINMENT", label: "Entretenimento" },
-  { value: "EVENT_PLANNING", label: "Eventos" },
-  { value: "FINANCE", label: "Serviços financeiros" },
-  { value: "GROCERY", label: "Mercados" },
-  { value: "GOVERNMENT", label: "Governo" },
-  { value: "HOTEL_AND_LODGING", label: "Hotéis e hospedagem" },
-  { value: "MEDICAL_HEALTH", label: "Saúde" },
-  { value: "NONPROFIT", label: "Organizações sem fins lucrativos" },
-  { value: "PROFESSIONAL_SERVICES", label: "Serviços profissionais" },
-  { value: "PUBLIC_SERVICE", label: "Serviço público" },
-  { value: "RESTAURANT", label: "Restaurantes" },
-  { value: "RETAIL", label: "Varejo" },
-  { value: "SPORTS_RECREATION", label: "Esportes e lazer" },
-  { value: "TRAVEL", label: "Viagens" },
-];
 
 const mapProfileToFormState = (profile: MetaBusinessProfile | null) => ({
   about: profile?.about ?? "",
   address: profile?.address ?? "",
   description: profile?.description ?? "",
   email: profile?.email ?? "",
-  vertical: profile?.vertical ?? "UNDEFINED",
+  vertical: coerceMetaProfileVertical(profile?.vertical ?? undefined, DEFAULT_META_PROFILE_VERTICAL),
   websites: profile?.websites ?? [],
   profilePictureUrl: profile?.profilePictureUrl ?? null,
 });
@@ -312,7 +295,7 @@ const UserBotProfileForm = ({ profile, hasWebhookCredentials }: UserBotProfileFo
                     onChange={(event) => handleChange("vertical", event.target.value)}
                     disabled={!hasWebhookCredentials || isSubmitting}
                   >
-                    {VERTICAL_OPTIONS.map((option) => (
+                    {META_PROFILE_VERTICAL_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>

@@ -1,4 +1,5 @@
 import { getMetaApiVersion } from "./meta";
+import { normalizeMetaProfileVertical } from "./meta-profile-verticals";
 import type { UserWebhookRow } from "./db";
 import type { MetaBusinessProfile } from "types/meta";
 
@@ -93,7 +94,7 @@ export const fetchMetaBusinessProfile = async (
       description: toNullableString(data.description),
       email: toNullableString(data.email),
       profilePictureUrl: toNullableString(data.profile_picture_url),
-      vertical: toNullableString(data.vertical),
+      vertical: normalizeMetaProfileVertical(data.vertical) ?? null,
       websites,
     } satisfies MetaBusinessProfile;
   } catch (error) {
