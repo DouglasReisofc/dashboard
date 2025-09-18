@@ -268,6 +268,8 @@ const MercadoPagoCheckoutForm = ({ config }: MercadoPagoCheckoutFormProps) => {
                   rows={4}
                   value={formState.amountOptionsText}
                   onChange={(event) => handleChange("amountOptionsText", event.target.value)}
+                  inputMode="decimal"
+                  spellCheck={false}
                   placeholder={["50,00", "75,00", "100,00"].join("\n")}
                 />
                 <Form.Text className="text-secondary">

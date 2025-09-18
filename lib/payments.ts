@@ -74,33 +74,45 @@ const sanitizeAmountOptions = (values: unknown): number[] => {
     return [];
   }
 
-  const parsed = values
-    .map((entry) => {
-      if (typeof entry === "number" && Number.isFinite(entry)) {
-        return entry;
+  const centsSet = new Set<number>();
+
+  for (const entry of values) {
+    let numeric: number | null = null;
+
+    if (typeof entry === "number" && Number.isFinite(entry)) {
+      numeric = entry;
+    } else if (typeof entry === "string" && entry.trim()) {
+      const normalized = entry.trim().replace(/[^0-9,.-]/g, "");
+      if (!normalized) {
+        continue;
       }
 
-      if (typeof entry === "string" && entry.trim()) {
-        const normalized = entry.trim().replace(/[^0-9,.-]/g, "");
-        const usesComma = normalized.includes(",");
-        const sanitized = usesComma
-          ? normalized.replace(/\./g, "").replace(/,/g, ".")
-          : normalized;
-        const parsedNumber = Number.parseFloat(sanitized);
-        if (Number.isFinite(parsedNumber)) {
-          return parsedNumber;
-        }
+      const usesComma = normalized.includes(",");
+      const sanitized = usesComma
+        ? normalized.replace(/\./g, "").replace(/,/g, ".")
+        : normalized;
+      const parsedNumber = Number.parseFloat(sanitized);
+      if (Number.isFinite(parsedNumber)) {
+        numeric = parsedNumber;
       }
+    }
 
-      return null;
-    })
-    .filter((entry): entry is number => typeof entry === "number" && Number.isFinite(entry));
+    if (numeric === null) {
+      continue;
+    }
 
-  const unique = Array.from(new Set(parsed.map((value) => Number(value.toFixed(2)))));
-  return unique
-    .filter((value) => value > 0)
+    const cents = Math.round(numeric * 100);
+    if (!Number.isFinite(cents) || cents < 1) {
+      continue;
+    }
+
+    centsSet.add(cents);
+  }
+
+  return Array.from(centsSet)
     .sort((a, b) => a - b)
-    .slice(0, 20);
+    .slice(0, 20)
+    .map((cents) => cents / 100);
 };
 
 const sanitizeCheckoutPaymentTypes = (

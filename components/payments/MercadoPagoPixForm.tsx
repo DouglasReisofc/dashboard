@@ -248,6 +248,8 @@ const MercadoPagoPixForm = ({ config }: MercadoPagoPixFormProps) => {
                   rows={4}
                   value={formState.amountOptionsText}
                   onChange={(event) => handleChange("amountOptionsText", event.target.value)}
+                  inputMode="decimal"
+                  spellCheck={false}
                   placeholder={"25,00\n50,00\n100,00"}
                 />
                 <Form.Text className="text-secondary">
