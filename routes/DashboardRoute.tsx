@@ -1,5 +1,4 @@
 //import node modules libraries
-import { v4 as uuid } from "uuid";
 import {
   IconHome,
   IconLayoutDashboard,
@@ -10,6 +9,7 @@ import {
   IconWorld,
   IconTags,
   IconUsers,
+  IconSettings,
 } from "@tabler/icons-react";
 
 //import custom type
@@ -17,25 +17,31 @@ import { MenuItemType } from "types/menuTypes";
 
 const adminMenu: MenuItemType[] = [
   {
-    id: uuid(),
+    id: "admin-dashboard",
     title: "Painel",
     link: "/dashboard/admin",
     icon: <IconLayoutDashboard size={20} strokeWidth={1.5} />,
   },
   {
-    id: uuid(),
+    id: "admin-site-settings",
+    title: "Config. do site",
+    link: "/dashboard/admin/site",
+    icon: <IconSettings size={20} strokeWidth={1.5} />,
+  },
+  {
+    id: "admin-categories",
     title: "Categorias",
     link: "/dashboard/admin/categories",
     icon: <IconTags size={20} strokeWidth={1.5} />,
   },
   {
-    id: uuid(),
+    id: "admin-products",
     title: "Produtos digitais",
     link: "/dashboard/admin/products",
     icon: <IconPackage size={20} strokeWidth={1.5} />,
   },
   {
-    id: uuid(),
+    id: "admin-users",
     title: "Usuários",
     link: "/dashboard/admin/users",
     icon: <IconUsers size={20} strokeWidth={1.5} />,
@@ -44,49 +50,49 @@ const adminMenu: MenuItemType[] = [
 
 const userMenu: MenuItemType[] = [
   {
-    id: uuid(),
+    id: "user-dashboard",
     title: "Painel",
     link: "/dashboard/user",
     icon: <IconHome size={20} strokeWidth={1.5} />,
   },
   {
-    id: uuid(),
+    id: "user-categories",
     title: "Categorias",
     link: "/dashboard/user/categories",
     icon: <IconTags size={20} strokeWidth={1.5} />,
   },
   {
-    id: uuid(),
+    id: "user-products",
     title: "Produtos digitais",
     link: "/dashboard/user/products",
     icon: <IconPackage size={20} strokeWidth={1.5} />,
   },
   {
-    id: uuid(),
+    id: "user-customers",
     title: "Clientes",
     link: "/dashboard/user/clientes",
     icon: <IconUsers size={20} strokeWidth={1.5} />,
   },
-  { 
-    id: uuid(),
+  {
+    id: "user-bot",
     title: "Configurar bot",
     link: "/dashboard/user/configurar-bot",
     icon: <IconRobot size={20} strokeWidth={1.5} />,
   },
   {
-    id: uuid(),
+    id: "user-site",
     title: "Config. do site",
     link: "/dashboard/user/site",
     icon: <IconWorld size={20} strokeWidth={1.5} />,
   },
   {
-    id: uuid(),
+    id: "user-payments",
     title: "Config. pagamentos",
     link: "/dashboard/user/pagamentos",
     icon: <IconCreditCard size={20} strokeWidth={1.5} />,
   },
   {
-    id: uuid(),
+    id: "user-webhook",
     title: "Webhook",
     link: "/dashboard/user/webhook",
     icon: <IconPlugConnected size={20} strokeWidth={1.5} />,

@@ -357,6 +357,33 @@ export const ensureSiteSettingsTable = async () => {
   `);
 };
 
+export const ensureAdminSiteSettingsTable = async () => {
+  const db = getDb();
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS admin_site_settings (
+      id TINYINT PRIMARY KEY,
+      site_name VARCHAR(120) NOT NULL,
+      tagline VARCHAR(255) NULL,
+      support_email VARCHAR(160) NULL,
+      support_phone VARCHAR(40) NULL,
+      hero_title VARCHAR(160) NULL,
+      hero_subtitle VARCHAR(255) NULL,
+      hero_button_label VARCHAR(60) NULL,
+      hero_button_url VARCHAR(300) NULL,
+      seo_title VARCHAR(160) NULL,
+      seo_description VARCHAR(320) NULL,
+      footer_text TEXT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB;
+  `);
+
+  await db.query(
+    `INSERT INTO admin_site_settings (id, site_name)
+     VALUES (1, 'StoreBot')
+     ON DUPLICATE KEY UPDATE site_name = site_name`);
+};
+
 export const ensureWebhookTable = async () => {
   const db = getDb();
   await db.query(`
@@ -514,6 +541,23 @@ export type UserSiteSettingsRow = {
   seo_keywords: string | null;
   footer_text: string | null;
   footer_links: string | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type AdminSiteSettingsRow = {
+  id: number;
+  site_name: string;
+  tagline: string | null;
+  support_email: string | null;
+  support_phone: string | null;
+  hero_title: string | null;
+  hero_subtitle: string | null;
+  hero_button_label: string | null;
+  hero_button_url: string | null;
+  seo_title: string | null;
+  seo_description: string | null;
+  footer_text: string | null;
   created_at: Date;
   updated_at: Date;
 };
