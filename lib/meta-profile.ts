@@ -21,7 +21,7 @@ export const fetchMetaBusinessProfile = async (
 
   const version = getMetaApiVersion();
   const url = new URL(
-    `https://graph.facebook.com/${version}/${webhook.phone_number_id}/business_profile`,
+    `https://graph.facebook.com/${version}/${webhook.phone_number_id}/profile`,
   );
   url.searchParams.set("fields", PROFILE_FIELDS.join(","));
 
@@ -98,7 +98,7 @@ export const updateMetaBusinessProfile = async (
   }
 
   const version = getMetaApiVersion();
-  const url = `https://graph.facebook.com/${version}/${webhook.phone_number_id}/business_profile`;
+  const url = `https://graph.facebook.com/${version}/${webhook.phone_number_id}/profile`;
 
   const body: Record<string, unknown> = {
     messaging_product: "whatsapp",
@@ -163,7 +163,7 @@ export const uploadMetaProfilePicture = async (
   }
 
   const version = getMetaApiVersion();
-  const url = `https://graph.facebook.com/${version}/${webhook.phone_number_id}/profile_picture`;
+  const url = `https://graph.facebook.com/${version}/${webhook.phone_number_id}/profile/photo`;
 
   const formData = new FormData();
   formData.set("messaging_product", "whatsapp");
@@ -205,7 +205,7 @@ export const removeMetaProfilePicture = async (
 
   const version = getMetaApiVersion();
   const url = new URL(
-    `https://graph.facebook.com/${version}/${webhook.phone_number_id}/profile_picture`,
+    `https://graph.facebook.com/${version}/${webhook.phone_number_id}/profile/photo`,
   );
   url.searchParams.set("messaging_product", "whatsapp");
 
