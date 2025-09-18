@@ -24,12 +24,12 @@ const DashboardLayout = async ({ children }: DashboardProps) => {
   return (
     <div>
       <Sidebar hideLogo={false} containerId="miniSidebar" role={user.role} />
-      <div id="content" className="position-relative h-100">
+      <div id="content" className="position-relative min-vh-100 d-flex flex-column">
         <Header user={user} />
-        <div className="custom-container py-4">{children}</div>
-        <div className="custom-container pb-4 text-secondary">
+        <div className="custom-container py-4 flex-grow-1">{children}</div>
+        <footer className="custom-container pb-4 text-secondary text-center">
           StoreBot Dashboard © {currentYear}. Todos os direitos reservados.
-        </div>
+        </footer>
       </div>
     </div>
   );
