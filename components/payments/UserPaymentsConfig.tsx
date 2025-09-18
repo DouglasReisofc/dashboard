@@ -13,7 +13,7 @@ import MercadoPagoCheckoutForm from "./MercadoPagoCheckoutForm";
 import MercadoPagoPixForm from "./MercadoPagoPixForm";
 import PaymentConfirmationForm from "./PaymentConfirmationForm";
 
-type ViewId = "pix" | "checkout";
+type ViewId = "pix" | "checkout" | "confirmation";
 
 type ViewOption = {
   id: ViewId;
@@ -40,9 +40,18 @@ const VIEW_OPTIONS: readonly ViewOption[] = [
     description:
       "Use o checkout transparente do Mercado Pago para aceitar cartões, Pix e boleto em páginas externas.",
   },
+  {
+    id: "confirmation",
+    label: "Mensagem de confirmação",
+    description:
+      "Defina a mensagem enviada automaticamente após a aprovação do pagamento, válida para todos os métodos.",
+  },
 ];
 
-const resolveInitialView = (pixConfig: MercadoPagoPixConfig, checkoutConfig: MercadoPagoCheckoutConfig): ViewId => {
+const resolveInitialView = (
+  pixConfig: MercadoPagoPixConfig,
+  checkoutConfig: MercadoPagoCheckoutConfig,
+): ViewId => {
   if (pixConfig.isConfigured || pixConfig.isActive) {
     return "pix";
   }
@@ -51,7 +60,7 @@ const resolveInitialView = (pixConfig: MercadoPagoPixConfig, checkoutConfig: Mer
     return "checkout";
   }
 
-  return "pix";
+  return "confirmation";
 };
 
 const UserPaymentsConfig = ({
@@ -93,13 +102,9 @@ const UserPaymentsConfig = ({
         </Card.Body>
       </Card>
 
-      {activeView === "pix" ? (
-        <MercadoPagoPixForm config={pixConfig} />
-      ) : (
-        <MercadoPagoCheckoutForm config={checkoutConfig} />
-      )}
-
-      <PaymentConfirmationForm config={confirmationConfig} />
+      {activeView === "pix" && <MercadoPagoPixForm config={pixConfig} />}
+      {activeView === "checkout" && <MercadoPagoCheckoutForm config={checkoutConfig} />}
+      {activeView === "confirmation" && <PaymentConfirmationForm config={confirmationConfig} />}
     </div>
   );
 };
