@@ -44,7 +44,7 @@ const resolveMediaUrl = (relativePath: string) => {
   return `${getAppBaseUrl()}/${normalized}`;
 };
 
-const getMetaApiVersion = () => process.env.META_API_VERSION?.trim() || "v19.0";
+export const getMetaApiVersion = () => process.env.META_API_VERSION?.trim() || "v19.0";
 
 export const MENU_BUTTON_IDS = {
   buy: "storebot_menu_buy",
