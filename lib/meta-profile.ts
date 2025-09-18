@@ -3,6 +3,146 @@ import { normalizeMetaProfileVertical } from "./meta-profile-verticals";
 import type { UserWebhookRow } from "./db";
 import type { MetaBusinessProfile } from "types/meta";
 
+export type MetaProfileCredentials = {
+  accessToken: string;
+  phoneNumberId: string;
+};
+
+export const resolveMetaProfileCredentials = (
+  webhook: UserWebhookRow | null,
+): MetaProfileCredentials | null => {
+  const envAccessToken = process.env.META_TOKEN?.trim();
+  const envPhoneNumberId = process.env.PHONE_NUMBER_ID?.trim();
+
+  const accessToken = envAccessToken || webhook?.access_token?.trim() || "";
+  const phoneNumberId = envPhoneNumberId || webhook?.phone_number_id?.trim() || "";
+
+  if (!accessToken || !phoneNumberId) {
+    return null;
+  }
+
+  if (!envAccessToken || !envPhoneNumberId) {
+    console.warn(
+      "[Meta Profile] Using stored webhook credentials. Configure META_TOKEN and PHONE_NUMBER_ID env vars for consistent profile updates.",
+    );
+  }
+
+  return { accessToken, phoneNumberId } satisfies MetaProfileCredentials;
+};
+
+type MetaApiErrorPayload = {
+  status: number;
+  statusText: string;
+  bodyText: string;
+  body: unknown;
+  context: string;
+};
+
+export class MetaApiError extends Error {
+  public readonly status: number;
+
+  public readonly statusText: string;
+
+  public readonly bodyText: string;
+
+  public readonly body: unknown;
+
+  public readonly context: string;
+
+  constructor({ status, statusText, bodyText, body, context }: MetaApiErrorPayload) {
+    super(
+      `${context}: ${status} ${statusText}${bodyText ? ` ${bodyText}` : ""}`.trim(),
+    );
+
+    this.name = "MetaApiError";
+    this.status = status;
+    this.statusText = statusText;
+    this.bodyText = bodyText;
+    this.body = body;
+    this.context = context;
+  }
+}
+
+const parseMetaJson = (raw: string): unknown => {
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch (error) {
+    console.error("[Meta Profile] Failed to parse Meta response", error, raw);
+    return null;
+  }
+};
+
+const readMetaResponse = async (
+  response: Response,
+  context: string,
+): Promise<{ bodyText: string; body: unknown }> => {
+  const bodyText = await response.text().catch(() => "");
+  const body = parseMetaJson(bodyText);
+
+  if (!response.ok) {
+    const error = new MetaApiError({
+      status: response.status,
+      statusText: response.statusText,
+      bodyText,
+      body,
+      context,
+    });
+
+    const errorCode =
+      typeof body === "object" && body && "error" in body &&
+      typeof (body as Record<string, unknown>).error === "object"
+        ? (body as { error: { code?: unknown; error_subcode?: unknown } }).error
+        : null;
+
+    if (
+      errorCode &&
+      typeof errorCode.code === "number" &&
+      errorCode.code === 131009 &&
+      typeof errorCode.error_subcode === "number" &&
+      errorCode.error_subcode === 2494102
+    ) {
+      console.error(
+        "[Meta Profile] Provável uso de ID de /media ou handle de outra WABA/token.",
+        body,
+      );
+    }
+
+    throw error;
+  }
+
+  return { bodyText, body };
+};
+
+const SUPPORTED_PROFILE_PHOTO_TYPES: Record<string, string> = {
+  "image/jpeg": "image/jpeg",
+  "image/jpg": "image/jpeg",
+  "image/png": "image/png",
+};
+
+export const getMetaProfilePhotoContentType = (file: File): string | null => {
+  const type = file.type?.trim().toLowerCase();
+
+  if (type && type in SUPPORTED_PROFILE_PHOTO_TYPES) {
+    return SUPPORTED_PROFILE_PHOTO_TYPES[type];
+  }
+
+  const name = file.name?.trim().toLowerCase() ?? "";
+
+  if (name.endsWith(".png")) {
+    return "image/png";
+  }
+
+  if (name.endsWith(".jpg") || name.endsWith(".jpeg")) {
+    return "image/jpeg";
+  }
+
+  return null;
+};
+
 const PROFILE_FIELDS = [
   "about",
   "address",
@@ -15,21 +155,24 @@ const PROFILE_FIELDS = [
 
 export const fetchMetaBusinessProfile = async (
   webhook: UserWebhookRow | null,
+  credentialsOverride?: MetaProfileCredentials,
 ): Promise<MetaBusinessProfile | null> => {
-  if (!webhook?.access_token || !webhook.phone_number_id) {
+  const credentials = credentialsOverride ?? resolveMetaProfileCredentials(webhook);
+
+  if (!credentials) {
     return null;
   }
 
   const version = getMetaApiVersion();
   const url = new URL(
-    `https://graph.facebook.com/${version}/${webhook.phone_number_id}/whatsapp_business_profile`,
+    `https://graph.facebook.com/${version}/${credentials.phoneNumberId}/whatsapp_business_profile`,
   );
   url.searchParams.set("fields", PROFILE_FIELDS.join(","));
 
   try {
     const response = await fetch(url, {
       headers: {
-        Authorization: `Bearer ${webhook.access_token}`,
+        Authorization: `Bearer ${credentials.accessToken}`,
       },
     });
 
@@ -104,7 +247,7 @@ export const fetchMetaBusinessProfile = async (
 };
 
 export const updateMetaBusinessProfile = async (
-  webhook: UserWebhookRow,
+  webhook: UserWebhookRow | null,
   payload: {
     about?: string;
     address?: string;
@@ -113,13 +256,16 @@ export const updateMetaBusinessProfile = async (
     vertical?: string;
     websites?: string[];
   },
+  credentialsOverride?: MetaProfileCredentials,
 ): Promise<boolean> => {
-  if (!webhook.access_token || !webhook.phone_number_id) {
+  const credentials = credentialsOverride ?? resolveMetaProfileCredentials(webhook);
+
+  if (!credentials) {
     return false;
   }
 
   const version = getMetaApiVersion();
-  const url = `https://graph.facebook.com/${version}/${webhook.phone_number_id}/whatsapp_business_profile`;
+  const url = `https://graph.facebook.com/${version}/${credentials.phoneNumberId}/whatsapp_business_profile`;
 
   const body: Record<string, unknown> = {
     messaging_product: "whatsapp",
@@ -154,7 +300,7 @@ export const updateMetaBusinessProfile = async (
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${webhook.access_token}`,
+        Authorization: `Bearer ${credentials.accessToken}`,
       },
       body: JSON.stringify(body),
     });
@@ -212,161 +358,184 @@ const resolveProfileUploadFilename = (file: File) => {
 };
 
 export const uploadMetaProfilePicture = async (
-  webhook: UserWebhookRow,
+  webhook: UserWebhookRow | null,
   file: File,
-): Promise<string | null> => {
-  if (!webhook.access_token || !webhook.phone_number_id) {
-    return null;
+  credentialsOverride?: MetaProfileCredentials,
+): Promise<string> => {
+  const credentials = credentialsOverride ?? resolveMetaProfileCredentials(webhook);
+
+  if (!credentials) {
+    throw new Error("Meta credentials are not configured.");
+  }
+
+  const contentType = getMetaProfilePhotoContentType(file);
+
+  if (!contentType) {
+    throw new Error("A imagem deve ser PNG ou JPG.");
   }
 
   const version = getMetaApiVersion();
-  const url = `https://graph.facebook.com/${version}/${webhook.phone_number_id}/media`;
+  const filename = resolveProfileUploadFilename(file);
+  const arrayBuffer = await file.arrayBuffer();
+  const fileLength = arrayBuffer.byteLength;
 
-  try {
-    const arrayBuffer = await file.arrayBuffer();
-    const contentType = file.type?.trim() || "image/jpeg";
-    const filename = resolveProfileUploadFilename(file);
-    const formData = new FormData();
-    const sanitizedFile = new File([arrayBuffer], filename, { type: contentType });
+  const sessionUrl = new URL(
+    `https://graph.facebook.com/${version}/${credentials.phoneNumberId}/uploads`,
+  );
+  sessionUrl.searchParams.set("file_length", `${fileLength}`);
+  sessionUrl.searchParams.set("file_type", contentType);
 
-    formData.append("messaging_product", "whatsapp");
-    formData.append("type", "image");
-    formData.append("file", sanitizedFile, sanitizedFile.name);
+  console.log("[Meta Profile] Creating profile photo upload session", {
+    url: sessionUrl.toString(),
+    contentType,
+    fileLength,
+    filename,
+  });
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${webhook.access_token}`,
-      },
-      body: formData,
-    });
+  const sessionResponse = await fetch(sessionUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${credentials.accessToken}`,
+    },
+  });
 
-    const responseText = await response.text().catch(() => "");
+  const sessionResult = await readMetaResponse(
+    sessionResponse,
+    "[Meta Profile] Failed to create profile photo upload session",
+  );
 
-    console.log("[Meta Profile] Upload profile picture response", {
-      status: response.status,
-      statusText: response.statusText,
-      body: responseText,
-    });
+  console.log("[Meta Profile] Create upload session response", {
+    status: sessionResponse.status,
+    statusText: sessionResponse.statusText,
+    body: sessionResult.bodyText,
+  });
 
-    if (!response.ok) {
-      console.error(
-        `[Meta Profile] Failed to upload profile picture: ${response.status} ${response.statusText}`,
-        responseText,
-      );
-      return null;
-    }
+  const uploadId =
+    typeof (sessionResult.body as { id?: unknown } | null)?.id === "string"
+      ? ((sessionResult.body as { id: string }).id || "").trim()
+      : "";
 
-    let data: { id?: unknown } | null = null;
-
-    if (responseText) {
-      try {
-        data = JSON.parse(responseText) as { id?: unknown } | null;
-      } catch (error) {
-        console.error("[Meta Profile] Failed to parse upload response", error);
-      }
-    }
-
-    const handle = typeof data?.id === "string" ? data.id.trim() : "";
-
-    if (!handle) {
-      console.error("[Meta Profile] Invalid upload response", data);
-      return null;
-    }
-
-    return handle;
-  } catch (error) {
-    console.error("[Meta Profile] Unexpected error while uploading profile picture", error);
-    return null;
+  if (!uploadId) {
+    throw new Error("Meta não retornou o ID da sessão de upload.");
   }
+
+  const uploadUrl = `https://graph.facebook.com/${version}/${uploadId}`;
+
+  console.log("[Meta Profile] Enviando imagem para sessão de upload", {
+    uploadId,
+    uploadUrl,
+  });
+
+  const uploadResponse = await fetch(uploadUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${credentials.accessToken}`,
+      file_offset: "0",
+      "Content-Type": contentType,
+    },
+    body: Buffer.from(arrayBuffer),
+  });
+
+  const uploadResult = await readMetaResponse(
+    uploadResponse,
+    "[Meta Profile] Failed to upload profile photo chunk",
+  );
+
+  console.log("[Meta Profile] Upload chunk response", {
+    status: uploadResponse.status,
+    statusText: uploadResponse.statusText,
+    body: uploadResult.bodyText,
+  });
+
+  const handle =
+    typeof (uploadResult.body as { h?: unknown } | null)?.h === "string"
+      ? ((uploadResult.body as { h: string }).h || "").trim()
+      : "";
+
+  if (!handle) {
+    throw new Error("Meta não retornou o handle da imagem.");
+  }
+
+  return handle;
 };
 
 export const updateMetaProfilePictureHandle = async (
-  webhook: UserWebhookRow,
+  webhook: UserWebhookRow | null,
   profilePictureHandle: string,
-): Promise<boolean> => {
-  if (!webhook.access_token || !webhook.phone_number_id) {
-    return false;
+  credentialsOverride?: MetaProfileCredentials,
+): Promise<void> => {
+  const credentials = credentialsOverride ?? resolveMetaProfileCredentials(webhook);
+
+  if (!credentials) {
+    throw new Error("Meta credentials are not configured.");
   }
 
   const trimmedHandle = profilePictureHandle.trim();
 
   if (!trimmedHandle) {
-    return false;
+    throw new Error("Handle da imagem inválido.");
   }
 
   const version = getMetaApiVersion();
-  const url = `https://graph.facebook.com/${version}/${webhook.phone_number_id}/profile/photo`;
+  const url = `https://graph.facebook.com/${version}/${credentials.phoneNumberId}/whatsapp_business_profile`;
 
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${webhook.access_token}`,
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        handle: trimmedHandle,
-      }),
-    });
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${credentials.accessToken}`,
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      profile_picture_handle: trimmedHandle,
+    }),
+  });
 
-    const responseText = await response.text().catch(() => "");
+  const result = await readMetaResponse(
+    response,
+    "[Meta Profile] Failed to set profile picture",
+  );
 
-    console.log("[Meta Profile] Set profile picture response", {
-      status: response.status,
-      statusText: response.statusText,
-      body: responseText,
-    });
+  console.log("[Meta Profile] Set profile picture response", {
+    status: response.status,
+    statusText: response.statusText,
+    body: result.bodyText,
+  });
 
-    if (!response.ok) {
-      console.error(
-        `[Meta Profile] Failed to set profile picture: ${response.status} ${response.statusText}`,
-        responseText,
-      );
-      return false;
-    }
-
-    return true;
-  } catch (error) {
-    console.error("[Meta Profile] Unexpected error while setting profile picture", error);
-    return false;
+  if (
+    typeof result.body === "object" &&
+    result.body &&
+    "success" in result.body &&
+    (result.body as { success?: unknown }).success === false
+  ) {
+    throw new Error("Meta não confirmou a atualização da foto de perfil.");
   }
 };
 
 export const removeMetaProfilePicture = async (
-  webhook: UserWebhookRow,
-): Promise<boolean> => {
-  if (!webhook.access_token || !webhook.phone_number_id) {
-    return false;
+  webhook: UserWebhookRow | null,
+  credentialsOverride?: MetaProfileCredentials,
+): Promise<void> => {
+  const credentials = credentialsOverride ?? resolveMetaProfileCredentials(webhook);
+
+  if (!credentials) {
+    throw new Error("Meta credentials are not configured.");
   }
 
   const version = getMetaApiVersion();
   const url = new URL(
-    `https://graph.facebook.com/${version}/${webhook.phone_number_id}/profile/photo`,
+    `https://graph.facebook.com/${version}/${credentials.phoneNumberId}/profile/photo`,
   );
   url.searchParams.set("messaging_product", "whatsapp");
 
-  try {
-    const response = await fetch(url, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${webhook.access_token}`,
-      },
-    });
+  const response = await fetch(url, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${credentials.accessToken}`,
+    },
+  });
 
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => "");
-      console.error(
-        `[Meta Profile] Failed to delete profile picture: ${response.status} ${response.statusText}`,
-        errorText,
-      );
-      return false;
-    }
-
-    return true;
-  } catch (error) {
-    console.error("[Meta Profile] Unexpected error while deleting profile picture", error);
-    return false;
+  if (!response.ok) {
+    await readMetaResponse(response, "[Meta Profile] Failed to delete profile picture");
   }
 };

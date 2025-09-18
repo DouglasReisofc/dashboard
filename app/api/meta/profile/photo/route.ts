@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "lib/auth";
 import {
+  MetaApiError,
   fetchMetaBusinessProfile,
+  getMetaProfilePhotoContentType,
   removeMetaProfilePicture,
+  resolveMetaProfileCredentials,
   updateMetaProfilePictureHandle,
   uploadMetaProfilePicture,
 } from "lib/meta-profile";
@@ -21,9 +24,14 @@ export async function POST(request: Request) {
 
     const webhook = await getWebhookRowForUser(user.id);
 
-    if (!webhook?.access_token || !webhook.phone_number_id) {
+    const credentials = resolveMetaProfileCredentials(webhook);
+
+    if (!credentials) {
       return NextResponse.json(
-        { message: "Configure o webhook da Meta antes de atualizar a foto." },
+        {
+          message:
+            "Configure as credenciais da Meta (PHONE_NUMBER_ID e META_TOKEN) antes de atualizar a foto.",
+        },
         { status: 400 },
       );
     }
@@ -45,36 +53,50 @@ export async function POST(request: Request) {
       );
     }
 
-    const handle = await uploadMetaProfilePicture(webhook, photo);
-
-    if (!handle) {
+    if (!getMetaProfilePhotoContentType(photo)) {
       return NextResponse.json(
-        { message: "Não foi possível enviar a foto agora." },
-        { status: 502 },
+        { message: "Envie uma imagem JPG ou PNG." },
+        { status: 400 },
       );
     }
 
-    const updated = await updateMetaProfilePictureHandle(webhook, handle);
+    const handle = await uploadMetaProfilePicture(webhook, photo, credentials);
 
-    if (!updated) {
-      return NextResponse.json(
-        { message: "Não foi possível enviar a foto agora." },
-        { status: 502 },
-      );
-    }
+    await updateMetaProfilePictureHandle(webhook, handle, credentials);
 
-    const profile = await fetchMetaBusinessProfile(webhook);
+    const profile = await fetchMetaBusinessProfile(webhook, credentials);
 
     return NextResponse.json({
       message: "Foto atualizada com sucesso.",
       profile,
     });
   } catch (error) {
+    if (error instanceof MetaApiError) {
+      console.error("[Meta Profile] Upload photo failed", error.context, error.bodyText);
+
+      if (error.body && typeof error.body === "object") {
+        return NextResponse.json(error.body, { status: error.status });
+      }
+
+      if (error.bodyText) {
+        return new NextResponse(error.bodyText, {
+          status: error.status,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      return NextResponse.json(
+        { message: error.message },
+        { status: error.status },
+      );
+    }
+
     console.error("Failed to upload Meta profile picture", error);
-    return NextResponse.json(
-      { message: "Não foi possível atualizar a foto do perfil." },
-      { status: 500 },
-    );
+    const message =
+      error instanceof Error && error.message
+        ? error.message
+        : "Não foi possível atualizar a foto do perfil.";
+    return NextResponse.json({ message }, { status: 500 });
   }
 }
 
@@ -88,33 +110,52 @@ export async function DELETE() {
 
     const webhook = await getWebhookRowForUser(user.id);
 
-    if (!webhook?.access_token || !webhook.phone_number_id) {
+    const credentials = resolveMetaProfileCredentials(webhook);
+
+    if (!credentials) {
       return NextResponse.json(
-        { message: "Configure o webhook da Meta antes de remover a foto." },
+        {
+          message:
+            "Configure as credenciais da Meta (PHONE_NUMBER_ID e META_TOKEN) antes de remover a foto.",
+        },
         { status: 400 },
       );
     }
 
-    const removed = await removeMetaProfilePicture(webhook);
+    await removeMetaProfilePicture(webhook, credentials);
 
-    if (!removed) {
-      return NextResponse.json(
-        { message: "Não foi possível remover a foto agora." },
-        { status: 502 },
-      );
-    }
-
-    const profile = await fetchMetaBusinessProfile(webhook);
+    const profile = await fetchMetaBusinessProfile(webhook, credentials);
 
     return NextResponse.json({
       message: "Foto removida com sucesso.",
       profile,
     });
   } catch (error) {
+    if (error instanceof MetaApiError) {
+      console.error("[Meta Profile] Delete photo failed", error.context, error.bodyText);
+
+      if (error.body && typeof error.body === "object") {
+        return NextResponse.json(error.body, { status: error.status });
+      }
+
+      if (error.bodyText) {
+        return new NextResponse(error.bodyText, {
+          status: error.status,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      return NextResponse.json(
+        { message: error.message },
+        { status: error.status },
+      );
+    }
+
     console.error("Failed to delete Meta profile picture", error);
-    return NextResponse.json(
-      { message: "Não foi possível remover a foto do perfil." },
-      { status: 500 },
-    );
+    const message =
+      error instanceof Error && error.message
+        ? error.message
+        : "Não foi possível remover a foto do perfil.";
+    return NextResponse.json({ message }, { status: 500 });
   }
 }

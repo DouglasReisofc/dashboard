@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "lib/auth";
-import { fetchMetaBusinessProfile, updateMetaBusinessProfile } from "lib/meta-profile";
+import {
+  fetchMetaBusinessProfile,
+  resolveMetaProfileCredentials,
+  updateMetaBusinessProfile,
+} from "lib/meta-profile";
 import { coerceMetaProfileVertical, DEFAULT_META_PROFILE_VERTICAL } from "lib/meta-profile-verticals";
 import { getWebhookRowForUser } from "lib/webhooks";
 
@@ -64,11 +68,13 @@ export async function GET() {
 
     const webhook = await getWebhookRowForUser(user.id);
 
-    if (!webhook?.access_token || !webhook.phone_number_id) {
+    const credentials = resolveMetaProfileCredentials(webhook);
+
+    if (!credentials) {
       return NextResponse.json({ profile: null, requiresSetup: true });
     }
 
-    const profile = await fetchMetaBusinessProfile(webhook);
+    const profile = await fetchMetaBusinessProfile(webhook, credentials);
 
     if (profile) {
       profile.vertical = profile.vertical ?? DEFAULT_META_PROFILE_VERTICAL;
@@ -94,9 +100,14 @@ export async function PUT(request: Request) {
 
     const webhook = await getWebhookRowForUser(user.id);
 
-    if (!webhook?.access_token || !webhook.phone_number_id) {
+    const credentials = resolveMetaProfileCredentials(webhook);
+
+    if (!credentials) {
       return NextResponse.json(
-        { message: "Configure o webhook da Meta antes de atualizar o perfil." },
+        {
+          message:
+            "Configure as credenciais da Meta (PHONE_NUMBER_ID e META_TOKEN) antes de atualizar o perfil.",
+        },
         { status: 400 },
       );
     }
@@ -117,7 +128,7 @@ export async function PUT(request: Request) {
       email: email ?? undefined,
       vertical,
       websites,
-    });
+    }, credentials);
 
     if (!success) {
       return NextResponse.json(
@@ -126,7 +137,7 @@ export async function PUT(request: Request) {
       );
     }
 
-    const profile = await fetchMetaBusinessProfile(webhook);
+    const profile = await fetchMetaBusinessProfile(webhook, credentials);
 
     return NextResponse.json({
       message: "Perfil atualizado com sucesso.",

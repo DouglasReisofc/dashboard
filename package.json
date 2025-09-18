@@ -9,7 +9,8 @@
     "start": "next start -p 4478",
     "lint": "next lint",
     "predeploy": "npm run build",
-    "deploy": "echo 'Deploy requires a Node.js host (e.g. Vercel) to run the dynamic app.'"
+    "deploy": "echo 'Deploy requires a Node.js host (e.g. Vercel) to run the dynamic app.'",
+    "meta:profile-photo": "tsx scripts/meta-profile-photo-cli.ts"
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.8.2",
@@ -52,6 +53,7 @@
     "gulp-sass": "^6.0.1",
     "sass": "^1.89.2",
     "sass-loader": "^16.0.5",
+    "tsx": "^4.19.2",
     "typescript": "^5",
     "webpack": "^5.99.9"
   }
