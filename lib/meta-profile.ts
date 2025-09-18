@@ -240,18 +240,31 @@ export const uploadMetaProfilePicture = async (
       body: formData,
     });
 
+    const responseText = await response.text().catch(() => "");
+
+    console.log("[Meta Profile] Upload profile picture response", {
+      status: response.status,
+      statusText: response.statusText,
+      body: responseText,
+    });
+
     if (!response.ok) {
-      const errorText = await response.text().catch(() => "");
       console.error(
         `[Meta Profile] Failed to upload profile picture: ${response.status} ${response.statusText}`,
-        errorText,
+        responseText,
       );
       return null;
     }
 
-    const data = (await response.json().catch(() => null)) as
-      | { id?: unknown }
-      | null;
+    let data: { id?: unknown } | null = null;
+
+    if (responseText) {
+      try {
+        data = JSON.parse(responseText) as { id?: unknown } | null;
+      } catch (error) {
+        console.error("[Meta Profile] Failed to parse upload response", error);
+      }
+    }
 
     const handle = typeof data?.id === "string" ? data.id.trim() : "";
 
@@ -297,11 +310,18 @@ export const updateMetaProfilePictureHandle = async (
       }),
     });
 
+    const responseText = await response.text().catch(() => "");
+
+    console.log("[Meta Profile] Set profile picture response", {
+      status: response.status,
+      statusText: response.statusText,
+      body: responseText,
+    });
+
     if (!response.ok) {
-      const errorText = await response.text().catch(() => "");
       console.error(
         `[Meta Profile] Failed to set profile picture: ${response.status} ${response.statusText}`,
-        errorText,
+        responseText,
       );
       return false;
     }
