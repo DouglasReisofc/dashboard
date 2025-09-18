@@ -21,7 +21,7 @@ export const fetchMetaBusinessProfile = async (
 
   const version = getMetaApiVersion();
   const url = new URL(
-    `https://graph.facebook.com/${version}/${webhook.phone_number_id}/profile`,
+    `https://graph.facebook.com/${version}/${webhook.phone_number_id}/whatsapp_business_profile`,
   );
   url.searchParams.set("fields", PROFILE_FIELDS.join(","));
 
@@ -42,14 +42,34 @@ export const fetchMetaBusinessProfile = async (
     }
 
     const payload = (await response.json().catch(() => null)) as
-      | { data?: Array<Record<string, unknown>> }
+      | {
+          data?: Array<Record<string, unknown>>;
+          whatsapp_business_profile?: Record<string, unknown> | null;
+        }
+      | (Record<string, unknown> & { data?: unknown; whatsapp_business_profile?: unknown })
       | null;
 
-    if (!payload || !Array.isArray(payload.data) || payload.data.length === 0) {
+    if (!payload || typeof payload !== "object") {
       return null;
     }
 
-    const data = payload.data[0] ?? {};
+    let data: Record<string, unknown> | null = null;
+
+    if (
+      "whatsapp_business_profile" in payload &&
+      payload.whatsapp_business_profile &&
+      typeof payload.whatsapp_business_profile === "object"
+    ) {
+      data = payload.whatsapp_business_profile as Record<string, unknown>;
+    } else if (Array.isArray(payload.data) && payload.data.length > 0) {
+      data = payload.data[0] ?? null;
+    } else if (!("data" in payload) && !("whatsapp_business_profile" in payload)) {
+      data = payload as Record<string, unknown>;
+    }
+
+    if (!data) {
+      return null;
+    }
 
     const toNullableString = (value: unknown): string | null => {
       if (typeof value !== "string") {
@@ -98,7 +118,7 @@ export const updateMetaBusinessProfile = async (
   }
 
   const version = getMetaApiVersion();
-  const url = `https://graph.facebook.com/${version}/${webhook.phone_number_id}/profile`;
+  const url = `https://graph.facebook.com/${version}/${webhook.phone_number_id}/whatsapp_business_profile`;
 
   const body: Record<string, unknown> = {
     messaging_product: "whatsapp",
@@ -163,7 +183,7 @@ export const uploadMetaProfilePicture = async (
   }
 
   const version = getMetaApiVersion();
-  const url = `https://graph.facebook.com/${version}/${webhook.phone_number_id}/profile/photo`;
+  const url = `https://graph.facebook.com/${version}/${webhook.phone_number_id}/whatsapp_business_profile/photo`;
 
   const formData = new FormData();
   formData.set("messaging_product", "whatsapp");
@@ -205,7 +225,7 @@ export const removeMetaProfilePicture = async (
 
   const version = getMetaApiVersion();
   const url = new URL(
-    `https://graph.facebook.com/${version}/${webhook.phone_number_id}/profile/photo`,
+    `https://graph.facebook.com/${version}/${webhook.phone_number_id}/whatsapp_business_profile/photo`,
   );
   url.searchParams.set("messaging_product", "whatsapp");
 
