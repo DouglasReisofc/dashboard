@@ -175,17 +175,87 @@ export const updateMetaBusinessProfile = async (
   }
 };
 
-export const updateMetaProfilePictureUrl = async (
+const resolveProfileUploadFilename = (file: File) => {
+  const trimmedName = file.name?.trim();
+
+  if (trimmedName) {
+    return trimmedName;
+  }
+
+  const typeExtension = file.type?.split("/")[1]?.replace(/[^a-zA-Z0-9]/g, "");
+  const extension = typeExtension ? `.${typeExtension}` : ".jpg";
+
+  return `profile-${Date.now()}${extension}`;
+};
+
+export const uploadMetaProfilePicture = async (
   webhook: UserWebhookRow,
-  profilePictureUrl: string,
+  file: File,
+): Promise<string | null> => {
+  if (!webhook.access_token || !webhook.phone_number_id) {
+    return null;
+  }
+
+  const version = getMetaApiVersion();
+  const url = `https://graph.facebook.com/${version}/${webhook.phone_number_id}/media`;
+
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const contentType = file.type?.trim() || "image/jpeg";
+    const filename = resolveProfileUploadFilename(file);
+    const formData = new FormData();
+    const blob = new Blob([arrayBuffer], { type: contentType });
+
+    formData.append("file", blob, filename);
+    formData.append("type", contentType);
+    formData.append("messaging_product", "whatsapp");
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${webhook.access_token}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "");
+      console.error(
+        `[Meta Profile] Failed to upload profile picture: ${response.status} ${response.statusText}`,
+        errorText,
+      );
+      return null;
+    }
+
+    const data = (await response.json().catch(() => null)) as
+      | { id?: unknown }
+      | null;
+
+    const handle = typeof data?.id === "string" ? data.id.trim() : "";
+
+    if (!handle) {
+      console.error("[Meta Profile] Invalid upload response", data);
+      return null;
+    }
+
+    return handle;
+  } catch (error) {
+    console.error("[Meta Profile] Unexpected error while uploading profile picture", error);
+    return null;
+  }
+};
+
+export const updateMetaProfilePictureHandle = async (
+  webhook: UserWebhookRow,
+  profilePictureHandle: string,
 ): Promise<boolean> => {
   if (!webhook.access_token || !webhook.phone_number_id) {
     return false;
   }
 
-  const trimmedUrl = profilePictureUrl.trim();
+  const trimmedHandle = profilePictureHandle.trim();
 
-  if (!trimmedUrl) {
+  if (!trimmedHandle) {
     return false;
   }
 
@@ -201,7 +271,7 @@ export const updateMetaProfilePictureUrl = async (
       },
       body: JSON.stringify({
         messaging_product: "whatsapp",
-        profile_picture_url: trimmedUrl,
+        profile_picture_handle: trimmedHandle,
       }),
     });
 
