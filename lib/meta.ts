@@ -131,6 +131,19 @@ const postMetaMessage = async (
     return false;
   }
 
+  const trimmedRecipient = typeof payload.to === "string" ? payload.to.trim() : "";
+
+  if (!trimmedRecipient) {
+    console.warn(`[Meta Webhook] ${context.failureLog}: destinatário inválido`, payload);
+    return false;
+  }
+
+  const requestPayload: MetaMessagePayload = {
+    ...payload,
+    messaging_product: "whatsapp",
+    to: trimmedRecipient,
+  };
+
   const version = getMetaApiVersion();
   const url = `https://graph.facebook.com/${version}/${webhook.phone_number_id}/messages`;
 
@@ -141,7 +154,7 @@ const postMetaMessage = async (
         "Content-Type": "application/json",
         Authorization: `Bearer ${webhook.access_token}`,
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(requestPayload),
     });
 
     if (!response.ok) {
