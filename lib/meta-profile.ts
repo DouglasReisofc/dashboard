@@ -177,24 +177,38 @@ export const updateMetaBusinessProfile = async (
 
 const resolveProfileUploadFilename = (file: File) => {
   const rawName = file.name?.trim();
-  const extensionFromType = file.type?.split("/")[1]?.replace(/[^a-zA-Z0-9]/g, "");
-  const defaultExtension = extensionFromType ? `.${extensionFromType}` : ".jpg";
+  const contentType = file.type?.trim().toLowerCase() ?? "";
+  const extensionFromType = contentType.startsWith("image/")
+    ? contentType.replace(/^image\//, "")
+    : "";
+
+  const normalizeExtension = (value: string) => {
+    const sanitized = value.replace(/[^a-z0-9]/gi, "").toLowerCase();
+
+    if (["jpg", "jpeg", "png"].includes(sanitized)) {
+      return `.${sanitized === "jpeg" ? "jpg" : sanitized}`;
+    }
+
+    return ".jpg";
+  };
+
+  const buildFilename = (base: string, extension: string) => {
+    const sanitizedBase = base.replace(/[^a-z0-9_-]/gi, "").slice(0, 80);
+    const safeBase = sanitizedBase.length > 0 ? sanitizedBase : `profile-${Date.now()}`;
+    return `${safeBase}${extension}`;
+  };
 
   if (rawName) {
     const parts = rawName.split(".");
     const base = parts.slice(0, -1).join(".") || parts[0];
     const rawExtension = parts.length > 1 ? parts.at(-1) ?? "" : "";
-    const sanitizedExtension = rawExtension.replace(/[^a-zA-Z0-9]/g, "");
-    const extension = sanitizedExtension ? `.${sanitizedExtension}` : defaultExtension;
+    const extension = normalizeExtension(rawExtension || extensionFromType);
 
-    const sanitizedBase = base.replace(/[^a-zA-Z0-9_-]/g, "");
-
-    if (sanitizedBase.length > 0) {
-      return `${sanitizedBase}${extension}`;
-    }
+    return buildFilename(base, extension);
   }
 
-  return `profile-${Date.now()}${defaultExtension}`;
+  const defaultExtension = normalizeExtension(extensionFromType);
+  return buildFilename("profile", defaultExtension);
 };
 
 export const uploadMetaProfilePicture = async (
@@ -216,7 +230,7 @@ export const uploadMetaProfilePicture = async (
     const blob = new Blob([arrayBuffer], { type: contentType });
 
     formData.append("file", blob, filename);
-    formData.append("type", contentType);
+    formData.append("type", "image");
     formData.append("messaging_product", "whatsapp");
 
     const response = await fetch(url, {
