@@ -419,7 +419,7 @@ const replyWithBotMenu = async (
       let provider: PaymentMethodProvider = "mercadopago_pix";
       let amountSegment = remainder;
 
-      const separatorIndex = remainder.indexOf("_");
+      const separatorIndex = remainder.lastIndexOf("_");
       if (separatorIndex > 0) {
         const maybeProvider = remainder.slice(0, separatorIndex) as PaymentMethodProvider;
         if (maybeProvider === "mercadopago_pix" || maybeProvider === "mercadopago_checkout") {
