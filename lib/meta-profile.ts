@@ -384,6 +384,7 @@ export const uploadMetaProfilePicture = async (
   );
   sessionUrl.searchParams.set("file_length", `${fileLength}`);
   sessionUrl.searchParams.set("file_type", contentType);
+  sessionUrl.searchParams.set("file_name", filename);
 
   console.log("[Meta Profile] Creating profile photo upload session", {
     url: sessionUrl.toString(),
@@ -431,7 +432,7 @@ export const uploadMetaProfilePicture = async (
     headers: {
       Authorization: `Bearer ${credentials.accessToken}`,
       file_offset: "0",
-      "Content-Type": contentType,
+      "Content-Type": "application/octet-stream",
     },
     body: Buffer.from(arrayBuffer),
   });
