@@ -78,6 +78,7 @@ export const ensureUserTable = async () => {
   await ensureCustomerTable();
   await ensurePaymentMethodTable();
   await ensurePaymentChargeTable();
+  await ensureSiteSettingsTable();
 
   const normalizedEmail = DEFAULT_ADMIN_EMAIL.toLowerCase().trim();
   const hashedPassword = await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, 10);
@@ -335,6 +336,27 @@ export const ensurePaymentChargeTable = async () => {
   `);
 };
 
+export const ensureSiteSettingsTable = async () => {
+  const db = getDb();
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS user_site_settings (
+      user_id INT PRIMARY KEY,
+      site_name VARCHAR(120) NOT NULL,
+      tagline VARCHAR(255) NULL,
+      logo_path VARCHAR(255) NULL,
+      favicon_path VARCHAR(255) NULL,
+      seo_title VARCHAR(160) NULL,
+      seo_description VARCHAR(320) NULL,
+      seo_keywords VARCHAR(512) NULL,
+      footer_text TEXT NULL,
+      footer_links LONGTEXT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_site_settings_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB;
+  `);
+};
+
 export const ensureWebhookTable = async () => {
   const db = getDb();
   await db.query(`
@@ -477,6 +499,21 @@ export type UserPaymentChargeRow = {
   customer_whatsapp: string | null;
   customer_name: string | null;
   metadata: string | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type UserSiteSettingsRow = {
+  user_id: number;
+  site_name: string;
+  tagline: string | null;
+  logo_path: string | null;
+  favicon_path: string | null;
+  seo_title: string | null;
+  seo_description: string | null;
+  seo_keywords: string | null;
+  footer_text: string | null;
+  footer_links: string | null;
   created_at: Date;
   updated_at: Date;
 };
