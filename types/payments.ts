@@ -20,6 +20,7 @@ export type PaymentMethodSummary = {
 export type PaymentConfirmationMessageConfig = {
   messageText: string;
   buttonLabel: string;
+  mediaPath: string | null;
   mediaUrl: string | null;
   updatedAt: string | null;
 };

@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "lib/auth";
-import { upsertPaymentConfirmationConfig } from "lib/payments";
+import { getPaymentConfirmationConfigForUser, upsertPaymentConfirmationConfig } from "lib/payments";
+import { deleteUploadedFile, saveUploadedFile } from "lib/uploads";
+
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 
 export async function PUT(request: Request) {
   try {
@@ -11,17 +14,16 @@ export async function PUT(request: Request) {
       return NextResponse.json({ message: "Não autenticado." }, { status: 401 });
     }
 
-    const body = await request.json().catch(() => null);
+    const formData = await request.formData();
 
-    if (!body || typeof body !== "object") {
-      return NextResponse.json({ message: "Payload inválido." }, { status: 400 });
-    }
-
-    const { messageText, buttonLabel, mediaUrl } = body as Record<string, unknown>;
+    const messageText = formData.get("messageText");
+    const buttonLabel = formData.get("buttonLabel");
+    const removeImageRaw = formData.get("removeImage");
+    const media = formData.get("media");
 
     const sanitizedMessageText = typeof messageText === "string" ? messageText : "";
     const sanitizedButtonLabel = typeof buttonLabel === "string" ? buttonLabel : "";
-    const sanitizedMediaUrl = typeof mediaUrl === "string" ? mediaUrl : null;
+    const shouldRemoveImage = typeof removeImageRaw === "string" && removeImageRaw === "true";
 
     if (!sanitizedMessageText.trim()) {
       return NextResponse.json(
@@ -37,11 +39,41 @@ export async function PUT(request: Request) {
       );
     }
 
+    if (media && !(media instanceof File)) {
+      return NextResponse.json(
+        { message: "Arquivo de imagem inválido." },
+        { status: 400 },
+      );
+    }
+
+    if (media instanceof File && media.size > MAX_IMAGE_SIZE_BYTES) {
+      return NextResponse.json(
+        { message: "A imagem deve ter no máximo 5 MB." },
+        { status: 400 },
+      );
+    }
+
+    const currentConfig = await getPaymentConfirmationConfigForUser(user.id);
+    let mediaPath = currentConfig.mediaPath;
+
+    if (shouldRemoveImage && mediaPath) {
+      await deleteUploadedFile(mediaPath);
+      mediaPath = null;
+    }
+
+    if (media instanceof File && media.size > 0) {
+      const storedPath = await saveUploadedFile(media, `payment-confirmation/${user.id}`);
+      if (mediaPath && mediaPath !== storedPath) {
+        await deleteUploadedFile(mediaPath);
+      }
+      mediaPath = storedPath;
+    }
+
     const config = await upsertPaymentConfirmationConfig({
       userId: user.id,
       messageText: sanitizedMessageText,
       buttonLabel: sanitizedButtonLabel,
-      mediaUrl: sanitizedMediaUrl,
+      mediaPath,
     });
 
     return NextResponse.json({

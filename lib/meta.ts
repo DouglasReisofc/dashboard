@@ -50,6 +50,7 @@ const MAX_BODY_LENGTH = 1024;
 const MAX_LIST_ROWS = 10;
 
 const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);
+const CONFIRMATION_BUTTON_FALLBACK = "Ir para o menu";
 
 const sanitizeInteractiveText = (text: string) => {
   const trimmed = text.trim();
@@ -754,6 +755,7 @@ export const sendPaymentConfirmationMessage = async (options: {
 
   const buttonLabel = typeof config.buttonLabel === "string" ? config.buttonLabel : "";
   const sanitizedButtonLabel = sanitizeInteractiveLabel(buttonLabel, 20)
+    || sanitizeInteractiveLabel(CONFIRMATION_BUTTON_FALLBACK, 20)
     || sanitizeInteractiveLabel(defaultMenuButtonLabels.buy, 20);
 
   if (!sanitizedButtonLabel) {

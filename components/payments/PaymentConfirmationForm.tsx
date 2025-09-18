@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { FormEvent } from "react";
-import { Alert, Badge, Button, Card, Col, Form, Row } from "react-bootstrap";
+import { useEffect, useRef, useState } from "react";
+import type { ChangeEvent, FormEvent } from "react";
+import { Alert, Badge, Button, Card, Col, Form, Image, Row } from "react-bootstrap";
 import { useRouter } from "next/navigation";
 
 import type { PaymentConfirmationMessageConfig } from "types/payments";
@@ -14,7 +14,6 @@ interface PaymentConfirmationFormProps {
 type FormState = {
   messageText: string;
   buttonLabel: string;
-  mediaUrl: string;
 };
 
 type Feedback = { type: "success" | "danger"; message: string } | null;
@@ -22,8 +21,9 @@ type Feedback = { type: "success" | "danger"; message: string } | null;
 const buildInitialState = (config: PaymentConfirmationMessageConfig): FormState => ({
   messageText: config.messageText,
   buttonLabel: config.buttonLabel,
-  mediaUrl: config.mediaUrl ?? "",
 });
+
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 
 const PaymentConfirmationForm = ({ config }: PaymentConfirmationFormProps) => {
   const router = useRouter();
@@ -31,6 +31,11 @@ const PaymentConfirmationForm = ({ config }: PaymentConfirmationFormProps) => {
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastUpdatedLabel, setLastUpdatedLabel] = useState("-");
+  const [removeImage, setRemoveImage] = useState(false);
+  const [mediaPreview, setMediaPreview] = useState<string | null>(() => config.mediaUrl);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!config.updatedAt) {
@@ -53,15 +58,88 @@ const PaymentConfirmationForm = ({ config }: PaymentConfirmationFormProps) => {
 
   useEffect(() => {
     setFormState(buildInitialState(config));
+    setFeedback(null);
+    setRemoveImage(false);
+    setSelectedFile(null);
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+    setMediaPreview(config.mediaUrl);
   }, [config]);
+
+  useEffect(() => () => {
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+  }, []);
 
   const handleChange = <Field extends keyof FormState>(field: Field, value: FormState[Field]) => {
     setFormState((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+
+    if (file) {
+      if (file.size > MAX_IMAGE_SIZE_BYTES) {
+        setSelectedFile(null);
+        setMediaPreview(config.mediaUrl);
+        setFeedback({
+          type: "danger",
+          message: "A imagem deve ter no máximo 5 MB.",
+        });
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+        return;
+      }
+
+      const objectUrl = URL.createObjectURL(file);
+      objectUrlRef.current = objectUrl;
+      setSelectedFile(file);
+      setMediaPreview(objectUrl);
+      setRemoveImage(false);
+    } else {
+      setSelectedFile(null);
+      setMediaPreview(config.mediaUrl);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+
+    setSelectedFile(null);
+    setMediaPreview(null);
+    setRemoveImage(true);
+  };
+
   const handleReset = () => {
     setFormState(buildInitialState(config));
     setFeedback(null);
+    setRemoveImage(false);
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+    setMediaPreview(config.mediaUrl);
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -69,18 +147,18 @@ const PaymentConfirmationForm = ({ config }: PaymentConfirmationFormProps) => {
     setIsSubmitting(true);
     setFeedback(null);
 
-    const payload = {
-      messageText: formState.messageText,
-      buttonLabel: formState.buttonLabel,
-      mediaUrl: formState.mediaUrl,
-    };
+    const payload = new FormData();
+    payload.set("messageText", formState.messageText);
+    payload.set("buttonLabel", formState.buttonLabel);
+    payload.set("removeImage", removeImage ? "true" : "false");
+
+    if (selectedFile) {
+      payload.set("media", selectedFile);
+    }
 
     const response = await fetch("/api/payments/confirmation", {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
+      body: payload,
     });
 
     const data = await response.json().catch(() => ({}));
@@ -98,6 +176,20 @@ const PaymentConfirmationForm = ({ config }: PaymentConfirmationFormProps) => {
       type: "success",
       message: data.message ?? "Mensagem de confirmação atualizada com sucesso.",
     });
+
+    if (data.config) {
+      setFormState(buildInitialState(data.config));
+      setRemoveImage(false);
+      setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
+      setMediaPreview(data.config.mediaUrl ?? null);
+    }
 
     setIsSubmitting(false);
     router.refresh();
@@ -122,7 +214,7 @@ const PaymentConfirmationForm = ({ config }: PaymentConfirmationFormProps) => {
             {feedback.message}
           </Alert>
         )}
-        <Form onSubmit={handleSubmit}>
+        <Form onSubmit={handleSubmit} encType="multipart/form-data">
           <Row className="gy-4">
             <Col xs={12} className="text-md-end">
               <Form.Text className="text-secondary">
@@ -151,7 +243,7 @@ const PaymentConfirmationForm = ({ config }: PaymentConfirmationFormProps) => {
                 <Form.Control
                   value={formState.buttonLabel}
                   onChange={(event) => handleChange("buttonLabel", event.target.value)}
-                  placeholder="Ver opções"
+                  placeholder="Ir para o menu"
                   maxLength={20}
                   required
                 />
@@ -163,15 +255,31 @@ const PaymentConfirmationForm = ({ config }: PaymentConfirmationFormProps) => {
             <Col md={6}>
               <Form.Group className="mb-3" controlId="confirmationMediaUrl">
                 <Form.Label>Imagem opcional</Form.Label>
+                {mediaPreview && (
+                  <div className="mb-3">
+                    <Image src={mediaPreview} alt="Pré-visualização da imagem" thumbnail fluid />
+                  </div>
+                )}
                 <Form.Control
-                  value={formState.mediaUrl}
-                  onChange={(event) => handleChange("mediaUrl", event.target.value)}
-                  placeholder="https://..."
-                  type="url"
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
                 />
-                <Form.Text className="text-secondary">
-                  Informe um link HTTPS público para exibir a imagem no topo da mensagem.
+                <Form.Text className="text-secondary d-block mt-1">
+                  Envie uma imagem em formato JPG ou PNG com até 5&nbsp;MB para personalizar o topo da mensagem.
                 </Form.Text>
+                {!removeImage && (mediaPreview || config.mediaPath) && (
+                  <Button
+                    variant="outline-danger"
+                    size="sm"
+                    className="mt-3"
+                    onClick={handleRemoveImage}
+                    disabled={isSubmitting}
+                  >
+                    Remover imagem
+                  </Button>
+                )}
               </Form.Group>
             </Col>
           </Row>

@@ -30,7 +30,7 @@ const DEFAULT_EXPIRATION_MINUTES = 30;
 const DEFAULT_AMOUNT_OPTIONS = [25, 50, 100];
 const DEFAULT_CONFIRMATION_MESSAGE =
   "Pagamento confirmado! Seu saldo foi atualizado automaticamente. Use o botão abaixo para continuar comprando.";
-const DEFAULT_CONFIRMATION_BUTTON = "Ver opções";
+const DEFAULT_CONFIRMATION_BUTTON = "Ir para o menu";
 const CHECKOUT_PAYMENT_TYPES: readonly MercadoPagoCheckoutPaymentType[] = [
   "credit_card",
   "debit_card",
@@ -88,6 +88,32 @@ const sanitizeOptionalUrl = (value: unknown): string | null => {
   }
 
   return trimmed;
+};
+
+const sanitizeOptionalMediaPath = (value: unknown): string | null => {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim().replace(/^\/+/, "").replace(/\\/g, "/");
+  if (!trimmed) {
+    return null;
+  }
+
+  if (!trimmed.startsWith("uploads/")) {
+    return null;
+  }
+
+  return trimmed;
+};
+
+const resolveMediaUrl = (relativePath: string | null): string | null => {
+  if (!relativePath) {
+    return null;
+  }
+
+  const normalized = relativePath.replace(/^\/+/, "");
+  return `${getAppBaseUrl()}/${normalized}`;
 };
 
 const sanitizeAmountOptions = (values: unknown): number[] => {
@@ -274,6 +300,7 @@ const mapPaymentConfirmationRow = (
   const defaultConfig: PaymentConfirmationMessageConfig = {
     messageText: DEFAULT_CONFIRMATION_MESSAGE,
     buttonLabel: DEFAULT_CONFIRMATION_BUTTON,
+    mediaPath: null,
     mediaUrl: null,
     updatedAt: null,
   };
@@ -296,7 +323,9 @@ const mapPaymentConfirmationRow = (
 
   const messageText = sanitizeText(settings.messageText);
   const buttonLabel = sanitizeText(settings.buttonLabel);
-  const mediaUrl = sanitizeOptionalUrl(settings.mediaUrl);
+  const mediaPath = sanitizeOptionalMediaPath(settings.mediaPath);
+  const mediaUrlFromSettings = sanitizeOptionalUrl(settings.mediaUrl);
+  const mediaUrl = mediaPath ? resolveMediaUrl(mediaPath) : mediaUrlFromSettings;
 
   const updatedAt = row.updated_at instanceof Date
     ? row.updated_at.toISOString()
@@ -305,6 +334,7 @@ const mapPaymentConfirmationRow = (
   return {
     messageText: messageText || DEFAULT_CONFIRMATION_MESSAGE,
     buttonLabel: buttonLabel || DEFAULT_CONFIRMATION_BUTTON,
+    mediaPath: mediaPath ?? null,
     mediaUrl: mediaUrl ?? null,
     updatedAt,
   } satisfies PaymentConfirmationMessageConfig;
@@ -600,6 +630,7 @@ export const upsertPaymentConfirmationConfig = async (payload: {
   userId: number;
   messageText: string;
   buttonLabel: string;
+  mediaPath?: string | null;
   mediaUrl?: string | null;
 }): Promise<PaymentConfirmationMessageConfig> => {
   await ensurePaymentMethodTable();
@@ -607,11 +638,13 @@ export const upsertPaymentConfirmationConfig = async (payload: {
 
   const messageText = sanitizeText(payload.messageText);
   const buttonLabel = sanitizeText(payload.buttonLabel);
-  const mediaUrl = sanitizeOptionalUrl(payload.mediaUrl);
+  const mediaPath = sanitizeOptionalMediaPath(payload.mediaPath);
+  const mediaUrl = mediaPath ? resolveMediaUrl(mediaPath) : sanitizeOptionalUrl(payload.mediaUrl);
 
   const settings = JSON.stringify({
     messageText: messageText || DEFAULT_CONFIRMATION_MESSAGE,
     buttonLabel: buttonLabel || DEFAULT_CONFIRMATION_BUTTON,
+    mediaPath: mediaPath ?? null,
     mediaUrl: mediaUrl ?? null,
   });
 
