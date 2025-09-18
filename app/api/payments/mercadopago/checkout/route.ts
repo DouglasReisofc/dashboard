@@ -46,6 +46,38 @@ const normalizeArray = <T extends string>(value: unknown, allowed: readonly T[])
 
 const parseString = (value: unknown): string => (typeof value === "string" ? value : "");
 
+const parseAmountOptions = (value: unknown): number[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const parsed = value
+    .map((entry) => {
+      if (typeof entry === "number" && Number.isFinite(entry)) {
+        return entry;
+      }
+
+      if (typeof entry === "string" && entry.trim()) {
+        const normalized = entry.trim().replace(/[^0-9,.-]/g, "");
+        const usesComma = normalized.includes(",");
+        const sanitized = usesComma
+          ? normalized.replace(/\./g, "").replace(/,/g, ".")
+          : normalized;
+        const parsedNumber = Number.parseFloat(sanitized);
+        if (Number.isFinite(parsedNumber)) {
+          return parsedNumber;
+        }
+      }
+
+      return null;
+    })
+    .filter((entry): entry is number => typeof entry === "number" && Number.isFinite(entry) && entry > 0)
+    .map((value) => Number(value.toFixed(2)));
+
+  const unique = Array.from(new Set(parsed));
+  return unique.sort((a, b) => a - b);
+};
+
 export async function PUT(request: Request) {
   try {
     const user = await getCurrentUser();
@@ -68,6 +100,7 @@ export async function PUT(request: Request) {
       notificationUrl,
       allowedPaymentTypes,
       allowedPaymentMethods,
+      amountOptions: amountOptionsRaw,
     } = body as Record<string, unknown>;
 
     const sanitizedAccessToken = parseString(accessToken);
@@ -87,6 +120,8 @@ export async function PUT(request: Request) {
       allowedPaymentMethods,
       SUPPORTED_PAYMENT_METHODS,
     ) as MercadoPagoCheckoutPaymentMethod[];
+
+    const amountOptions = parseAmountOptions(amountOptionsRaw);
 
     const desiredActive = Boolean(isActive);
 
@@ -111,6 +146,7 @@ export async function PUT(request: Request) {
       accessToken: sanitizedAccessToken,
       publicKey: sanitizedPublicKey,
       notificationUrl: sanitizedNotificationUrl,
+      amountOptions,
       allowedPaymentTypes: paymentTypes,
       allowedPaymentMethods: paymentMethods,
     });

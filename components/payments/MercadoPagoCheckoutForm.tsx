@@ -5,6 +5,7 @@ import type { FormEvent } from "react";
 import { Alert, Badge, Button, Card, Col, Form, Row } from "react-bootstrap";
 import { useRouter } from "next/navigation";
 
+import { formatAmount, parseAmountText } from "components/payments/amountHelpers";
 import type {
   MercadoPagoCheckoutConfig,
   MercadoPagoCheckoutPaymentMethod,
@@ -72,6 +73,7 @@ type FormState = {
   accessToken: string;
   publicKey: string;
   notificationUrl: string;
+  amountOptionsText: string;
   allowedPaymentTypes: MercadoPagoCheckoutPaymentType[];
   allowedPaymentMethods: MercadoPagoCheckoutPaymentMethod[];
 };
@@ -85,6 +87,7 @@ const buildInitialState = (config: MercadoPagoCheckoutConfig): FormState => ({
   accessToken: config.accessToken,
   publicKey: config.publicKey ?? "",
   notificationUrl: config.notificationUrl ?? "",
+  amountOptionsText: config.amountOptions.map((value) => formatAmount(value)).join("\n"),
   allowedPaymentTypes: uniqueList(config.allowedPaymentTypes),
   allowedPaymentMethods: uniqueList(config.allowedPaymentMethods),
 });
@@ -187,6 +190,7 @@ const MercadoPagoCheckoutForm = ({ config }: MercadoPagoCheckoutFormProps) => {
       accessToken: formState.accessToken,
       publicKey: formState.publicKey,
       notificationUrl: formState.notificationUrl,
+      amountOptions: parseAmountText(formState.amountOptionsText),
       allowedPaymentTypes: formState.allowedPaymentTypes,
       allowedPaymentMethods: formState.allowedPaymentMethods,
     };
@@ -254,6 +258,23 @@ const MercadoPagoCheckoutForm = ({ config }: MercadoPagoCheckoutFormProps) => {
             </Col>
             <Col md={6} className="text-md-end">
               <Form.Text className="text-secondary">Última atualização: {lastUpdatedLabel}</Form.Text>
+            </Col>
+
+            <Col xs={12}>
+              <Form.Group className="mb-3" controlId="checkoutAmountOptions">
+                <Form.Label>Valores sugeridos</Form.Label>
+                <Form.Control
+                  as="textarea"
+                  rows={4}
+                  value={formState.amountOptionsText}
+                  onChange={(event) => handleChange("amountOptionsText", event.target.value)}
+                  placeholder={["50,00", "75,00", "100,00"].join("\n")}
+                />
+                <Form.Text className="text-secondary">
+                  Defina os valores de recarga que ficarão disponíveis neste checkout. Você pode separar por
+                  linha, vírgula ou ponto e vírgula.
+                </Form.Text>
+              </Form.Group>
             </Col>
 
             <Col md={6}>

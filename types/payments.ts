@@ -37,6 +37,7 @@ export type MercadoPagoCheckoutConfig = {
   accessToken: string;
   publicKey: string | null;
   notificationUrl: string | null;
+  amountOptions: number[];
   allowedPaymentTypes: MercadoPagoCheckoutPaymentType[];
   allowedPaymentMethods: MercadoPagoCheckoutPaymentMethod[];
   isConfigured: boolean;

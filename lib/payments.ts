@@ -244,6 +244,7 @@ const mapCheckoutPaymentMethodRow = (
     accessToken: "",
     publicKey: null,
     notificationUrl: null,
+    amountOptions: Array.from(DEFAULT_AMOUNT_OPTIONS),
     allowedPaymentTypes: Array.from(DEFAULT_CHECKOUT_PAYMENT_TYPES),
     allowedPaymentMethods: Array.from(DEFAULT_CHECKOUT_PAYMENT_METHODS),
     isConfigured: false,
@@ -293,6 +294,11 @@ const mapCheckoutPaymentMethodRow = (
     : DEFAULT_CHECKOUT_PAYMENT_METHODS;
   const allowedPaymentMethods = sanitizeCheckoutPaymentMethods(allowedPaymentMethodsRaw);
 
+  const amountOptionsRaw = Array.isArray(settings.amountOptions)
+    ? settings.amountOptions
+    : DEFAULT_AMOUNT_OPTIONS;
+  const amountOptions = sanitizeAmountOptions(amountOptionsRaw);
+
   const updatedAt = row.updated_at instanceof Date
     ? row.updated_at.toISOString()
     : new Date(row.updated_at).toISOString();
@@ -303,6 +309,7 @@ const mapCheckoutPaymentMethodRow = (
     accessToken,
     publicKey,
     notificationUrl,
+    amountOptions: amountOptions.length > 0 ? amountOptions : Array.from(DEFAULT_AMOUNT_OPTIONS),
     allowedPaymentTypes:
       allowedPaymentTypes.length > 0
         ? allowedPaymentTypes
@@ -504,6 +511,7 @@ export const upsertMercadoPagoCheckoutConfig = async (payload: {
   accessToken: string;
   publicKey?: string | null;
   notificationUrl?: string | null;
+  amountOptions?: number[];
   allowedPaymentTypes?: MercadoPagoCheckoutPaymentType[];
   allowedPaymentMethods?: MercadoPagoCheckoutPaymentMethod[];
 }): Promise<MercadoPagoCheckoutConfig> => {
@@ -528,6 +536,10 @@ export const upsertMercadoPagoCheckoutConfig = async (payload: {
   const normalizedPaymentMethods =
     paymentMethods.length > 0 ? paymentMethods : Array.from(DEFAULT_CHECKOUT_PAYMENT_METHODS);
 
+  const amountOptions = sanitizeAmountOptions(payload.amountOptions ?? DEFAULT_AMOUNT_OPTIONS);
+  const normalizedAmountOptions =
+    amountOptions.length > 0 ? amountOptions : Array.from(DEFAULT_AMOUNT_OPTIONS);
+
   const credentials = JSON.stringify({
     accessToken: sanitizedAccessToken,
     publicKey: sanitizedPublicKey,
@@ -535,6 +547,7 @@ export const upsertMercadoPagoCheckoutConfig = async (payload: {
 
   const settings = JSON.stringify({
     notificationUrl: sanitizedNotificationUrl,
+    amountOptions: normalizedAmountOptions,
     allowedPaymentTypes: normalizedPaymentTypes,
     allowedPaymentMethods: normalizedPaymentMethods,
   });

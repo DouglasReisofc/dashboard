@@ -378,17 +378,12 @@ const replyWithBotMenu = async (
         resolvePaymentMethods(),
       ]);
 
-      const normalizedAmounts = normalizeAmountOptions(pixConfig.amountOptions);
-
-      if (normalizedAmounts.length === 0) {
-        await sendTextMessage({
-          webhook,
-          to: recipient,
-          text: `${message}\n\nNenhum valor de recarga foi configurado.`,
-        });
-        await sendMainMenu();
-        return;
-      }
+      const pixAmounts = normalizeAmountOptions(pixConfig.amountOptions);
+      const checkoutAmounts = normalizeAmountOptions(checkoutConfig.amountOptions);
+      const amountByProvider: Record<PaymentMethodProvider, Array<{ amount: number; cents: number }>> = {
+        mercadopago_pix: pixAmounts,
+        mercadopago_checkout: checkoutAmounts,
+      };
 
       const selectedMethod = methodSummaries.find(
         (method) => method.provider === provider && method.isActive && method.isConfigured,
@@ -399,6 +394,18 @@ const replyWithBotMenu = async (
           webhook,
           to: recipient,
           text: "Essa forma de pagamento não está disponível no momento. Escolha outra opção.",
+        });
+        await sendMainMenu();
+        return;
+      }
+
+      const normalizedAmounts = amountByProvider[provider] ?? [];
+
+      if (normalizedAmounts.length === 0) {
+        await sendTextMessage({
+          webhook,
+          to: recipient,
+          text: `${message}\n\nNenhum valor de recarga foi configurado para esta forma de pagamento.`,
         });
         await sendMainMenu();
         return;
@@ -435,10 +442,18 @@ const replyWithBotMenu = async (
         resolveCheckoutConfig(),
       ]);
 
-      const normalizedAmounts = normalizeAmountOptions(pixConfig.amountOptions);
+      const normalizedAmounts =
+        provider === "mercadopago_pix"
+          ? normalizeAmountOptions(pixConfig.amountOptions)
+          : normalizeAmountOptions(checkoutConfig.amountOptions);
       const allowedCents = new Set(normalizedAmounts.map((entry) => entry.cents));
 
-      if (!Number.isFinite(cents) || cents <= 0 || !allowedCents.has(cents)) {
+      if (
+        normalizedAmounts.length === 0 ||
+        !Number.isFinite(cents) ||
+        cents <= 0 ||
+        !allowedCents.has(cents)
+      ) {
         await sendTextMessage({
           webhook,
           to: recipient,
@@ -894,9 +909,18 @@ const replyWithBotMenu = async (
         return;
       }
 
-      const normalizedAmounts = normalizeAmountOptions(pixConfig.amountOptions);
+      const pixAmounts = normalizeAmountOptions(pixConfig.amountOptions);
+      const checkoutAmounts = normalizeAmountOptions(checkoutConfig.amountOptions);
+      const amountByProvider: Record<PaymentMethodProvider, Array<{ amount: number; cents: number }>> = {
+        mercadopago_pix: pixAmounts,
+        mercadopago_checkout: checkoutAmounts,
+      };
 
-      if (normalizedAmounts.length === 0) {
+      const methodsWithAmounts = activeMethods.filter(
+        (method) => amountByProvider[method.provider]?.length,
+      );
+
+      if (methodsWithAmounts.length === 0) {
         await sendTextMessage({
           webhook,
           to: recipient,
@@ -906,17 +930,18 @@ const replyWithBotMenu = async (
         return;
       }
 
-      if (activeMethods.length === 1) {
-        await sendAmountSelectionForProvider(activeMethods[0].provider, {
+      if (methodsWithAmounts.length === 1) {
+        const [method] = methodsWithAmounts;
+        await sendAmountSelectionForProvider(method.provider, {
           message,
-          normalizedAmounts,
+          normalizedAmounts: amountByProvider[method.provider],
           pixConfig,
           checkoutConfig,
         });
         return;
       }
 
-      const methodRows = activeMethods.map((method) => ({
+      const methodRows = methodsWithAmounts.map((method) => ({
         id: `${PAYMENT_METHOD_OPTION_PREFIX}${method.provider}`,
         title: method.displayName,
         description:

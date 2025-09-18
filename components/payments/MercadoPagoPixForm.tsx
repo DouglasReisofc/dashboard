@@ -5,38 +5,8 @@ import type { FormEvent } from "react";
 import { Alert, Badge, Button, Card, Col, Form, Row } from "react-bootstrap";
 import { useRouter } from "next/navigation";
 
+import { formatAmount, parseAmountText } from "components/payments/amountHelpers";
 import type { MercadoPagoPixConfig } from "types/payments";
-
-const formatAmount = (value: number) => value.toLocaleString("pt-BR", {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-const parseAmountText = (value: string): number[] => {
-  if (!value.trim()) {
-    return [];
-  }
-
-  const tokens = value
-    .split(/[\n,;]/)
-    .map((token) => token.trim())
-    .filter((token) => token.length > 0);
-
-  const numbers = tokens
-    .map((token) => {
-      const normalized = token.replace(/[^0-9,.-]/g, "");
-      const usesComma = normalized.includes(",");
-      const sanitized = usesComma
-        ? normalized.replace(/\./g, "").replace(/,/g, ".")
-        : normalized;
-      const parsed = Number.parseFloat(sanitized);
-      return Number.isFinite(parsed) ? Number(parsed.toFixed(2)) : null;
-    })
-    .filter((entry): entry is number => typeof entry === "number" && Number.isFinite(entry) && entry > 0);
-
-  const unique = Array.from(new Set(numbers));
-  return unique.sort((a, b) => a - b);
-};
 
 interface MercadoPagoPixFormProps {
   config: MercadoPagoPixConfig;
