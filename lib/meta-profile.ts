@@ -230,6 +230,7 @@ export const uploadMetaProfilePicture = async (
     const sanitizedFile = new File([arrayBuffer], filename, { type: contentType });
 
     formData.append("messaging_product", "whatsapp");
+    formData.append("type", "image");
     formData.append("file", sanitizedFile, sanitizedFile.name);
 
     const response = await fetch(url, {
@@ -295,7 +296,7 @@ export const updateMetaProfilePictureHandle = async (
   }
 
   const version = getMetaApiVersion();
-  const url = `https://graph.facebook.com/${version}/${webhook.phone_number_id}/whatsapp_business_profile`;
+  const url = `https://graph.facebook.com/${version}/${webhook.phone_number_id}/profile/photo`;
 
   try {
     const response = await fetch(url, {
@@ -306,7 +307,7 @@ export const updateMetaProfilePictureHandle = async (
       },
       body: JSON.stringify({
         messaging_product: "whatsapp",
-        profile_picture_handle: trimmedHandle,
+        handle: trimmedHandle,
       }),
     });
 
@@ -342,7 +343,7 @@ export const removeMetaProfilePicture = async (
 
   const version = getMetaApiVersion();
   const url = new URL(
-    `https://graph.facebook.com/${version}/${webhook.phone_number_id}/whatsapp_business_profile/photo`,
+    `https://graph.facebook.com/${version}/${webhook.phone_number_id}/profile/photo`,
   );
   url.searchParams.set("messaging_product", "whatsapp");
 
