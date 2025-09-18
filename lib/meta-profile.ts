@@ -11,19 +11,22 @@ export type MetaProfileCredentials = {
 export const resolveMetaProfileCredentials = (
   webhook: UserWebhookRow | null,
 ): MetaProfileCredentials | null => {
-  const envAccessToken = process.env.META_TOKEN?.trim();
-  const envPhoneNumberId = process.env.PHONE_NUMBER_ID?.trim();
+  const webhookAccessToken = webhook?.access_token?.trim() ?? "";
+  const webhookPhoneNumberId = webhook?.phone_number_id?.trim() ?? "";
 
-  const accessToken = envAccessToken || webhook?.access_token?.trim() || "";
-  const phoneNumberId = envPhoneNumberId || webhook?.phone_number_id?.trim() || "";
+  const envAccessToken = process.env.META_TOKEN?.trim() ?? "";
+  const envPhoneNumberId = process.env.PHONE_NUMBER_ID?.trim() ?? "";
+
+  const accessToken = webhookAccessToken || envAccessToken;
+  const phoneNumberId = webhookPhoneNumberId || envPhoneNumberId;
 
   if (!accessToken || !phoneNumberId) {
     return null;
   }
 
-  if (!envAccessToken || !envPhoneNumberId) {
+  if (!webhookAccessToken || !webhookPhoneNumberId) {
     console.warn(
-      "[Meta Profile] Using stored webhook credentials. Configure META_TOKEN and PHONE_NUMBER_ID env vars for consistent profile updates.",
+      "[Meta Profile] Credenciais faltando nas configurações do webhook. Usando variáveis de ambiente como fallback.",
     );
   }
 

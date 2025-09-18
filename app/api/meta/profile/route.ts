@@ -106,7 +106,7 @@ export async function PUT(request: Request) {
       return NextResponse.json(
         {
           message:
-            "Configure as credenciais da Meta (PHONE_NUMBER_ID e META_TOKEN) antes de atualizar o perfil.",
+            "Configure o webhook da Meta com o token e o phone number ID antes de atualizar o perfil.",
         },
         { status: 400 },
       );
