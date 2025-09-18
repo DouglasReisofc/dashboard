@@ -11,6 +11,10 @@ import type {
   MercadoPagoCheckoutPaymentMethod,
   MercadoPagoCheckoutPaymentType,
 } from "types/payments";
+import {
+  META_INTERACTIVE_BODY_LIMIT,
+  META_INTERACTIVE_ROW_TITLE_LIMIT,
+} from "lib/meta-limits";
 
 const PAYMENT_TYPE_OPTIONS: readonly {
   id: MercadoPagoCheckoutPaymentType;
@@ -271,6 +275,7 @@ const MercadoPagoCheckoutForm = ({ config }: MercadoPagoCheckoutFormProps) => {
                   inputMode="decimal"
                   spellCheck={false}
                   placeholder={["50,00", "75,00", "100,00"].join("\n")}
+                  maxLength={META_INTERACTIVE_BODY_LIMIT}
                 />
                 <Form.Text className="text-secondary">
                   Defina os valores de recarga que ficarão disponíveis neste checkout. Você pode separar por
@@ -286,8 +291,12 @@ const MercadoPagoCheckoutForm = ({ config }: MercadoPagoCheckoutFormProps) => {
                   value={formState.displayName}
                   onChange={(event) => handleChange("displayName", event.target.value)}
                   placeholder="Checkout Mercado Pago"
+                  maxLength={META_INTERACTIVE_ROW_TITLE_LIMIT}
                   required
                 />
+                <Form.Text className="text-secondary">
+                  Máximo de {META_INTERACTIVE_ROW_TITLE_LIMIT} caracteres exibidos no menu do bot.
+                </Form.Text>
               </Form.Group>
             </Col>
             <Col md={6}>

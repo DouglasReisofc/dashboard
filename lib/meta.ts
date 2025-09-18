@@ -7,11 +7,28 @@ import type { UserWebhookRow } from "./db";
 import { formatCurrency } from "./format";
 import {
   BotTemplateContext,
+  defaultCategoryDetailButtonText,
+  defaultCategoryListBodyText,
+  defaultCategoryListButtonText,
+  defaultCategoryListHeaderText,
+  defaultCategoryListNextDescription,
+  defaultCategoryListNextTitle,
+  defaultCategoryListSectionTitle,
   defaultMenuButtonLabels,
   renderCategoryDetailTemplate,
   renderCategoryListTemplate,
   renderMainMenuTemplate,
 } from "./bot-menu";
+import {
+  META_INTERACTIVE_BODY_LIMIT,
+  META_INTERACTIVE_BUTTON_LIMIT,
+  META_INTERACTIVE_FOOTER_LIMIT,
+  META_INTERACTIVE_HEADER_LIMIT,
+  META_INTERACTIVE_ROW_DESCRIPTION_LIMIT,
+  META_INTERACTIVE_ROW_TITLE_LIMIT,
+  META_INTERACTIVE_SECTION_TITLE_LIMIT,
+  META_MEDIA_CAPTION_LIMIT,
+} from "./meta-limits";
 
 const getAppBaseUrl = () => {
   const rawUrl = process.env.APP_URL?.trim();
@@ -46,21 +63,24 @@ type ButtonDefinition = {
   title: string;
 };
 
-const MAX_BODY_LENGTH = 1024;
 const MAX_LIST_ROWS = 10;
 
 const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);
 const CONFIRMATION_BUTTON_FALLBACK = "Ir para o menu";
 
-const sanitizeInteractiveText = (text: string) => {
+const sanitizeInteractiveText = (text: string, limit = META_INTERACTIVE_BODY_LIMIT) => {
   const trimmed = text.trim();
 
   if (!trimmed) {
     return "";
   }
 
-  return trimmed.length > MAX_BODY_LENGTH
-    ? `${trimmed.slice(0, MAX_BODY_LENGTH - 1)}…`
+  if (limit <= 0) {
+    return "";
+  }
+
+  return trimmed.length > limit
+    ? `${trimmed.slice(0, Math.max(1, limit) - 1)}…`
     : trimmed;
 };
 
@@ -131,17 +151,35 @@ const buildInteractiveMenuPayload = (
   },
 ) => {
   const trimmedText = text.trim();
-  const bodyText = trimmedText.length > MAX_BODY_LENGTH
-    ? `${trimmedText.slice(0, MAX_BODY_LENGTH - 1)}…`
+  const bodyText = trimmedText.length > META_INTERACTIVE_BODY_LIMIT
+    ? `${trimmedText.slice(0, META_INTERACTIVE_BODY_LIMIT - 1)}…`
     : trimmedText;
 
-  const buttonsPayload = options.buttons.map((button) => ({
-    type: "reply" as const,
-    reply: {
-      id: button.id,
-      title: button.title,
-    },
-  }));
+  const buttonsPayload = options.buttons.map((button) => {
+    const fallbackTitle = (() => {
+      switch (button.id) {
+        case MENU_BUTTON_IDS.addBalance:
+          return defaultMenuButtonLabels.addBalance;
+        case MENU_BUTTON_IDS.support:
+          return defaultMenuButtonLabels.support;
+        default:
+          return defaultMenuButtonLabels.buy;
+      }
+    })();
+
+    const sanitizedTitle =
+      sanitizeInteractiveLabel(button.title, META_INTERACTIVE_BUTTON_LIMIT) ||
+      sanitizeInteractiveLabel(fallbackTitle, META_INTERACTIVE_BUTTON_LIMIT) ||
+      "Opção";
+
+    return {
+      type: "reply" as const,
+      reply: {
+        id: button.id,
+        title: sanitizedTitle,
+      },
+    };
+  });
 
   const interactive: Record<string, unknown> = {
     type: "button",
@@ -153,9 +191,13 @@ const buildInteractiveMenuPayload = (
     },
   };
 
-  if (options.footerText && options.footerText.trim().length > 0) {
+  const sanitizedFooter = options.footerText
+    ? sanitizeInteractiveText(options.footerText, META_INTERACTIVE_FOOTER_LIMIT)
+    : "";
+
+  if (sanitizedFooter) {
     interactive.footer = {
-      text: options.footerText.trim(),
+      text: sanitizedFooter,
     };
   }
 
@@ -227,21 +269,47 @@ const buildCategoryListPayload = (
 
   const rows = pageEntries.map((category) => ({
     id: `${CATEGORY_LIST_ROW_PREFIX}${category.id}`,
-    title: category.name,
-    description: formatCurrency(category.price),
+    title:
+      sanitizeInteractiveLabel(category.name, META_INTERACTIVE_ROW_TITLE_LIMIT) ||
+      sanitizeInteractiveLabel("Categoria", META_INTERACTIVE_ROW_TITLE_LIMIT),
+    description: sanitizeInteractiveLabel(
+      formatCurrency(category.price),
+      META_INTERACTIVE_ROW_DESCRIPTION_LIMIT,
+    ),
   }));
 
   if (hasMore) {
     rows.push({
       id: `${CATEGORY_LIST_NEXT_PREFIX}${sanitizedPage + 1}`,
-      title: template.nextTitle,
-      description: template.nextDescription,
+      title:
+        sanitizeInteractiveLabel(template.nextTitle, META_INTERACTIVE_ROW_TITLE_LIMIT) ||
+        sanitizeInteractiveLabel(defaultCategoryListNextTitle, META_INTERACTIVE_ROW_TITLE_LIMIT),
+      description:
+        sanitizeInteractiveLabel(template.nextDescription, META_INTERACTIVE_ROW_DESCRIPTION_LIMIT) ||
+        sanitizeInteractiveLabel(defaultCategoryListNextDescription, META_INTERACTIVE_ROW_DESCRIPTION_LIMIT),
     });
   }
 
-  const footerText = hasMore
-    ? template.footerMore ?? template.footer
-    : template.footer;
+  const footerTextRaw = hasMore ? template.footerMore ?? template.footer : template.footer;
+  const footerText = footerTextRaw
+    ? sanitizeInteractiveText(footerTextRaw, META_INTERACTIVE_FOOTER_LIMIT)
+    : "";
+
+  const headerText =
+    sanitizeInteractiveText(template.header, META_INTERACTIVE_HEADER_LIMIT) ||
+    sanitizeInteractiveText(defaultCategoryListHeaderText, META_INTERACTIVE_HEADER_LIMIT);
+
+  const bodyText =
+    sanitizeInteractiveText(template.body) ||
+    sanitizeInteractiveText(defaultCategoryListBodyText);
+
+  const buttonText =
+    sanitizeInteractiveLabel(template.button, META_INTERACTIVE_BUTTON_LIMIT) ||
+    sanitizeInteractiveLabel(defaultCategoryListButtonText, META_INTERACTIVE_BUTTON_LIMIT);
+
+  const sectionTitle =
+    sanitizeInteractiveLabel(template.sectionTitle, META_INTERACTIVE_SECTION_TITLE_LIMIT) ||
+    sanitizeInteractiveLabel(defaultCategoryListSectionTitle, META_INTERACTIVE_SECTION_TITLE_LIMIT);
 
   return {
     payload: {
@@ -252,23 +320,23 @@ const buildCategoryListPayload = (
         type: "list" as const,
         header: {
           type: "text" as const,
-          text: template.header,
+          text: headerText,
         },
         body: {
-          text: template.body,
+          text: bodyText,
         },
-        ...(footerText && footerText.trim().length > 0
+        ...(footerText
           ? {
               footer: {
-                text: footerText.trim(),
+                text: footerText,
               },
             }
           : {}),
         action: {
-          button: template.button,
+          button: buttonText,
           sections: [
             {
-              title: template.sectionTitle,
+              title: sectionTitle,
               rows,
             },
           ],
@@ -295,20 +363,20 @@ const buildAddBalanceListPayload = (
     type: "list",
     header: {
       type: "text",
-      text: options.header.slice(0, 60),
+      text: options.header.slice(0, META_INTERACTIVE_HEADER_LIMIT),
     },
     body: {
-      text: options.body.slice(0, MAX_BODY_LENGTH),
+      text: options.body.slice(0, META_INTERACTIVE_BODY_LIMIT),
     },
     action: {
-      button: options.buttonLabel.slice(0, 20),
+      button: options.buttonLabel.slice(0, META_INTERACTIVE_BUTTON_LIMIT),
       sections: [
         {
-          title: options.sectionTitle.slice(0, 24),
+          title: options.sectionTitle.slice(0, META_INTERACTIVE_SECTION_TITLE_LIMIT),
           rows: options.rows.slice(0, MAX_LIST_ROWS).map((row) => ({
             id: row.id,
-            title: row.title.slice(0, 24),
-            description: row.description?.slice(0, 72) ?? undefined,
+            title: row.title.slice(0, META_INTERACTIVE_ROW_TITLE_LIMIT),
+            description: row.description?.slice(0, META_INTERACTIVE_ROW_DESCRIPTION_LIMIT) ?? undefined,
           })),
         },
       ],
@@ -317,7 +385,7 @@ const buildAddBalanceListPayload = (
 
   if (options.footer && options.footer.trim().length > 0) {
     interactive.footer = {
-      text: options.footer.trim().slice(0, 60),
+      text: options.footer.trim().slice(0, META_INTERACTIVE_FOOTER_LIMIT),
     };
   }
 
@@ -356,9 +424,13 @@ const buildCategoryDetailPayload = (
     detailContext,
   );
 
-  const bodyText = template.body.length > MAX_BODY_LENGTH
-    ? `${template.body.slice(0, MAX_BODY_LENGTH - 1)}…`
+  const bodyText = template.body.length > META_INTERACTIVE_BODY_LIMIT
+    ? `${template.body.slice(0, META_INTERACTIVE_BODY_LIMIT - 1)}…`
     : template.body;
+
+  const sanitizedButton =
+    sanitizeInteractiveLabel(template.button, META_INTERACTIVE_BUTTON_LIMIT) ||
+    sanitizeInteractiveLabel(defaultCategoryDetailButtonText, META_INTERACTIVE_BUTTON_LIMIT);
 
   const interactive: Record<string, unknown> = {
     type: "button",
@@ -371,16 +443,20 @@ const buildCategoryDetailPayload = (
           type: "reply" as const,
           reply: {
             id: `${CATEGORY_PURCHASE_BUTTON_PREFIX}${category.id}`,
-            title: template.button,
+            title: sanitizedButton,
           },
         },
       ],
     },
   };
 
-  if (template.footer && template.footer.trim().length > 0) {
+  const sanitizedFooter = template.footer
+    ? sanitizeInteractiveText(template.footer, META_INTERACTIVE_FOOTER_LIMIT)
+    : "";
+
+  if (sanitizedFooter) {
     interactive.footer = {
-      text: template.footer.trim(),
+      text: sanitizedFooter,
     };
   }
 
@@ -585,7 +661,7 @@ export const sendInteractiveCtaUrlMessage = async (options: {
   } = options;
 
   const sanitizedBody = sanitizeInteractiveText(bodyText);
-  const sanitizedButtonText = sanitizeInteractiveLabel(buttonText, 20);
+  const sanitizedButtonText = sanitizeInteractiveLabel(buttonText, META_INTERACTIVE_BUTTON_LIMIT);
   const sanitizedUrl = buttonUrl.trim();
 
   if (!sanitizedBody) {
@@ -617,7 +693,7 @@ export const sendInteractiveCtaUrlMessage = async (options: {
     },
   };
 
-  const sanitizedFooter = sanitizeInteractiveText(footerText ?? "");
+  const sanitizedFooter = sanitizeInteractiveText(footerText ?? "", META_INTERACTIVE_FOOTER_LIMIT);
   if (sanitizedFooter) {
     interactive.footer = {
       text: sanitizedFooter,
@@ -633,7 +709,7 @@ export const sendInteractiveCtaUrlMessage = async (options: {
       },
     };
   } else {
-    const sanitizedHeaderText = sanitizeInteractiveText(headerText ?? "");
+    const sanitizedHeaderText = sanitizeInteractiveText(headerText ?? "", META_INTERACTIVE_HEADER_LIMIT);
     if (sanitizedHeaderText) {
       interactive.header = {
         type: "text",
@@ -666,7 +742,7 @@ export const sendInteractiveCopyCodeMessage = async (options: {
   const { webhook, to, bodyText, buttonText, code, footerText } = options;
 
   const sanitizedBody = sanitizeInteractiveText(bodyText);
-  const sanitizedButtonText = sanitizeInteractiveLabel(buttonText, 20);
+  const sanitizedButtonText = sanitizeInteractiveLabel(buttonText, META_INTERACTIVE_BUTTON_LIMIT);
   const sanitizedCode = code.trim();
 
   if (!sanitizedBody) {
@@ -702,7 +778,7 @@ export const sendInteractiveCopyCodeMessage = async (options: {
     },
   };
 
-  const sanitizedFooter = sanitizeInteractiveText(footerText ?? "");
+  const sanitizedFooter = sanitizeInteractiveText(footerText ?? "", META_INTERACTIVE_FOOTER_LIMIT);
   if (sanitizedFooter) {
     interactive.footer = {
       text: sanitizedFooter,
@@ -754,9 +830,9 @@ export const sendPaymentConfirmationMessage = async (options: {
   }
 
   const buttonLabel = typeof config.buttonLabel === "string" ? config.buttonLabel : "";
-  const sanitizedButtonLabel = sanitizeInteractiveLabel(buttonLabel, 20)
-    || sanitizeInteractiveLabel(CONFIRMATION_BUTTON_FALLBACK, 20)
-    || sanitizeInteractiveLabel(defaultMenuButtonLabels.buy, 20);
+  const sanitizedButtonLabel = sanitizeInteractiveLabel(buttonLabel, META_INTERACTIVE_BUTTON_LIMIT)
+    || sanitizeInteractiveLabel(CONFIRMATION_BUTTON_FALLBACK, META_INTERACTIVE_BUTTON_LIMIT)
+    || sanitizeInteractiveLabel(defaultMenuButtonLabels.buy, META_INTERACTIVE_BUTTON_LIMIT);
 
   if (!sanitizedButtonLabel) {
     console.warn("[Meta Webhook] Texto do botão de confirmação inválido, mensagem não enviada");
@@ -801,7 +877,7 @@ export const sendImageFromUrl = async (options: {
     type: "image",
     image: {
       link: trimmedUrl,
-      caption: caption?.trim()?.slice(0, MAX_BODY_LENGTH) ?? undefined,
+      caption: caption?.trim()?.slice(0, META_MEDIA_CAPTION_LIMIT) ?? undefined,
     },
   };
 
@@ -828,8 +904,8 @@ export const sendProductFile = async (options: {
   const mediaUrl = resolveMediaUrl(product.filePath);
   const trimmedCaption = caption?.trim();
   const safeCaption = trimmedCaption
-    ? (trimmedCaption.length > MAX_BODY_LENGTH
-      ? `${trimmedCaption.slice(0, MAX_BODY_LENGTH - 1)}…`
+    ? (trimmedCaption.length > META_MEDIA_CAPTION_LIMIT
+      ? `${trimmedCaption.slice(0, META_MEDIA_CAPTION_LIMIT - 1)}…`
       : trimmedCaption)
     : undefined;
 

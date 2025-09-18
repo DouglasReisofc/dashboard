@@ -7,6 +7,10 @@ import { useRouter } from "next/navigation";
 
 import { formatAmount, parseAmountText } from "components/payments/amountHelpers";
 import type { MercadoPagoPixConfig } from "types/payments";
+import {
+  META_INTERACTIVE_BODY_LIMIT,
+  META_INTERACTIVE_ROW_TITLE_LIMIT,
+} from "lib/meta-limits";
 
 interface MercadoPagoPixFormProps {
   config: MercadoPagoPixConfig;
@@ -171,8 +175,12 @@ const MercadoPagoPixForm = ({ config }: MercadoPagoPixFormProps) => {
                   value={formState.displayName}
                   onChange={(event) => handleChange("displayName", event.target.value)}
                   placeholder="Mercado Pago Pix"
+                  maxLength={META_INTERACTIVE_ROW_TITLE_LIMIT}
                   required
                 />
+                <Form.Text className="text-secondary">
+                  Máximo de {META_INTERACTIVE_ROW_TITLE_LIMIT} caracteres mostrados no menu do bot.
+                </Form.Text>
               </Form.Group>
             </Col>
             <Col md={6}>
@@ -266,7 +274,11 @@ const MercadoPagoPixForm = ({ config }: MercadoPagoPixFormProps) => {
                   value={formState.instructions}
                   onChange={(event) => handleChange("instructions", event.target.value)}
                   placeholder="Ex.: O saldo será liberado após a confirmação automática do Mercado Pago."
+                  maxLength={META_INTERACTIVE_BODY_LIMIT}
                 />
+                <Form.Text className="text-secondary">
+                  Máximo de {META_INTERACTIVE_BODY_LIMIT} caracteres enviados junto com o QR Code.
+                </Form.Text>
               </Form.Group>
             </Col>
           </Row>

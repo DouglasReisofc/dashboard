@@ -6,6 +6,10 @@ import { Alert, Badge, Button, Card, Col, Form, Image, Row } from "react-bootstr
 import { useRouter } from "next/navigation";
 
 import type { PaymentConfirmationMessageConfig } from "types/payments";
+import {
+  META_INTERACTIVE_BODY_LIMIT,
+  META_INTERACTIVE_BUTTON_LIMIT,
+} from "lib/meta-limits";
 
 interface PaymentConfirmationFormProps {
   config: PaymentConfirmationMessageConfig;
@@ -230,10 +234,12 @@ const PaymentConfirmationForm = ({ config }: PaymentConfirmationFormProps) => {
                   value={formState.messageText}
                   onChange={(event) => handleChange("messageText", event.target.value)}
                   placeholder="Pagamento confirmado! Seu saldo foi atualizado automaticamente."
+                  maxLength={META_INTERACTIVE_BODY_LIMIT}
                   required
                 />
                 <Form.Text className="text-secondary">
                   {"Use {{valor}} e {{saldo}} para inserir automaticamente o valor pago e o saldo atual."}
+                  {` Máximo de ${META_INTERACTIVE_BODY_LIMIT} caracteres enviados ao WhatsApp.`}
                 </Form.Text>
               </Form.Group>
             </Col>
@@ -244,11 +250,11 @@ const PaymentConfirmationForm = ({ config }: PaymentConfirmationFormProps) => {
                   value={formState.buttonLabel}
                   onChange={(event) => handleChange("buttonLabel", event.target.value)}
                   placeholder="Ir para o menu"
-                  maxLength={20}
+                  maxLength={META_INTERACTIVE_BUTTON_LIMIT}
                   required
                 />
                 <Form.Text className="text-secondary">
-                  Máximo de 20 caracteres. O botão abre o menu de compras automaticamente.
+                  Máximo de {META_INTERACTIVE_BUTTON_LIMIT} caracteres. O botão abre o menu de compras automaticamente.
                 </Form.Text>
               </Form.Group>
             </Col>

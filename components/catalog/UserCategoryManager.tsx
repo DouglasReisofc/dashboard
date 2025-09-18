@@ -4,6 +4,11 @@ import { useState } from "react";
 import { Alert, Badge, Button, Card, Form, Modal, Table } from "react-bootstrap";
 import { useRouter } from "next/navigation";
 
+import {
+  META_INTERACTIVE_BODY_LIMIT,
+  META_INTERACTIVE_ROW_TITLE_LIMIT,
+} from "lib/meta-limits";
+
 import type { CategorySummary } from "types/catalog";
 
 type CategoryFormState = {
@@ -171,8 +176,12 @@ const UserCategoryManager = ({ categories }: UserCategoryManagerProps) => {
           value={categoryForm.name}
           onChange={(event) => handleCategoryChange("name", event.target.value)}
           placeholder="Categoria"
+          maxLength={META_INTERACTIVE_ROW_TITLE_LIMIT}
           required
         />
+        <Form.Text className="text-secondary">
+          Máximo de {META_INTERACTIVE_ROW_TITLE_LIMIT} caracteres exibidos no menu interativo.
+        </Form.Text>
       </Form.Group>
       <Form.Group className="mb-3">
         <Form.Label>Valor (R$)</Form.Label>
@@ -198,7 +207,11 @@ const UserCategoryManager = ({ categories }: UserCategoryManagerProps) => {
           value={categoryForm.description}
           onChange={(event) => handleCategoryChange("description", event.target.value)}
           placeholder="Detalhes rápidos sobre a categoria"
+          maxLength={META_INTERACTIVE_BODY_LIMIT}
         />
+        <Form.Text className="text-secondary">
+          Máximo de {META_INTERACTIVE_BODY_LIMIT} caracteres utilizados nos cartões do bot.
+        </Form.Text>
       </Form.Group>
       <Form.Group className="mb-3">
         <Form.Label>Status</Form.Label>
