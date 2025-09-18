@@ -21,7 +21,7 @@ export const fetchMetaBusinessProfile = async (
 
   const version = getMetaApiVersion();
   const url = new URL(
-    `https://graph.facebook.com/${version}/${webhook.phone_number_id}/profile`,
+    `https://graph.facebook.com/${version}/${webhook.phone_number_id}/business_profile`,
   );
   url.searchParams.set("fields", PROFILE_FIELDS.join(","));
 
@@ -98,7 +98,7 @@ export const updateMetaBusinessProfile = async (
   }
 
   const version = getMetaApiVersion();
-  const url = `https://graph.facebook.com/${version}/${webhook.phone_number_id}/profile`;
+  const url = `https://graph.facebook.com/${version}/${webhook.phone_number_id}/business_profile`;
 
   const body: Record<string, unknown> = {
     messaging_product: "whatsapp",
