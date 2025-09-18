@@ -30,7 +30,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           message:
-            "Configure o webhook da Meta com o token e o phone number ID antes de atualizar a foto.",
+            "Configure o webhook da Meta com o app ID, token e phone number ID antes de atualizar a foto.",
         },
         { status: 400 },
       );
@@ -116,7 +116,7 @@ export async function DELETE() {
       return NextResponse.json(
         {
           message:
-            "Configure o webhook da Meta com o token e o phone number ID antes de remover a foto.",
+            "Configure o webhook da Meta com o app ID, token e phone number ID antes de remover a foto.",
         },
         { status: 400 },
       );

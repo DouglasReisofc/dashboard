@@ -72,7 +72,7 @@ async function main() {
 
   if (!credentials) {
     console.error(
-      "Defina as variáveis PHONE_NUMBER_ID e META_TOKEN antes de rodar este teste.",
+      "Defina as variáveis META_APP_ID, PHONE_NUMBER_ID e META_TOKEN antes de rodar este teste.",
     );
     process.exit(1);
   }

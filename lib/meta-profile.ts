@@ -6,6 +6,7 @@ import type { MetaBusinessProfile } from "types/meta";
 export type MetaProfileCredentials = {
   accessToken: string;
   phoneNumberId: string;
+  appId: string;
 };
 
 export const resolveMetaProfileCredentials = (
@@ -13,24 +14,27 @@ export const resolveMetaProfileCredentials = (
 ): MetaProfileCredentials | null => {
   const webhookAccessToken = webhook?.access_token?.trim() ?? "";
   const webhookPhoneNumberId = webhook?.phone_number_id?.trim() ?? "";
+  const webhookAppId = webhook?.app_id?.trim() ?? "";
 
   const envAccessToken = process.env.META_TOKEN?.trim() ?? "";
   const envPhoneNumberId = process.env.PHONE_NUMBER_ID?.trim() ?? "";
+  const envAppId = process.env.META_APP_ID?.trim() ?? "";
 
   const accessToken = webhookAccessToken || envAccessToken;
   const phoneNumberId = webhookPhoneNumberId || envPhoneNumberId;
+  const appId = webhookAppId || envAppId;
 
-  if (!accessToken || !phoneNumberId) {
+  if (!accessToken || !phoneNumberId || !appId) {
     return null;
   }
 
-  if (!webhookAccessToken || !webhookPhoneNumberId) {
+  if (!webhookAccessToken || !webhookPhoneNumberId || !webhookAppId) {
     console.warn(
       "[Meta Profile] Credenciais faltando nas configurações do webhook. Usando variáveis de ambiente como fallback.",
     );
   }
 
-  return { accessToken, phoneNumberId } satisfies MetaProfileCredentials;
+  return { accessToken, phoneNumberId, appId } satisfies MetaProfileCredentials;
 };
 
 type MetaApiErrorPayload = {
@@ -383,11 +387,12 @@ export const uploadMetaProfilePicture = async (
   const fileLength = arrayBuffer.byteLength;
 
   const sessionUrl = new URL(
-    `https://graph.facebook.com/${version}/${credentials.phoneNumberId}/uploads`,
+    `https://graph.facebook.com/${version}/${credentials.appId}/uploads`,
   );
   sessionUrl.searchParams.set("file_length", `${fileLength}`);
   sessionUrl.searchParams.set("file_type", contentType);
   sessionUrl.searchParams.set("file_name", filename);
+  sessionUrl.searchParams.set("access_token", credentials.accessToken);
 
   console.log("[Meta Profile] Creating profile photo upload session", {
     url: sessionUrl.toString(),
@@ -398,9 +403,7 @@ export const uploadMetaProfilePicture = async (
 
   const sessionResponse = await fetch(sessionUrl, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${credentials.accessToken}`,
-    },
+    headers: {},
   });
 
   const sessionResult = await readMetaResponse(
@@ -433,7 +436,7 @@ export const uploadMetaProfilePicture = async (
   const uploadResponse = await fetch(uploadUrl, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${credentials.accessToken}`,
+      Authorization: `OAuth ${credentials.accessToken}`,
       file_offset: "0",
       "Content-Type": "application/octet-stream",
     },
