@@ -199,7 +199,10 @@ export const updateMetaProfilePictureUrl = async (
         "Content-Type": "application/json",
         Authorization: `Bearer ${webhook.access_token}`,
       },
-      body: JSON.stringify({ profile_picture_url: trimmedUrl }),
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        profile_picture_url: trimmedUrl,
+      }),
     });
 
     if (!response.ok) {
