@@ -175,36 +175,37 @@ export const updateMetaBusinessProfile = async (
   }
 };
 
-export const uploadMetaProfilePicture = async (
+export const updateMetaProfilePictureUrl = async (
   webhook: UserWebhookRow,
-  file: { buffer: ArrayBuffer; filename: string; contentType?: string | null },
+  profilePictureUrl: string,
 ): Promise<boolean> => {
   if (!webhook.access_token || !webhook.phone_number_id) {
     return false;
   }
 
+  const trimmedUrl = profilePictureUrl.trim();
+
+  if (!trimmedUrl) {
+    return false;
+  }
+
   const version = getMetaApiVersion();
-  const url = `https://graph.facebook.com/${version}/${webhook.phone_number_id}/whatsapp_business_profile/photo`;
-
-  const formData = new FormData();
-  formData.set("messaging_product", "whatsapp");
-
-  const blob = new Blob([file.buffer], { type: file.contentType ?? "application/octet-stream" });
-  formData.set("file", blob, file.filename);
+  const url = `https://graph.facebook.com/${version}/${webhook.phone_number_id}/whatsapp_business_profile`;
 
   try {
     const response = await fetch(url, {
       method: "POST",
       headers: {
+        "Content-Type": "application/json",
         Authorization: `Bearer ${webhook.access_token}`,
       },
-      body: formData,
+      body: JSON.stringify({ profile_picture_url: trimmedUrl }),
     });
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
       console.error(
-        `[Meta Profile] Failed to upload profile picture: ${response.status} ${response.statusText}`,
+        `[Meta Profile] Failed to set profile picture: ${response.status} ${response.statusText}`,
         errorText,
       );
       return false;
@@ -212,7 +213,7 @@ export const uploadMetaProfilePicture = async (
 
     return true;
   } catch (error) {
-    console.error("[Meta Profile] Unexpected error while uploading profile picture", error);
+    console.error("[Meta Profile] Unexpected error while setting profile picture", error);
     return false;
   }
 };

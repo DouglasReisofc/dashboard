@@ -4,9 +4,10 @@ import { getCurrentUser } from "lib/auth";
 import {
   fetchMetaBusinessProfile,
   removeMetaProfilePicture,
-  uploadMetaProfilePicture,
+  updateMetaProfilePictureUrl,
 } from "lib/meta-profile";
 import { getWebhookRowForUser } from "lib/webhooks";
+import { resolveUploadedFileUrl, saveUploadedFile } from "lib/uploads";
 
 const MAX_PHOTO_SIZE_BYTES = 5 * 1024 * 1024;
 
@@ -44,15 +45,12 @@ export async function POST(request: Request) {
       );
     }
 
-    const buffer = await photo.arrayBuffer();
+    const storedPath = await saveUploadedFile(photo, `meta-profile/${user.id}`);
+    const profilePictureUrl = resolveUploadedFileUrl(storedPath);
 
-    const uploaded = await uploadMetaProfilePicture(webhook, {
-      buffer,
-      filename: photo.name || "profile.jpg",
-      contentType: photo.type || undefined,
-    });
+    const updated = await updateMetaProfilePictureUrl(webhook, profilePictureUrl);
 
-    if (!uploaded) {
+    if (!updated) {
       return NextResponse.json(
         { message: "Não foi possível enviar a foto agora." },
         { status: 502 },

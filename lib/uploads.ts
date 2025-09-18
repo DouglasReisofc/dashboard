@@ -2,6 +2,16 @@ import crypto from "crypto";
 import { promises as fs } from "fs";
 import path from "path";
 
+const getAppBaseUrl = () => {
+  const rawUrl = process.env.APP_URL?.trim();
+
+  if (!rawUrl) {
+    return "http://localhost:4478";
+  }
+
+  return rawUrl.endsWith("/") ? rawUrl.slice(0, -1) : rawUrl;
+};
+
 const uploadRoot = path.resolve(process.cwd(), "public", "uploads");
 
 const ensureFolder = async (folder: string) => {
@@ -31,6 +41,12 @@ export const saveUploadedFile = async (file: File, folder: string) => {
   await fs.writeFile(destination, buffer);
 
   return path.posix.join("uploads", folder.replace(/\\/g, "/"), filename);
+};
+
+export const resolveUploadedFileUrl = (relativePath: string) => {
+  const normalized = relativePath.replace(/^\/+/, "");
+
+  return `${getAppBaseUrl()}/${normalized}`;
 };
 
 export const deleteUploadedFile = async (relativePath?: string | null) => {
