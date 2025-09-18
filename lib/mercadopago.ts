@@ -1,6 +1,27 @@
 const MERCADO_PAGO_BASE_URL = process.env.MERCADO_PAGO_API_URL?.trim()
   || "https://api.mercadopago.com";
 
+const getAppBaseUrl = () => {
+  const raw = process.env.APP_URL?.trim();
+  if (!raw) {
+    return "http://localhost:4478";
+  }
+
+  return raw.endsWith("/") ? raw.slice(0, -1) : raw;
+};
+
+const getCheckoutReturnUrls = () => {
+  const baseUrl = getAppBaseUrl();
+  const buildUrl = (status: "success" | "pending" | "failure") =>
+    `${baseUrl}/pagamentos/checkout-retorno?status=${status}`;
+
+  return {
+    success: buildUrl("success"),
+    pending: buildUrl("pending"),
+    failure: buildUrl("failure"),
+  };
+};
+
 export type CreatePixPaymentOptions = {
   accessToken: string;
   amount: number;
@@ -179,6 +200,8 @@ export const createMercadoPagoCheckoutPreference = async (
     external_reference: externalReference,
     auto_return: "approved",
   };
+
+  payload.back_urls = getCheckoutReturnUrls();
 
   if (notificationUrl && notificationUrl.trim()) {
     payload.notification_url = notificationUrl.trim();
