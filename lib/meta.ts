@@ -2,6 +2,7 @@ import path from "path";
 
 import type { CategorySummary, ProductSummary } from "types/catalog";
 import type { BotMenuConfig } from "types/bot";
+import type { PaymentConfirmationMessageConfig } from "types/payments";
 import type { UserWebhookRow } from "./db";
 import { formatCurrency } from "./format";
 import {
@@ -717,6 +718,64 @@ export const sendInteractiveCopyCodeMessage = async (options: {
   await postMetaMessage(webhook, payload, {
     successLog: `Mensagem CTA copiar enviada para ${to}`,
     failureLog: `Falha ao enviar mensagem CTA copiar para ${to}`,
+  });
+};
+
+const applyPaymentConfirmationTemplate = (
+  template: string,
+  context: { amount: number; balance: number },
+) => {
+  const amountLabel = formatCurrency(context.amount);
+  const balanceLabel = formatCurrency(context.balance);
+
+  return template
+    .replace(/\{\{\s*valor\s*\}\}/gi, amountLabel)
+    .replace(/\{\{\s*saldo\s*\}\}/gi, balanceLabel)
+    .trim();
+};
+
+export const sendPaymentConfirmationMessage = async (options: {
+  webhook: UserWebhookRow;
+  to: string;
+  config: PaymentConfirmationMessageConfig;
+  amount: number;
+  balance: number;
+}) => {
+  const { webhook, to, config, amount, balance } = options;
+
+  const messageTemplate = typeof config.messageText === "string" ? config.messageText : "";
+  const renderedMessage = applyPaymentConfirmationTemplate(messageTemplate, { amount, balance });
+  const sanitizedBody = sanitizeInteractiveText(renderedMessage);
+
+  if (!sanitizedBody) {
+    console.warn("[Meta Webhook] Mensagem de confirmação vazia ignorada");
+    return;
+  }
+
+  const buttonLabel = typeof config.buttonLabel === "string" ? config.buttonLabel : "";
+  const sanitizedButtonLabel = sanitizeInteractiveLabel(buttonLabel, 20)
+    || sanitizeInteractiveLabel(defaultMenuButtonLabels.buy, 20);
+
+  if (!sanitizedButtonLabel) {
+    console.warn("[Meta Webhook] Texto do botão de confirmação inválido, mensagem não enviada");
+    return;
+  }
+
+  const headerImage = typeof config.mediaUrl === "string" ? config.mediaUrl.trim() : "";
+
+  const payload = buildInteractiveMenuPayload(to, sanitizedBody, {
+    mediaUrl: headerImage || undefined,
+    buttons: [
+      {
+        id: MENU_BUTTON_IDS.buy,
+        title: sanitizedButtonLabel,
+      },
+    ],
+  });
+
+  await postMetaMessage(webhook, payload, {
+    successLog: `Mensagem de confirmação de pagamento enviada para ${to}`,
+    failureLog: `Falha ao enviar mensagem de confirmação de pagamento para ${to}`,
   });
 };
 

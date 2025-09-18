@@ -3,10 +3,15 @@
 import { useMemo, useState } from "react";
 import { Button, Card } from "react-bootstrap";
 
-import type { MercadoPagoCheckoutConfig, MercadoPagoPixConfig } from "types/payments";
+import type {
+  MercadoPagoCheckoutConfig,
+  MercadoPagoPixConfig,
+  PaymentConfirmationMessageConfig,
+} from "types/payments";
 
 import MercadoPagoCheckoutForm from "./MercadoPagoCheckoutForm";
 import MercadoPagoPixForm from "./MercadoPagoPixForm";
+import PaymentConfirmationForm from "./PaymentConfirmationForm";
 
 type ViewId = "pix" | "checkout";
 
@@ -19,6 +24,7 @@ type ViewOption = {
 interface UserPaymentsConfigProps {
   pixConfig: MercadoPagoPixConfig;
   checkoutConfig: MercadoPagoCheckoutConfig;
+  confirmationConfig: PaymentConfirmationMessageConfig;
 }
 
 const VIEW_OPTIONS: readonly ViewOption[] = [
@@ -48,7 +54,11 @@ const resolveInitialView = (pixConfig: MercadoPagoPixConfig, checkoutConfig: Mer
   return "pix";
 };
 
-const UserPaymentsConfig = ({ pixConfig, checkoutConfig }: UserPaymentsConfigProps) => {
+const UserPaymentsConfig = ({
+  pixConfig,
+  checkoutConfig,
+  confirmationConfig,
+}: UserPaymentsConfigProps) => {
   const [activeView, setActiveView] = useState<ViewId>(() => resolveInitialView(pixConfig, checkoutConfig));
 
   const activeOption = useMemo(
@@ -88,6 +98,8 @@ const UserPaymentsConfig = ({ pixConfig, checkoutConfig }: UserPaymentsConfigPro
       ) : (
         <MercadoPagoCheckoutForm config={checkoutConfig} />
       )}
+
+      <PaymentConfirmationForm config={confirmationConfig} />
     </div>
   );
 };

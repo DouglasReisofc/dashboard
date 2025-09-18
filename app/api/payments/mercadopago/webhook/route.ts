@@ -5,9 +5,12 @@ import { fetchMercadoPagoPayment } from "lib/mercadopago";
 import {
   getMercadoPagoCheckoutConfigForUser,
   getMercadoPagoPixConfigForUser,
+  getPaymentConfirmationConfigForUser,
   getPaymentChargeByProviderPaymentId,
   updatePaymentChargeStatus,
 } from "lib/payments";
+import { sendPaymentConfirmationMessage } from "lib/meta";
+import { getWebhookRowForUser } from "lib/webhooks";
 
 const extractPaymentIdFromResource = (resource: unknown): string | null => {
   if (typeof resource !== "string" || resource.trim().length === 0) {
@@ -156,6 +159,30 @@ export async function POST(request: Request) {
           amount: charge.amount,
         }),
       );
+
+      if (updatedCharge.customerWhatsapp) {
+        try {
+          const [confirmationConfig, webhookRow] = await Promise.all([
+            getPaymentConfirmationConfigForUser(updatedCharge.userId),
+            getWebhookRowForUser(updatedCharge.userId),
+          ]);
+
+          if (webhookRow) {
+            await sendPaymentConfirmationMessage({
+              webhook: webhookRow,
+              to: updatedCharge.customerWhatsapp,
+              config: confirmationConfig,
+              amount: charge.amount,
+              balance: creditResult.balance,
+            });
+          }
+        } catch (messageError) {
+          console.error(
+            "[Mercado Pago Webhook] Falha ao enviar mensagem de confirmação",
+            messageError,
+          );
+        }
+      }
     }
 
     return NextResponse.json({ message: "Webhook processado." });

@@ -17,6 +17,13 @@ export type PaymentMethodSummary = {
   isConfigured: boolean;
 };
 
+export type PaymentConfirmationMessageConfig = {
+  messageText: string;
+  buttonLabel: string;
+  mediaUrl: string | null;
+  updatedAt: string | null;
+};
+
 export type MercadoPagoPixConfig = {
   isActive: boolean;
   displayName: string;

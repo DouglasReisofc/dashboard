@@ -4,6 +4,7 @@ import { Metadata } from "next";
 import UserPaymentsConfig from "components/payments/UserPaymentsConfig";
 import { getCurrentUser } from "lib/auth";
 import {
+  getPaymentConfirmationConfigForUser,
   getMercadoPagoCheckoutConfigForUser,
   getMercadoPagoPixConfigForUser,
 } from "lib/payments";
@@ -21,9 +22,10 @@ const UserPaymentsConfigPage = async () => {
     return null;
   }
 
-  const [pixConfig, checkoutConfig] = await Promise.all([
+  const [pixConfig, checkoutConfig, confirmationConfig] = await Promise.all([
     getMercadoPagoPixConfigForUser(user.id),
     getMercadoPagoCheckoutConfigForUser(user.id),
+    getPaymentConfirmationConfigForUser(user.id),
   ]);
 
   return (
@@ -35,7 +37,11 @@ const UserPaymentsConfigPage = async () => {
         </p>
       </div>
 
-      <UserPaymentsConfig pixConfig={pixConfig} checkoutConfig={checkoutConfig} />
+      <UserPaymentsConfig
+        pixConfig={pixConfig}
+        checkoutConfig={checkoutConfig}
+        confirmationConfig={confirmationConfig}
+      />
     </Fragment>
   );
 };

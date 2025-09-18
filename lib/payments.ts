@@ -9,6 +9,7 @@ import type {
   MercadoPagoPixCharge,
   MercadoPagoPixConfig,
   PaymentCharge,
+  PaymentConfirmationMessageConfig,
   PaymentMethodSummary,
 } from "types/payments";
 import {
@@ -27,6 +28,9 @@ const DEFAULT_MERCADO_PAGO_PIX_DISPLAY_NAME = "Pagamento Pix";
 const DEFAULT_MERCADO_PAGO_CHECKOUT_DISPLAY_NAME = "Pagamento online";
 const DEFAULT_EXPIRATION_MINUTES = 30;
 const DEFAULT_AMOUNT_OPTIONS = [25, 50, 100];
+const DEFAULT_CONFIRMATION_MESSAGE =
+  "Pagamento confirmado! Seu saldo foi atualizado automaticamente. Use o botão abaixo para continuar comprando.";
+const DEFAULT_CONFIRMATION_BUTTON = "Ver opções";
 const CHECKOUT_PAYMENT_TYPES: readonly MercadoPagoCheckoutPaymentType[] = [
   "credit_card",
   "debit_card",
@@ -67,6 +71,23 @@ const sanitizeText = (value: unknown): string => {
 const sanitizeOptionalText = (value: unknown): string | null => {
   const text = sanitizeText(value);
   return text.length > 0 ? text : null;
+};
+
+const sanitizeOptionalUrl = (value: unknown): string | null => {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (!/^https?:\/\//i.test(trimmed)) {
+    return null;
+  }
+
+  return trimmed;
 };
 
 const sanitizeAmountOptions = (values: unknown): number[] => {
@@ -244,7 +265,49 @@ const mapPixPaymentMethodRow = (row: UserPaymentMethodRow | null): MercadoPagoPi
     instructions,
     isConfigured: accessToken.length > 0,
     updatedAt,
-  } satisfies MercadoPagoPixConfig;
+} satisfies MercadoPagoPixConfig;
+};
+
+const mapPaymentConfirmationRow = (
+  row: UserPaymentMethodRow | null,
+): PaymentConfirmationMessageConfig => {
+  const defaultConfig: PaymentConfirmationMessageConfig = {
+    messageText: DEFAULT_CONFIRMATION_MESSAGE,
+    buttonLabel: DEFAULT_CONFIRMATION_BUTTON,
+    mediaUrl: null,
+    updatedAt: null,
+  };
+
+  if (!row) {
+    return defaultConfig;
+  }
+
+  let settings: Record<string, unknown> = {};
+  if (row.settings) {
+    try {
+      const parsed = JSON.parse(row.settings) as unknown;
+      if (parsed && typeof parsed === "object") {
+        settings = parsed as Record<string, unknown>;
+      }
+    } catch (error) {
+      console.warn("Failed to parse payment confirmation settings", error);
+    }
+  }
+
+  const messageText = sanitizeText(settings.messageText);
+  const buttonLabel = sanitizeText(settings.buttonLabel);
+  const mediaUrl = sanitizeOptionalUrl(settings.mediaUrl);
+
+  const updatedAt = row.updated_at instanceof Date
+    ? row.updated_at.toISOString()
+    : new Date(row.updated_at).toISOString();
+
+  return {
+    messageText: messageText || DEFAULT_CONFIRMATION_MESSAGE,
+    buttonLabel: buttonLabel || DEFAULT_CONFIRMATION_BUTTON,
+    mediaUrl: mediaUrl ?? null,
+    updatedAt,
+  } satisfies PaymentConfirmationMessageConfig;
 };
 
 const mapCheckoutPaymentMethodRow = (
@@ -400,6 +463,23 @@ export const getMercadoPagoPixConfigForUser = async (
   return mapPixPaymentMethodRow(rows[0]);
 };
 
+export const getPaymentConfirmationConfigForUser = async (
+  userId: number,
+): Promise<PaymentConfirmationMessageConfig> => {
+  await ensurePaymentMethodTable();
+  const db = getDb();
+  const [rows] = await db.query<UserPaymentMethodRow[]>(
+    `SELECT * FROM user_payment_methods WHERE user_id = ? AND provider = 'payment_confirmation' LIMIT 1`,
+    [userId],
+  );
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return mapPaymentConfirmationRow(null);
+  }
+
+  return mapPaymentConfirmationRow(rows[0]);
+};
+
 export const getMercadoPagoCheckoutConfigForUser = async (
   userId: number,
 ): Promise<MercadoPagoCheckoutConfig> => {
@@ -514,6 +594,48 @@ export const upsertMercadoPagoPixConfig = async (payload: {
   );
 
   return getMercadoPagoPixConfigForUser(payload.userId);
+};
+
+export const upsertPaymentConfirmationConfig = async (payload: {
+  userId: number;
+  messageText: string;
+  buttonLabel: string;
+  mediaUrl?: string | null;
+}): Promise<PaymentConfirmationMessageConfig> => {
+  await ensurePaymentMethodTable();
+  const db = getDb();
+
+  const messageText = sanitizeText(payload.messageText);
+  const buttonLabel = sanitizeText(payload.buttonLabel);
+  const mediaUrl = sanitizeOptionalUrl(payload.mediaUrl);
+
+  const settings = JSON.stringify({
+    messageText: messageText || DEFAULT_CONFIRMATION_MESSAGE,
+    buttonLabel: buttonLabel || DEFAULT_CONFIRMATION_BUTTON,
+    mediaUrl: mediaUrl ?? null,
+  });
+
+  await db.query<ResultSetHeader>(
+    `
+      INSERT INTO user_payment_methods (
+        user_id,
+        provider,
+        is_active,
+        display_name,
+        credentials,
+        settings,
+        metadata
+      ) VALUES (?, 'payment_confirmation', 1, 'Confirmação de pagamento', NULL, ?, NULL)
+      ON DUPLICATE KEY UPDATE
+        is_active = VALUES(is_active),
+        display_name = VALUES(display_name),
+        settings = VALUES(settings),
+        metadata = VALUES(metadata)
+    `,
+    [payload.userId, settings],
+  );
+
+  return getPaymentConfirmationConfigForUser(payload.userId);
 };
 
 export const upsertMercadoPagoCheckoutConfig = async (payload: {
