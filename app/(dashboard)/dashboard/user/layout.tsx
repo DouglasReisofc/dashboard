@@ -7,6 +7,8 @@ interface UserDashboardLayoutProps {
   children: ReactNode;
 }
 
+export const dynamic = "force-dynamic";
+
 const UserDashboardLayout = async ({ children }: UserDashboardLayoutProps) => {
   const user = await getCurrentUser();
 

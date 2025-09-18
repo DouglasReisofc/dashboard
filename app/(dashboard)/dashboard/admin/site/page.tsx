@@ -10,6 +10,8 @@ export const metadata: Metadata = {
     "Gerencie a identidade visual, conteúdos principais e informações institucionais exibidas no site público.",
 };
 
+export const dynamic = "force-dynamic";
+
 const AdminSiteSettingsPage = async () => {
   const settings = await getAdminSiteSettings();
 
