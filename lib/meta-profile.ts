@@ -229,9 +229,8 @@ export const uploadMetaProfilePicture = async (
     const formData = new FormData();
     const blob = new Blob([arrayBuffer], { type: contentType });
 
-    formData.append("file", blob, filename);
-    formData.append("type", "image");
     formData.append("messaging_product", "whatsapp");
+    formData.append("file", blob, filename);
 
     const response = await fetch(url, {
       method: "POST",
