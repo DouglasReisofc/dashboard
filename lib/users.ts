@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import type { ResultSetHeader } from "mysql2";
 
 import { ensureSessionTable, ensureUserTable, getDb, UserRow } from "lib/db";
+import { normalizeUserRole } from "lib/auth";
 import type { AdminUserSummary, UserMetrics } from "types/users";
 
 const normalizeDate = (value: Date | string) =>
@@ -33,7 +34,7 @@ export const getAdminUsers = async (): Promise<AdminUserSummary[]> => {
     id: row.id,
     name: row.name,
     email: row.email,
-    role: row.role,
+    role: normalizeUserRole(row.role),
     isActive: Boolean(row.is_active),
     balance: (() => {
       const parsed = Number.parseFloat(row.balance ?? "0");

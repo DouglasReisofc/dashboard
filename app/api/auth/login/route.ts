@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 
 import { ensureUserTable, getDb, UserRow } from "lib/db";
-import { createSession, setSessionCookie } from "lib/auth";
+import { createSession, normalizeUserRole, setSessionCookie } from "lib/auth";
 
 export async function POST(request: Request) {
   try {
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
           id: user.id,
           name: user.name,
           email: user.email,
-          role: user.role,
+          role: normalizeUserRole(user.role),
           isActive: Boolean(user.is_active),
         },
         message: "Login realizado com sucesso.",
