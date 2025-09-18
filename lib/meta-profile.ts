@@ -176,16 +176,25 @@ export const updateMetaBusinessProfile = async (
 };
 
 const resolveProfileUploadFilename = (file: File) => {
-  const trimmedName = file.name?.trim();
+  const rawName = file.name?.trim();
+  const extensionFromType = file.type?.split("/")[1]?.replace(/[^a-zA-Z0-9]/g, "");
+  const defaultExtension = extensionFromType ? `.${extensionFromType}` : ".jpg";
 
-  if (trimmedName) {
-    return trimmedName;
+  if (rawName) {
+    const parts = rawName.split(".");
+    const base = parts.slice(0, -1).join(".") || parts[0];
+    const rawExtension = parts.length > 1 ? parts.at(-1) ?? "" : "";
+    const sanitizedExtension = rawExtension.replace(/[^a-zA-Z0-9]/g, "");
+    const extension = sanitizedExtension ? `.${sanitizedExtension}` : defaultExtension;
+
+    const sanitizedBase = base.replace(/[^a-zA-Z0-9_-]/g, "");
+
+    if (sanitizedBase.length > 0) {
+      return `${sanitizedBase}${extension}`;
+    }
   }
 
-  const typeExtension = file.type?.split("/")[1]?.replace(/[^a-zA-Z0-9]/g, "");
-  const extension = typeExtension ? `.${typeExtension}` : ".jpg";
-
-  return `profile-${Date.now()}${extension}`;
+  return `profile-${Date.now()}${defaultExtension}`;
 };
 
 export const uploadMetaProfilePicture = async (
