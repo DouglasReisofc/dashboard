@@ -4,7 +4,7 @@ import { getCurrentUser } from "lib/auth";
 import {
   AdminSiteSettingsError,
   getAdminSiteSettings,
-  saveAdminSiteSettingsFromUnknown,
+  saveAdminSiteSettingsFromForm,
 } from "lib/admin-site";
 
 export async function GET() {
@@ -42,8 +42,8 @@ export async function PUT(request: Request) {
       return NextResponse.json({ message: "Acesso restrito." }, { status: 403 });
     }
 
-    const payload = await request.json();
-    const settings = await saveAdminSiteSettingsFromUnknown(payload);
+    const formData = await request.formData();
+    const settings = await saveAdminSiteSettingsFromForm(formData);
 
     return NextResponse.json({
       message: "Configurações atualizadas com sucesso.",

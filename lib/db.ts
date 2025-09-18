@@ -364,6 +364,7 @@ export const ensureAdminSiteSettingsTable = async () => {
       id TINYINT PRIMARY KEY,
       site_name VARCHAR(120) NOT NULL,
       tagline VARCHAR(255) NULL,
+      logo_path VARCHAR(255) NULL,
       support_email VARCHAR(160) NULL,
       support_phone VARCHAR(40) NULL,
       hero_title VARCHAR(160) NULL,
@@ -377,6 +378,19 @@ export const ensureAdminSiteSettingsTable = async () => {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB;
   `);
+
+  const ensureColumn = async (column: string, definition: string) => {
+    const [existing] = await db.query<RowDataPacket[]>(
+      "SHOW COLUMNS FROM admin_site_settings LIKE ?",
+      [column],
+    );
+
+    if (!Array.isArray(existing) || existing.length === 0) {
+      await db.query(`ALTER TABLE admin_site_settings ADD COLUMN ${definition};`);
+    }
+  };
+
+  await ensureColumn("logo_path", "logo_path VARCHAR(255) NULL");
 
   await db.query(
     `INSERT INTO admin_site_settings (id, site_name)
@@ -549,6 +563,7 @@ export type AdminSiteSettingsRow = {
   id: number;
   site_name: string;
   tagline: string | null;
+  logo_path: string | null;
   support_email: string | null;
   support_phone: string | null;
   hero_title: string | null;

@@ -1,6 +1,7 @@
 export interface AdminSiteSettings {
   siteName: string;
   tagline: string | null;
+  logoUrl: string | null;
   supportEmail: string | null;
   supportPhone: string | null;
   heroTitle: string | null;

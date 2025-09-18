@@ -7,6 +7,7 @@ import {
   ensureAdminSiteSettingsTable,
   getDb,
 } from "./db";
+import { deleteUploadedFile, resolveUploadedFileUrl, saveUploadedFile } from "./uploads";
 
 export class AdminSiteSettingsError extends Error {
   status: number;
@@ -21,6 +22,7 @@ export class AdminSiteSettingsError extends Error {
 const DEFAULT_SETTINGS: AdminSiteSettings = {
   siteName: "StoreBot",
   tagline: null,
+  logoUrl: null,
   supportEmail: null,
   supportPhone: null,
   heroTitle: null,
@@ -32,6 +34,14 @@ const DEFAULT_SETTINGS: AdminSiteSettings = {
   footerText: null,
   updatedAt: null,
 };
+
+const MAX_LOGO_SIZE = 5 * 1024 * 1024;
+const LOGO_ALLOWED_MIME = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/svg+xml",
+]);
 
 const sanitizeText = (value: unknown, maxLength: number): string => {
   if (typeof value !== "string") {
@@ -110,6 +120,25 @@ const sanitizeUrl = (value: unknown): string | null => {
   return sanitized;
 };
 
+const validateImageFile = (
+  file: File,
+  maxSize: number,
+  allowedMime: Set<string>,
+  maxLabel: string,
+) => {
+  if (!(file instanceof File)) {
+    throw new AdminSiteSettingsError("Arquivo de imagem inválido.");
+  }
+
+  if (file.size > maxSize) {
+    throw new AdminSiteSettingsError(`Envie imagens de até ${maxLabel}.`);
+  }
+
+  if (!allowedMime.has(file.type)) {
+    throw new AdminSiteSettingsError("Envie imagens nos formatos PNG, JPG, WEBP ou SVG.");
+  }
+};
+
 const mapRowToSettings = (row: AdminSiteSettingsRow | null): AdminSiteSettings => {
   if (!row) {
     return DEFAULT_SETTINGS;
@@ -118,6 +147,7 @@ const mapRowToSettings = (row: AdminSiteSettingsRow | null): AdminSiteSettings =
   return {
     siteName: row.site_name || DEFAULT_SETTINGS.siteName,
     tagline: row.tagline ?? null,
+    logoUrl: row.logo_path ? resolveUploadedFileUrl(row.logo_path) : null,
     supportEmail: row.support_email ?? null,
     supportPhone: row.support_phone ?? null,
     heroTitle: row.hero_title ?? null,
@@ -179,35 +209,68 @@ const normalizePayload = (payload: AdminSiteSettingsPayload): AdminSiteSettingsP
   };
 };
 
-const parsePayload = (input: unknown): AdminSiteSettingsPayload => {
-  if (!input || typeof input !== "object") {
-    throw new AdminSiteSettingsError("Payload inválido.");
-  }
+const extractFormPayload = (formData: FormData) => {
+  const getOptional = (key: string): string | null => {
+    const value = formData.get(key);
+    return typeof value === "string" ? value : null;
+  };
 
-  const value = input as Partial<AdminSiteSettingsPayload>;
+  const getRequired = (key: string): string => {
+    const value = formData.get(key);
+    return typeof value === "string" ? value : "";
+  };
+
+  const logoEntry = formData.get("logo");
 
   return {
-    siteName: value.siteName ?? "",
-    tagline: value.tagline ?? null,
-    supportEmail: value.supportEmail ?? null,
-    supportPhone: value.supportPhone ?? null,
-    heroTitle: value.heroTitle ?? null,
-    heroSubtitle: value.heroSubtitle ?? null,
-    heroButtonLabel: value.heroButtonLabel ?? null,
-    heroButtonUrl: value.heroButtonUrl ?? null,
-    seoTitle: value.seoTitle ?? null,
-    seoDescription: value.seoDescription ?? null,
-    footerText: value.footerText ?? null,
+    payload: {
+      siteName: getRequired("siteName"),
+      tagline: getOptional("tagline"),
+      supportEmail: getOptional("supportEmail"),
+      supportPhone: getOptional("supportPhone"),
+      heroTitle: getOptional("heroTitle"),
+      heroSubtitle: getOptional("heroSubtitle"),
+      heroButtonLabel: getOptional("heroButtonLabel"),
+      heroButtonUrl: getOptional("heroButtonUrl"),
+      seoTitle: getOptional("seoTitle"),
+      seoDescription: getOptional("seoDescription"),
+      footerText: getOptional("footerText"),
+    },
+    removeLogo: String(formData.get("removeLogo")).toLowerCase() === "true",
+    logoFile: logoEntry instanceof File ? logoEntry : null,
   };
 };
 
-export const saveAdminSiteSettings = async (
-  payload: AdminSiteSettingsPayload,
+export const saveAdminSiteSettingsFromForm = async (
+  formData: FormData,
 ): Promise<AdminSiteSettings> => {
   await ensureAdminSiteSettingsTable();
 
-  const normalized = normalizePayload(payload);
   const db = getDb();
+  const [rows] = await db.query<(AdminSiteSettingsRow & RowDataPacket)[]>(
+    "SELECT * FROM admin_site_settings WHERE id = 1 LIMIT 1",
+  );
+  const existing = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+
+  const { payload, removeLogo, logoFile } = extractFormPayload(formData);
+  const normalized = normalizePayload(payload);
+
+  let nextLogoPath = existing?.logo_path ?? null;
+  let logoToDelete: string | null = null;
+
+  if (removeLogo && nextLogoPath) {
+    logoToDelete = nextLogoPath;
+    nextLogoPath = null;
+  }
+
+  if (logoFile && logoFile.size > 0) {
+    validateImageFile(logoFile, MAX_LOGO_SIZE, LOGO_ALLOWED_MIME, "5 MB");
+    const stored = await saveUploadedFile(logoFile, "admin/site");
+    if (!removeLogo && existing?.logo_path) {
+      logoToDelete = existing.logo_path;
+    }
+    nextLogoPath = stored;
+  }
 
   await db.query(
     `
@@ -215,6 +278,7 @@ export const saveAdminSiteSettings = async (
       SET
         site_name = ?,
         tagline = ?,
+        logo_path = ?,
         support_email = ?,
         support_phone = ?,
         hero_title = ?,
@@ -229,6 +293,7 @@ export const saveAdminSiteSettings = async (
     [
       normalized.siteName,
       normalized.tagline,
+      nextLogoPath,
       normalized.supportEmail,
       normalized.supportPhone,
       normalized.heroTitle,
@@ -241,12 +306,9 @@ export const saveAdminSiteSettings = async (
     ],
   );
 
-  return getAdminSiteSettings();
-};
+  if (logoToDelete) {
+    await deleteUploadedFile(logoToDelete);
+  }
 
-export const saveAdminSiteSettingsFromUnknown = async (
-  payload: unknown,
-): Promise<AdminSiteSettings> => {
-  const parsed = parsePayload(payload);
-  return saveAdminSiteSettings(parsed);
+  return getAdminSiteSettings();
 };
