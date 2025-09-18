@@ -12,6 +12,30 @@ import {
 } from "lib/db";
 import type { SessionUser } from "types/auth";
 
+const ADMIN_ROLE_ALIASES = new Set([
+  "admin",
+  "administrator",
+  "administrador",
+  "superadmin",
+  "super-admin",
+  "super_admin",
+]);
+
+export const normalizeUserRole = (value: unknown): "admin" | "user" => {
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (ADMIN_ROLE_ALIASES.has(normalized)) {
+      return "admin";
+    }
+
+    if (normalized === "user" || normalized === "usuario" || normalized === "customer") {
+      return "user";
+    }
+  }
+
+  return "user";
+};
+
 export const SESSION_COOKIE = "sb_session";
 const SESSION_TTL_DAYS = 7;
 
@@ -163,7 +187,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
       id: user.id,
       name: user.name,
       email: user.email,
-      role: user.role,
+      role: normalizeUserRole(user.role),
       isActive: Boolean(user.is_active),
     } satisfies SessionUser;
   } catch (error) {

@@ -26,6 +26,16 @@ import {
   defaultMenuVariables,
   defaultSupportReplyText,
 } from "lib/bot-menu";
+import {
+  META_INTERACTIVE_BODY_LIMIT,
+  META_INTERACTIVE_BUTTON_LIMIT,
+  META_INTERACTIVE_FOOTER_LIMIT,
+  META_INTERACTIVE_HEADER_LIMIT,
+  META_INTERACTIVE_ROW_DESCRIPTION_LIMIT,
+  META_INTERACTIVE_ROW_TITLE_LIMIT,
+  META_INTERACTIVE_SECTION_TITLE_LIMIT,
+  META_MEDIA_CAPTION_LIMIT,
+} from "lib/meta-limits";
 
 import type { BotMenuConfig } from "types/bot";
 
@@ -441,8 +451,12 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
                     value={formState.menuText}
                     onChange={(event) => handleFieldChange("menuText", event.target.value)}
                     placeholder="Escreva a mensagem que será enviada automaticamente"
+                    maxLength={META_INTERACTIVE_BODY_LIMIT}
                     required
                   />
+                  <Form.Text className="text-secondary">
+                    Máximo de {META_INTERACTIVE_BODY_LIMIT} caracteres exibidos no corpo do menu interativo.
+                  </Form.Text>
                 </Form.Group>
 
                 <Form.Group controlId="bot-menu-footer">
@@ -453,9 +467,10 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
                     value={formState.menuFooterText}
                     onChange={(event) => handleFieldChange("menuFooterText", event.target.value)}
                     placeholder="Texto exibido abaixo dos botões do menu principal"
+                    maxLength={META_INTERACTIVE_FOOTER_LIMIT}
                   />
                   <Form.Text className="text-secondary">
-                    Deixe em branco para ocultar o rodapé.
+                    Máximo de {META_INTERACTIVE_FOOTER_LIMIT} caracteres. Deixe em branco para ocultar o rodapé.
                   </Form.Text>
                 </Form.Group>
 
@@ -467,27 +482,36 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
                         value={formState.menuButtonBuyText}
                         onChange={(event) => handleFieldChange("menuButtonBuyText", event.target.value)}
                         placeholder="Botão para compras"
+                        maxLength={META_INTERACTIVE_BUTTON_LIMIT}
                         required
                       />
-                      <Form.Text className="text-secondary">Opção exibida para iniciar uma compra.</Form.Text>
+                      <Form.Text className="text-secondary">
+                        Máximo de {META_INTERACTIVE_BUTTON_LIMIT} caracteres. Opção exibida para iniciar uma compra.
+                      </Form.Text>
                     </div>
                     <div className="col-12 col-md-4">
                       <Form.Control
                         value={formState.menuButtonAddBalanceText}
                         onChange={(event) => handleFieldChange("menuButtonAddBalanceText", event.target.value)}
                         placeholder="Botão para adicionar saldo"
+                        maxLength={META_INTERACTIVE_BUTTON_LIMIT}
                         required
                       />
-                      <Form.Text className="text-secondary">Texto utilizado no botão de saldo.</Form.Text>
+                      <Form.Text className="text-secondary">
+                        Máximo de {META_INTERACTIVE_BUTTON_LIMIT} caracteres. Texto utilizado no botão de saldo.
+                      </Form.Text>
                     </div>
                     <div className="col-12 col-md-4">
                       <Form.Control
                         value={formState.menuButtonSupportText}
                         onChange={(event) => handleFieldChange("menuButtonSupportText", event.target.value)}
                         placeholder="Botão de suporte"
+                        maxLength={META_INTERACTIVE_BUTTON_LIMIT}
                         required
                       />
-                      <Form.Text className="text-secondary">Descrição do atalho para suporte.</Form.Text>
+                      <Form.Text className="text-secondary">
+                        Máximo de {META_INTERACTIVE_BUTTON_LIMIT} caracteres. Descrição do atalho para suporte.
+                      </Form.Text>
                     </div>
                   </div>
                 </Form.Group>
@@ -547,8 +571,12 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
                     value={formState.categoryListHeaderText}
                     onChange={(event) => handleFieldChange("categoryListHeaderText", event.target.value)}
                     placeholder="Ex: Comprar contas"
+                    maxLength={META_INTERACTIVE_HEADER_LIMIT}
                     required
                   />
+                  <Form.Text className="text-secondary">
+                    Máximo de {META_INTERACTIVE_HEADER_LIMIT} caracteres exibidos no topo da lista.
+                  </Form.Text>
                 </Form.Group>
 
                 <Form.Group controlId="bot-list-body">
@@ -559,8 +587,12 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
                     value={formState.categoryListBodyText}
                     onChange={(event) => handleFieldChange("categoryListBodyText", event.target.value)}
                     placeholder="Ex: Selecione a categoria que deseja comprar."
+                    maxLength={META_INTERACTIVE_BODY_LIMIT}
                     required
                   />
+                  <Form.Text className="text-secondary">
+                    Máximo de {META_INTERACTIVE_BODY_LIMIT} caracteres mostrados na descrição da lista interativa.
+                  </Form.Text>
                 </Form.Group>
 
                 <div className="row g-3">
@@ -571,8 +603,12 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
                         value={formState.categoryListButtonText}
                         onChange={(event) => handleFieldChange("categoryListButtonText", event.target.value)}
                         placeholder="Ex: Ver categorias"
+                        maxLength={META_INTERACTIVE_BUTTON_LIMIT}
                         required
                       />
+                      <Form.Text className="text-secondary">
+                        Máximo de {META_INTERACTIVE_BUTTON_LIMIT} caracteres no botão que abre a lista.
+                      </Form.Text>
                     </Form.Group>
                   </div>
                   <div className="col-12 col-md-6">
@@ -582,8 +618,12 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
                         value={formState.categoryListSectionTitle}
                         onChange={(event) => handleFieldChange("categoryListSectionTitle", event.target.value)}
                         placeholder="Ex: Categorias disponíveis"
+                        maxLength={META_INTERACTIVE_SECTION_TITLE_LIMIT}
                         required
                       />
+                      <Form.Text className="text-secondary">
+                        Máximo de {META_INTERACTIVE_SECTION_TITLE_LIMIT} caracteres para o título da seção da lista.
+                      </Form.Text>
                     </Form.Group>
                   </div>
                 </div>
@@ -596,7 +636,11 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
                     value={formState.categoryListFooterText}
                     onChange={(event) => handleFieldChange("categoryListFooterText", event.target.value)}
                     placeholder="Mensagem exibida quando não há mais páginas"
+                    maxLength={META_INTERACTIVE_FOOTER_LIMIT}
                   />
+                  <Form.Text className="text-secondary">
+                    Máximo de {META_INTERACTIVE_FOOTER_LIMIT} caracteres. Deixe em branco para ocultar.
+                  </Form.Text>
                 </Form.Group>
 
                 <Form.Group controlId="bot-list-footer-more">
@@ -607,7 +651,11 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
                     value={formState.categoryListFooterMoreText}
                     onChange={(event) => handleFieldChange("categoryListFooterMoreText", event.target.value)}
                     placeholder="Instruções para acessar a próxima página"
+                    maxLength={META_INTERACTIVE_FOOTER_LIMIT}
                   />
+                  <Form.Text className="text-secondary">
+                    Máximo de {META_INTERACTIVE_FOOTER_LIMIT} caracteres. Deixe em branco para usar o rodapé padrão.
+                  </Form.Text>
                 </Form.Group>
 
                 <div className="row g-3">
@@ -618,8 +666,12 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
                         value={formState.categoryListNextTitle}
                         onChange={(event) => handleFieldChange("categoryListNextTitle", event.target.value)}
                         placeholder="Ex: Próxima lista ▶️"
+                        maxLength={META_INTERACTIVE_ROW_TITLE_LIMIT}
                         required
                       />
+                      <Form.Text className="text-secondary">
+                        Máximo de {META_INTERACTIVE_ROW_TITLE_LIMIT} caracteres para o item que carrega a próxima página.
+                      </Form.Text>
                     </Form.Group>
                   </div>
                   <div className="col-12 col-md-6">
@@ -629,8 +681,12 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
                         value={formState.categoryListNextDescription}
                         onChange={(event) => handleFieldChange("categoryListNextDescription", event.target.value)}
                         placeholder="Ex: Visualizar mais categorias"
+                        maxLength={META_INTERACTIVE_ROW_DESCRIPTION_LIMIT}
                         required
                       />
+                      <Form.Text className="text-secondary">
+                        Máximo de {META_INTERACTIVE_ROW_DESCRIPTION_LIMIT} caracteres para a descrição do item de próxima lista.
+                      </Form.Text>
                     </Form.Group>
                   </div>
                 </div>
@@ -643,8 +699,12 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
                     value={formState.categoryListEmptyText}
                     onChange={(event) => handleFieldChange("categoryListEmptyText", event.target.value)}
                     placeholder="Texto exibido quando nenhuma categoria está disponível"
+                    maxLength={META_INTERACTIVE_BODY_LIMIT}
                     required
                   />
+                  <Form.Text className="text-secondary">
+                    Máximo de {META_INTERACTIVE_BODY_LIMIT} caracteres usados quando não há itens na lista.
+                  </Form.Text>
                 </Form.Group>
               </section>
             )}
@@ -666,8 +726,12 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
                     value={formState.categoryDetailBodyText}
                     onChange={(event) => handleFieldChange("categoryDetailBodyText", event.target.value)}
                     placeholder="Texto mostrado junto com a imagem da categoria"
+                    maxLength={META_INTERACTIVE_BODY_LIMIT}
                     required
                   />
+                  <Form.Text className="text-secondary">
+                    Máximo de {META_INTERACTIVE_BODY_LIMIT} caracteres exibidos no corpo do cartão interativo.
+                  </Form.Text>
                 </Form.Group>
 
                 <Form.Group controlId="bot-detail-footer">
@@ -678,8 +742,11 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
                     value={formState.categoryDetailFooterText}
                     onChange={(event) => handleFieldChange("categoryDetailFooterText", event.target.value)}
                     placeholder="Mensagem exibida abaixo do botão de compra"
+                    maxLength={META_INTERACTIVE_FOOTER_LIMIT}
                   />
-                  <Form.Text className="text-secondary">Deixe vazio para não exibir rodapé.</Form.Text>
+                  <Form.Text className="text-secondary">
+                    Máximo de {META_INTERACTIVE_FOOTER_LIMIT} caracteres. Deixe vazio para não exibir rodapé.
+                  </Form.Text>
                 </Form.Group>
 
                 <div className="row g-3">
@@ -690,8 +757,12 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
                         value={formState.categoryDetailButtonText}
                         onChange={(event) => handleFieldChange("categoryDetailButtonText", event.target.value)}
                         placeholder="Ex: Comprar"
+                        maxLength={META_INTERACTIVE_BUTTON_LIMIT}
                         required
                       />
+                      <Form.Text className="text-secondary">
+                        Máximo de {META_INTERACTIVE_BUTTON_LIMIT} caracteres exibidos no botão interativo.
+                      </Form.Text>
                     </Form.Group>
                   </div>
                   <div className="col-12 col-md-6">
@@ -701,8 +772,11 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
                         value={formState.categoryDetailFileCaption}
                         onChange={(event) => handleFieldChange("categoryDetailFileCaption", event.target.value)}
                         placeholder="Ex: {{nome_categoria}} - dados complementares"
+                        maxLength={META_MEDIA_CAPTION_LIMIT}
                       />
-                      <Form.Text className="text-secondary">Deixe vazio para não enviar legenda.</Form.Text>
+                      <Form.Text className="text-secondary">
+                        Máximo de {META_MEDIA_CAPTION_LIMIT} caracteres utilizados como legenda do anexo enviado.
+                      </Form.Text>
                     </Form.Group>
                   </div>
                 </div>
@@ -726,8 +800,12 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
                     value={formState.addBalanceReplyText}
                     onChange={(event) => handleFieldChange("addBalanceReplyText", event.target.value)}
                     placeholder="Orientações para o cliente adicionar saldo"
+                    maxLength={META_INTERACTIVE_BODY_LIMIT}
                     required
                   />
+                  <Form.Text className="text-secondary">
+                    Máximo de {META_INTERACTIVE_BODY_LIMIT} caracteres enviados na resposta automática de saldo.
+                  </Form.Text>
                 </Form.Group>
 
                 <Form.Group controlId="bot-reply-support">
@@ -738,8 +816,12 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
                     value={formState.supportReplyText}
                     onChange={(event) => handleFieldChange("supportReplyText", event.target.value)}
                     placeholder="Mensagem enviada ao acionar o suporte"
+                    maxLength={META_INTERACTIVE_BODY_LIMIT}
                     required
                   />
+                  <Form.Text className="text-secondary">
+                    Máximo de {META_INTERACTIVE_BODY_LIMIT} caracteres respondidos automaticamente no suporte.
+                  </Form.Text>
                 </Form.Group>
               </section>
             )}

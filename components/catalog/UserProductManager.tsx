@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import type { CategorySummary, ProductSummary } from "types/catalog";
 import { formatDate } from "lib/format";
+import { META_INTERACTIVE_BODY_LIMIT } from "lib/meta-limits";
 
 type ProductFormState = {
   categoryId: string;
@@ -190,7 +191,11 @@ const UserProductManager = ({ categories, products }: UserProductManagerProps) =
           value={productForm.details}
           onChange={(event) => handleProductChange("details", event.target.value)}
           placeholder="Cole aqui o conteúdo confidencial"
+          maxLength={META_INTERACTIVE_BODY_LIMIT}
         />
+        <Form.Text className="text-secondary">
+          Máximo de {META_INTERACTIVE_BODY_LIMIT} caracteres enviados junto com o produto.
+        </Form.Text>
       </Form.Group>
       <Form.Group className="mb-3">
         <Form.Label>Anexo opcional</Form.Label>

@@ -19,20 +19,35 @@ import {
   findCustomerByWhatsappForUser,
   upsertCustomerInteraction,
 } from "lib/customers";
-import { formatCurrency } from "lib/format";
+import { formatCurrency, formatDateTime } from "lib/format";
 import {
   CATEGORY_LIST_NEXT_PREFIX,
   CATEGORY_LIST_ROW_PREFIX,
   CATEGORY_PURCHASE_BUTTON_PREFIX,
   MENU_BUTTON_IDS,
+  ADD_BALANCE_OPTION_PREFIX,
+  PAYMENT_METHOD_OPTION_PREFIX,
   sendBotMenuReply,
   sendCategoryDetailReply,
   sendCategoryListReply,
+  sendAddBalanceOptions,
+  sendInteractiveCopyCodeMessage,
+  sendInteractiveCtaUrlMessage,
+  sendImageFromUrl,
   sendProductFile,
   sendTextMessage,
 } from "lib/meta";
+import {
+  createMercadoPagoCheckoutCharge,
+  createMercadoPagoPixCharge,
+  getMercadoPagoCheckoutConfigForUser,
+  getMercadoPagoPixConfigForUser,
+  getPaymentMethodSummariesForUser,
+  getPixChargeImageUrl,
+} from "lib/payments";
 import { getWebhookByPublicId, recordWebhookEvent } from "lib/webhooks";
 import type { CategorySummary } from "types/catalog";
+import type { PaymentMethodProvider } from "types/payments";
 
 type ChangeValue = {
   messaging_product?: string;
@@ -135,6 +150,10 @@ const replyWithBotMenu = async (
 
   let cachedCategories: CategorySummary[] | null = null;
   let botConfigPromise: Promise<Awaited<ReturnType<typeof getBotMenuConfigForUser>>> | null = null;
+  let pixConfigPromise: Promise<Awaited<ReturnType<typeof getMercadoPagoPixConfigForUser>>> | null = null;
+  let checkoutConfigPromise: Promise<Awaited<ReturnType<typeof getMercadoPagoCheckoutConfigForUser>>> | null = null;
+  let paymentMethodSummariesPromise: Promise<Awaited<ReturnType<typeof getPaymentMethodSummariesForUser>>> | null = null;
+  let addBalanceMessagePromise: Promise<string> | null = null;
 
   const loadActiveCategories = async (): Promise<CategorySummary[]> => {
     if (cachedCategories !== null) {
@@ -164,6 +183,103 @@ const replyWithBotMenu = async (
     }
 
     return botConfigPromise;
+  };
+
+  const resolvePixConfig = async () => {
+    if (!pixConfigPromise) {
+      pixConfigPromise = getMercadoPagoPixConfigForUser(webhook.user_id);
+    }
+
+    return pixConfigPromise;
+  };
+
+  const resolveCheckoutConfig = async () => {
+    if (!checkoutConfigPromise) {
+      checkoutConfigPromise = getMercadoPagoCheckoutConfigForUser(webhook.user_id);
+    }
+
+    return checkoutConfigPromise;
+  };
+
+  const resolvePaymentMethods = async () => {
+    if (!paymentMethodSummariesPromise) {
+      paymentMethodSummariesPromise = getPaymentMethodSummariesForUser(webhook.user_id);
+    }
+
+    return paymentMethodSummariesPromise;
+  };
+
+  const resolveAddBalanceMessage = async () => {
+    if (!addBalanceMessagePromise) {
+      addBalanceMessagePromise = (async () => {
+        const botConfig = await resolveBotConfig();
+        return renderAddBalanceReply(
+          botConfig
+            ? { addBalanceReplyText: botConfig.addBalanceReplyText, variables: botConfig.variables }
+            : null,
+          getContext(),
+        );
+      })();
+    }
+
+    return addBalanceMessagePromise;
+  };
+
+  const normalizeAmountOptions = (values: number[]) =>
+    values
+      .map((value) => {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric) || numeric <= 0) {
+          return null;
+        }
+
+        const cents = Math.round(numeric * 100);
+        return { amount: numeric, cents };
+      })
+      .filter((entry): entry is { amount: number; cents: number } => Boolean(entry));
+
+  const sendAmountSelectionForProvider = async (
+    provider: PaymentMethodProvider,
+    params: {
+      message: string;
+      normalizedAmounts: Array<{ amount: number; cents: number }>;
+      pixConfig: Awaited<ReturnType<typeof getMercadoPagoPixConfigForUser>>;
+      checkoutConfig: Awaited<ReturnType<typeof getMercadoPagoCheckoutConfigForUser>>;
+    },
+  ) => {
+    const { message, normalizedAmounts, pixConfig, checkoutConfig } = params;
+
+    const rows = normalizedAmounts.map((entry) => ({
+      id: `${ADD_BALANCE_OPTION_PREFIX}${provider}_${entry.cents}`,
+      title: formatCurrency(entry.amount),
+      description:
+        provider === "mercadopago_pix"
+          ? `Expira em ${pixConfig.pixExpirationMinutes} min`
+          : "Pagamento online via checkout",
+    }));
+
+    const footer = provider === "mercadopago_pix"
+      ? pixConfig.instructions?.trim()
+          ? pixConfig.instructions.trim()
+          : pixConfig.pixKey?.trim()
+            ? `Chave Pix: ${pixConfig.pixKey.trim()}`
+            : null
+      : null;
+
+    const header = provider === "mercadopago_pix"
+      ? pixConfig.displayName
+      : checkoutConfig.displayName;
+
+    await sendAddBalanceOptions({
+      webhook,
+      to: recipient,
+      header,
+      body: message,
+      footer,
+      buttonLabel: "Selecionar valor",
+      sectionTitle: "Valores disponíveis",
+      rows,
+    });
   };
 
   const getContext = (): BotTemplateContext => ({
@@ -241,6 +357,288 @@ const replyWithBotMenu = async (
   }
 
   if (listReplyId) {
+    if (listReplyId.startsWith(PAYMENT_METHOD_OPTION_PREFIX)) {
+      const providerRaw = listReplyId.slice(PAYMENT_METHOD_OPTION_PREFIX.length).trim();
+      const provider = providerRaw as PaymentMethodProvider;
+
+      if (provider !== "mercadopago_pix" && provider !== "mercadopago_checkout") {
+        await sendTextMessage({
+          webhook,
+          to: recipient,
+          text: "Não reconhecemos a forma de pagamento selecionada. Tente novamente pelo menu.",
+        });
+        await sendMainMenu();
+        return;
+      }
+
+      const [message, pixConfig, checkoutConfig, methodSummaries] = await Promise.all([
+        resolveAddBalanceMessage(),
+        resolvePixConfig(),
+        resolveCheckoutConfig(),
+        resolvePaymentMethods(),
+      ]);
+
+      const pixAmounts = normalizeAmountOptions(pixConfig.amountOptions);
+      const checkoutAmounts = normalizeAmountOptions(checkoutConfig.amountOptions);
+      const amountByProvider: Record<PaymentMethodProvider, Array<{ amount: number; cents: number }>> = {
+        mercadopago_pix: pixAmounts,
+        mercadopago_checkout: checkoutAmounts,
+      };
+
+      const selectedMethod = methodSummaries.find(
+        (method) => method.provider === provider && method.isActive && method.isConfigured,
+      );
+
+      if (!selectedMethod) {
+        await sendTextMessage({
+          webhook,
+          to: recipient,
+          text: "Essa forma de pagamento não está disponível no momento. Escolha outra opção.",
+        });
+        await sendMainMenu();
+        return;
+      }
+
+      const normalizedAmounts = amountByProvider[provider] ?? [];
+
+      if (normalizedAmounts.length === 0) {
+        await sendTextMessage({
+          webhook,
+          to: recipient,
+          text: `${message}\n\nNenhum valor de recarga foi configurado para esta forma de pagamento.`,
+        });
+        await sendMainMenu();
+        return;
+      }
+
+      await sendAmountSelectionForProvider(provider, {
+        message,
+        normalizedAmounts,
+        pixConfig,
+        checkoutConfig,
+      });
+
+      return;
+    }
+
+    if (listReplyId.startsWith(ADD_BALANCE_OPTION_PREFIX)) {
+      const remainder = listReplyId.slice(ADD_BALANCE_OPTION_PREFIX.length);
+      let provider: PaymentMethodProvider = "mercadopago_pix";
+      let amountSegment = remainder;
+
+      const separatorIndex = remainder.lastIndexOf("_");
+      if (separatorIndex > 0) {
+        const maybeProvider = remainder.slice(0, separatorIndex) as PaymentMethodProvider;
+        if (maybeProvider === "mercadopago_pix" || maybeProvider === "mercadopago_checkout") {
+          provider = maybeProvider;
+          amountSegment = remainder.slice(separatorIndex + 1);
+        }
+      }
+
+      const cents = Number.parseInt(amountSegment, 10);
+
+      const [pixConfig, checkoutConfig] = await Promise.all([
+        resolvePixConfig(),
+        resolveCheckoutConfig(),
+      ]);
+
+      const normalizedAmounts =
+        provider === "mercadopago_pix"
+          ? normalizeAmountOptions(pixConfig.amountOptions)
+          : normalizeAmountOptions(checkoutConfig.amountOptions);
+      const allowedCents = new Set(normalizedAmounts.map((entry) => entry.cents));
+
+      if (
+        normalizedAmounts.length === 0 ||
+        !Number.isFinite(cents) ||
+        cents <= 0 ||
+        !allowedCents.has(cents)
+      ) {
+        await sendTextMessage({
+          webhook,
+          to: recipient,
+          text: "Não reconhecemos o valor selecionado. Escolha uma opção disponível no menu.",
+        });
+        await sendMainMenu();
+        return;
+      }
+
+      const amount = cents / 100;
+
+      if (provider === "mercadopago_pix") {
+        if (!pixConfig.isActive || !pixConfig.isConfigured) {
+          await sendTextMessage({
+            webhook,
+            to: recipient,
+            text: "No momento não conseguimos gerar um Pix automático. Tente novamente em instantes.",
+          });
+          await sendMainMenu();
+          return;
+        }
+
+        try {
+          const charge = await createMercadoPagoPixCharge({
+            userId: webhook.user_id,
+            amount,
+            customerWhatsapp: recipient,
+            customerName: contactName,
+            config: pixConfig,
+          });
+
+          const expirationText = charge.expiresAt ? formatDateTime(charge.expiresAt) : null;
+          const pixKeyLine = pixConfig.pixKey ? `Chave Pix: ${pixConfig.pixKey}` : null;
+          const detailLines = [
+            `Valor: ${formatCurrency(charge.amount)}`,
+            expirationText ? `Expira em: ${expirationText}` : null,
+            pixKeyLine,
+          ].filter((line): line is string => typeof line === "string" && line.length > 0);
+
+          const summaryBody = [
+            "💳 Pagamento Pix",
+            detailLines.join("\n"),
+            pixConfig.instructions?.trim() || null,
+            "Use o botão abaixo para abrir o QR Code e finalizar o pagamento.",
+            "O saldo será atualizado automaticamente após a confirmação.",
+          ]
+            .filter((line): line is string => typeof line === "string" && line.trim().length > 0)
+            .join("\n\n");
+          const headerImageUrl = charge.qrCodeBase64 ? getPixChargeImageUrl(charge.publicId) : null;
+
+          let summaryDelivered = false;
+
+          if (charge.ticketUrl) {
+            await sendInteractiveCtaUrlMessage({
+              webhook,
+              to: recipient,
+              bodyText: summaryBody,
+              buttonText: "Abrir pagamento Pix",
+              buttonUrl: charge.ticketUrl,
+              headerImageUrl,
+              headerText: "Pagamento Pix",
+            });
+            summaryDelivered = true;
+          } else if (headerImageUrl) {
+            const caption = [
+              "💳 Pagamento Pix",
+              `Valor: ${formatCurrency(charge.amount)}`,
+              expirationText ? `Expira em: ${expirationText}` : null,
+            ]
+              .filter((line): line is string => typeof line === "string" && line.length > 0)
+              .join("\n");
+
+            await sendImageFromUrl({
+              webhook,
+              to: recipient,
+              imageUrl: headerImageUrl,
+              caption,
+            });
+          }
+
+          if (!summaryDelivered) {
+            await sendTextMessage({
+              webhook,
+              to: recipient,
+              text: summaryBody,
+            });
+          }
+
+          if (charge.qrCode) {
+            await sendTextMessage({
+              webhook,
+              to: recipient,
+              text: charge.qrCode,
+            });
+
+            await sendInteractiveCopyCodeMessage({
+              webhook,
+              to: recipient,
+              bodyText: "Copiar código Pix",
+              buttonText: "Copiar código Pix",
+              code: charge.qrCode,
+            });
+          }
+
+          return;
+        } catch (pixError) {
+          console.error("[Meta Webhook] Falha ao gerar cobrança Pix", pixError);
+          await sendTextMessage({
+            webhook,
+            to: recipient,
+            text: "Não foi possível gerar o Pix agora. Tente novamente em alguns minutos.",
+          });
+          await sendMainMenu();
+          return;
+        }
+      }
+
+      if (provider === "mercadopago_checkout") {
+        if (!checkoutConfig.isActive || !checkoutConfig.isConfigured) {
+          await sendTextMessage({
+            webhook,
+            to: recipient,
+            text: "O checkout online está indisponível no momento. Escolha outra forma de pagamento.",
+          });
+          await sendMainMenu();
+          return;
+        }
+
+        try {
+          const charge = await createMercadoPagoCheckoutCharge({
+            userId: webhook.user_id,
+            amount,
+            customerWhatsapp: recipient,
+            customerName: contactName,
+            config: checkoutConfig,
+          });
+
+          const summaryBody = [
+            `💳 ${checkoutConfig.displayName}`,
+            `Valor: ${formatCurrency(charge.amount)}`,
+            "Finalize o pagamento no link abaixo.",
+            "O saldo será atualizado automaticamente após a confirmação.",
+          ]
+            .filter((line): line is string => typeof line === "string" && line.trim().length > 0)
+            .join("\n\n");
+
+          if (charge.ticketUrl) {
+            await sendInteractiveCtaUrlMessage({
+              webhook,
+              to: recipient,
+              bodyText: summaryBody,
+              buttonText: "Abrir pagamento",
+              buttonUrl: charge.ticketUrl,
+              headerText: checkoutConfig.displayName,
+            });
+          } else {
+            await sendTextMessage({
+              webhook,
+              to: recipient,
+              text: summaryBody,
+            });
+          }
+
+          return;
+        } catch (checkoutError) {
+          console.error("[Meta Webhook] Falha ao gerar cobrança de checkout", checkoutError);
+          await sendTextMessage({
+            webhook,
+            to: recipient,
+            text: "Não foi possível gerar o pagamento agora. Tente novamente em alguns minutos.",
+          });
+          await sendMainMenu();
+          return;
+        }
+      }
+
+      await sendTextMessage({
+        webhook,
+        to: recipient,
+        text: "Não reconhecemos a forma de pagamento selecionada. Utilize o menu principal para tentar novamente.",
+      });
+      await sendMainMenu();
+      return;
+    }
+
     if (listReplyId.startsWith(CATEGORY_LIST_NEXT_PREFIX)) {
       const nextPageRaw = listReplyId.slice(CATEGORY_LIST_NEXT_PREFIX.length);
       const nextPage = Number.parseInt(nextPageRaw, 10);
@@ -492,20 +890,77 @@ const replyWithBotMenu = async (
     }
 
     if (buttonReplyId === MENU_BUTTON_IDS.addBalance) {
-      const botConfig = await resolveBotConfig();
-      const message = renderAddBalanceReply(
-        botConfig
-          ? { addBalanceReplyText: botConfig.addBalanceReplyText, variables: botConfig.variables }
-          : null,
-        getContext(),
+      const [pixConfig, checkoutConfig, methodSummaries, message] = await Promise.all([
+        resolvePixConfig(),
+        resolveCheckoutConfig(),
+        resolvePaymentMethods(),
+        resolveAddBalanceMessage(),
+      ]);
+
+      const activeMethods = methodSummaries.filter((method) => method.isActive && method.isConfigured);
+
+      if (activeMethods.length === 0) {
+        await sendTextMessage({
+          webhook,
+          to: recipient,
+          text: `${message}\n\nNo momento não há métodos de pagamento disponíveis.`,
+        });
+        await sendMainMenu();
+        return;
+      }
+
+      const pixAmounts = normalizeAmountOptions(pixConfig.amountOptions);
+      const checkoutAmounts = normalizeAmountOptions(checkoutConfig.amountOptions);
+      const amountByProvider: Record<PaymentMethodProvider, Array<{ amount: number; cents: number }>> = {
+        mercadopago_pix: pixAmounts,
+        mercadopago_checkout: checkoutAmounts,
+      };
+
+      const methodsWithAmounts = activeMethods.filter(
+        (method) => amountByProvider[method.provider]?.length,
       );
 
-      await sendTextMessage({
+      if (methodsWithAmounts.length === 0) {
+        await sendTextMessage({
+          webhook,
+          to: recipient,
+          text: `${message}\n\nNenhum valor de recarga foi configurado.`,
+        });
+        await sendMainMenu();
+        return;
+      }
+
+      if (methodsWithAmounts.length === 1) {
+        const [method] = methodsWithAmounts;
+        await sendAmountSelectionForProvider(method.provider, {
+          message,
+          normalizedAmounts: amountByProvider[method.provider],
+          pixConfig,
+          checkoutConfig,
+        });
+        return;
+      }
+
+      const methodRows = methodsWithAmounts.map((method) => ({
+        id: `${PAYMENT_METHOD_OPTION_PREFIX}${method.provider}`,
+        title: method.displayName,
+        description:
+          method.provider === "mercadopago_pix"
+            ? "Pix com QR Code e copia e cola"
+            : "Checkout online com cartão, Pix e boleto",
+      }));
+
+      await sendAddBalanceOptions({
         webhook,
         to: recipient,
-        text: message,
+        header: "Selecione a forma de pagamento",
+        body: message,
+        footer: null,
+        buttonLabel: "Escolher método",
+        sectionTitle: "Formas disponíveis",
+        rows: methodRows,
       });
-      await sendMainMenu();
+
       return;
     }
 

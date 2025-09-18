@@ -1,9 +1,11 @@
 import { Fragment } from "react";
 import { Metadata } from "next";
 
-import UserBotMenuEditor from "components/bot/UserBotMenuEditor";
+import UserBotConfigPanel from "components/bot/UserBotConfigPanel";
 import { getCurrentUser } from "lib/auth";
 import { getBotMenuConfigForUser } from "lib/bot-config";
+import { fetchMetaBusinessProfile } from "lib/meta-profile";
+import { getWebhookRowForUser } from "lib/webhooks";
 
 export const metadata: Metadata = {
   title: "Configurar bot | StoreBot Dashboard",
@@ -19,18 +21,25 @@ const UserBotConfigPage = async () => {
   }
 
   const config = await getBotMenuConfigForUser(user.id);
+  const webhook = await getWebhookRowForUser(user.id);
+  const profile = await fetchMetaBusinessProfile(webhook);
+  const hasWebhookCredentials = Boolean(webhook?.access_token && webhook.phone_number_id);
 
   return (
     <Fragment>
       <div className="mb-6">
         <h1 className="mb-2">Configurar bot</h1>
         <p className="text-secondary mb-0">
-          Defina o texto base, variáveis e a mídia que serão respondidos automaticamente a cada mensagem
-          recebida no seu webhook.
+          Defina mensagens automáticas, variáveis, mídias e também ajuste o perfil comercial exibido no
+          WhatsApp diretamente pelo painel.
         </p>
       </div>
 
-      <UserBotMenuEditor config={config} />
+      <UserBotConfigPanel
+        menuConfig={config}
+        profile={profile}
+        hasWebhookCredentials={hasWebhookCredentials}
+      />
     </Fragment>
   );
 };
