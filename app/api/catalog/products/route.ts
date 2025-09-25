@@ -5,6 +5,7 @@ import type { AdminProductSummary, ProductSummary } from "types/catalog";
 import { ensureProductTable } from "lib/db";
 import { getCurrentUser } from "lib/auth";
 import { saveUploadedFile } from "lib/uploads";
+import { assertUserHasActivePlan, SubscriptionPlanError } from "lib/plans";
 
 const parseInteger = (value: FormDataEntryValue | null, fallback = 0) => {
   if (typeof value !== "string") {
@@ -21,6 +22,10 @@ export async function GET(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ message: "Não autenticado." }, { status: 401 });
+    }
+
+    if (user.role !== "admin") {
+      await assertUserHasActivePlan(user.id);
     }
 
     await ensureProductTable();
@@ -96,7 +101,7 @@ export async function POST(request: NextRequest) {
 
     let filePath: string | null = null;
     if (file instanceof File && file.size > 0) {
-      filePath = await saveUploadedFile(file, "products");
+      filePath = await saveUploadedFile(file, "products", { convertToWebp: false });
     }
 
     const productId = await insertProduct({
@@ -113,6 +118,10 @@ export async function POST(request: NextRequest) {
       { status: 201 },
     );
   } catch (error) {
+    if (error instanceof SubscriptionPlanError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
+
     console.error("Failed to create product", error);
     return NextResponse.json(
       { message: "Não foi possível cadastrar o produto." },

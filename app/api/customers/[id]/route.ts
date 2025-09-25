@@ -25,7 +25,7 @@ const parseBalance = (value: unknown): number => {
   return 0;
 };
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
   try {
     const user = await getCurrentUser();
 

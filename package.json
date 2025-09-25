@@ -4,12 +4,15 @@
   "private": false,
   "homepage": "https://themewagon.github.io/dasher-ui",
   "scripts": {
+    "clean": "rimraf .next",
+    "predev": "npm run clean",
     "dev": "next dev -p 4478",
     "build": "next build",
     "start": "next start -p 4478",
     "lint": "next lint",
     "predeploy": "npm run build",
-    "deploy": "echo 'Deploy requires a Node.js host (e.g. Vercel) to run the dynamic app.'"
+    "deploy": "echo 'Deploy requires a Node.js host (e.g. Vercel) to run the dynamic app.'",
+    "meta:profile-photo": "tsx scripts/meta-profile-photo-cli.ts"
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.8.2",
@@ -23,6 +26,7 @@
     "bootstrap-icons": "^1.13.1",
     "mysql2": "^3.11.4",
     "next": "15.3.5",
+    "nodemailer": "^7.0.6",
     "quill": "^2.0.3",
     "react": "^19.0.0",
     "react-apexcharts": "^1.7.0",
@@ -36,12 +40,16 @@
     "react-redux": "^9.2.0",
     "react-responsive": "^10.0.1",
     "redux": "^5.0.1",
+    "sharp": "^0.33.4",
     "simplebar-react": "^3.3.2",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
     "swiper": "^11.2.10",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/quill": "^2.0.14",
     "@types/react": "^19",
@@ -50,8 +58,10 @@
     "eslint-config-next": "15.3.5",
     "gh-pages": "^6.3.0",
     "gulp-sass": "^6.0.1",
+    "rimraf": "^6.0.1",
     "sass": "^1.89.2",
     "sass-loader": "^16.0.5",
+    "tsx": "^4.19.2",
     "typescript": "^5",
     "webpack": "^5.99.9"
   }

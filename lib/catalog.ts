@@ -1,4 +1,4 @@
-import { ResultSetHeader } from "mysql2";
+import { ResultSetHeader, RowDataPacket } from "mysql2";
 
 import type {
   AdminCategorySummary,
@@ -96,6 +96,23 @@ export const getCategoriesForUser = async (userId: number): Promise<CategorySumm
   );
 
   return rows.map((row) => mapCategoryRow(row) as CategorySummary);
+};
+
+export const countCategoriesForUser = async (userId: number): Promise<number> => {
+  await ensureCategoryTable();
+  const db = getDb();
+
+  const [rows] = await db.query<RowDataPacket[]>(
+    `SELECT COUNT(*) AS total FROM categories WHERE user_id = ?`,
+    [userId],
+  );
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return 0;
+  }
+
+  const raw = rows[0].total;
+  return typeof raw === "number" ? raw : Number.parseInt(String(raw ?? 0), 10) || 0;
 };
 
 export const getCategoryByIdForUser = async (

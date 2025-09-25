@@ -1,10 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Badge, Button, Card, Form, Modal, Table } from "react-bootstrap";
 import { useRouter } from "next/navigation";
 
+import {
+  META_INTERACTIVE_BODY_LIMIT,
+  META_INTERACTIVE_ROW_TITLE_LIMIT,
+} from "lib/meta-limits";
+
 import type { CategorySummary } from "types/catalog";
+import type { UserPlanStatus } from "types/plans";
 
 type CategoryFormState = {
   name: string;
@@ -18,6 +24,11 @@ type CategoryFormState = {
 
 type Feedback = { type: "success" | "danger"; message: string } | null;
 
+type Props = {
+  categories: CategorySummary[];
+  planStatus: UserPlanStatus;
+};
+
 const emptyCategoryForm: CategoryFormState = {
   name: "",
   price: "0,00",
@@ -28,35 +39,86 @@ const emptyCategoryForm: CategoryFormState = {
   removeImage: false,
 };
 
-const formatCurrency = (value: number) => {
-  return value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const statusLabel = (status: UserPlanStatus["status"]) => {
+  switch (status) {
+    case "active":
+      return "Plano ativo";
+    case "pending":
+      return "Pagamento pendente";
+    case "expired":
+      return "Plano expirado";
+    default:
+      return "Nenhum plano";
+  }
 };
 
-interface UserCategoryManagerProps {
-  categories: CategorySummary[];
-}
+const formatCurrency = (value: number) =>
+  value.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 
-const UserCategoryManager = ({ categories }: UserCategoryManagerProps) => {
+const UserCategoryManager = ({ categories, planStatus }: Props) => {
   const router = useRouter();
+  const canManage = planStatus.status === "active";
 
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [categoryForm, setCategoryForm] = useState<CategoryFormState>(emptyCategoryForm);
   const [editingCategory, setEditingCategory] = useState<CategorySummary | null>(null);
   const [categoryFeedback, setCategoryFeedback] = useState<Feedback>(null);
-  const [isCategorySubmitting, setIsCategorySubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingCategoryId, setDeletingCategoryId] = useState<number | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [currentImagePath, setCurrentImagePath] = useState<string | null>(null);
 
-  const resetCategoryForm = () => {
+  const cleanupPreview = () => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
+
+  const resetForm = () => {
+    cleanupPreview();
+    setPreviewUrl(null);
+    setCurrentImagePath(null);
     setCategoryForm(emptyCategoryForm);
     setEditingCategory(null);
     setCategoryModalOpen(false);
   };
 
-  const handleCategoryChange = <T extends keyof CategoryFormState>(field: T, value: CategoryFormState[T]) => {
+  const handleChange = <T extends keyof CategoryFormState>(field: T, value: CategoryFormState[T]) => {
     setCategoryForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleImageChange = (file: File | null) => {
+    cleanupPreview();
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+      setCategoryForm((prev) => ({ ...prev, imageFile: file, removeImage: false }));
+    } else {
+      setPreviewUrl(null);
+      setCategoryForm((prev) => ({ ...prev, imageFile: null }));
+    }
+  };
+
   const openCategoryModal = (category?: CategorySummary) => {
+    if (!canManage) {
+      setCategoryFeedback({
+        type: "danger",
+        message: "Ative seu plano para cadastrar ou editar categorias.",
+      });
+      return;
+    }
+
     if (category) {
       setEditingCategory(category);
       setCategoryForm({
@@ -68,17 +130,29 @@ const UserCategoryManager = ({ categories }: UserCategoryManagerProps) => {
         imageFile: null,
         removeImage: false,
       });
+      setCurrentImagePath(category.imagePath ?? null);
+      setPreviewUrl(null);
     } else {
-      setCategoryForm(emptyCategoryForm);
       setEditingCategory(null);
+      setCategoryForm(emptyCategoryForm);
+      setCurrentImagePath(null);
+      setPreviewUrl(null);
     }
 
     setCategoryFeedback(null);
     setCategoryModalOpen(true);
   };
 
-  const handleCategorySubmit = async () => {
-    setIsCategorySubmitting(true);
+  const handleSubmit = async () => {
+    if (!canManage) {
+      setCategoryFeedback({
+        type: "danger",
+        message: "Plano inativo. Efetue a assinatura para continuar.",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
     setCategoryFeedback(null);
 
     const formData = new FormData();
@@ -99,11 +173,7 @@ const UserCategoryManager = ({ categories }: UserCategoryManagerProps) => {
     const url = editingCategory ? `/api/catalog/categories/${editingCategory.id}` : "/api/catalog/categories";
     const method = editingCategory ? "PUT" : "POST";
 
-    const response = await fetch(url, {
-      method,
-      body: formData,
-    });
-
+    const response = await fetch(url, { method, body: formData });
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
@@ -111,23 +181,31 @@ const UserCategoryManager = ({ categories }: UserCategoryManagerProps) => {
         type: "danger",
         message: data.message ?? "Não foi possível salvar a categoria.",
       });
-      setIsCategorySubmitting(false);
+      setIsSubmitting(false);
       return;
     }
 
     setCategoryFeedback({
       type: "success",
-      message: editingCategory ? "Categoria atualizada com sucesso." : "Categoria criada com sucesso.",
+        message: editingCategory ? "Categoria atualizada com sucesso." : "Categoria criada com sucesso.",
     });
 
-    setIsCategorySubmitting(false);
     setTimeout(() => {
-      resetCategoryForm();
+      resetForm();
       router.refresh();
-    }, 400);
+    }, 350);
+    setIsSubmitting(false);
   };
 
-  const handleDeleteCategory = async (category: CategorySummary) => {
+  const handleDelete = async (category: CategorySummary) => {
+    if (!canManage) {
+      setCategoryFeedback({
+        type: "danger",
+        message: "Plano inativo. Efetue a assinatura para continuar.",
+      });
+      return;
+    }
+
     const confirmation = window.confirm(
       "Ao remover esta categoria todos os produtos associados também serão apagados. Deseja continuar?",
     );
@@ -139,10 +217,7 @@ const UserCategoryManager = ({ categories }: UserCategoryManagerProps) => {
     setDeletingCategoryId(category.id);
     setCategoryFeedback(null);
 
-    const response = await fetch(`/api/catalog/categories/${category.id}`, {
-      method: "DELETE",
-    });
-
+    const response = await fetch(`/api/catalog/categories/${category.id}`, { method: "DELETE" });
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
@@ -159,35 +234,51 @@ const UserCategoryManager = ({ categories }: UserCategoryManagerProps) => {
     router.refresh();
   };
 
-  const renderStatusBadge = (isActive: boolean) => (
-    <Badge bg={isActive ? "success" : "secondary"}>{isActive ? "Ativa" : "Inativa"}</Badge>
-  );
+  const renderPlanAlert = () => {
+    if (canManage) {
+      return null;
+    }
 
-  const renderCategoryForm = () => (
+    return (
+      <Alert variant="warning" className="mb-4">
+        <strong>{statusLabel(planStatus.status)}.</strong> Você precisa de um plano ativo para criar, editar ou
+        remover categorias. Acesse a página <a href="/dashboard/user/plano">Meu plano</a> para assinar ou renovar.
+      </Alert>
+    );
+  };
+
+  const renderForm = () => (
     <Form>
       <Form.Group className="mb-3">
         <Form.Label>Nome</Form.Label>
         <Form.Control
           value={categoryForm.name}
-          onChange={(event) => handleCategoryChange("name", event.target.value)}
+          onChange={(event) => handleChange("name", event.target.value)}
           placeholder="Categoria"
+          maxLength={META_INTERACTIVE_ROW_TITLE_LIMIT}
           required
+          disabled={!canManage}
         />
+        <Form.Text className="text-secondary">
+          Máximo de {META_INTERACTIVE_ROW_TITLE_LIMIT} caracteres exibidos no menu do bot.
+        </Form.Text>
       </Form.Group>
       <Form.Group className="mb-3">
         <Form.Label>Valor (R$)</Form.Label>
         <Form.Control
           value={categoryForm.price}
-          onChange={(event) => handleCategoryChange("price", event.target.value)}
+          onChange={(event) => handleChange("price", event.target.value)}
           placeholder="0,00"
+          disabled={!canManage}
         />
       </Form.Group>
       <Form.Group className="mb-3">
         <Form.Label>SKU</Form.Label>
         <Form.Control
           value={categoryForm.sku}
-          onChange={(event) => handleCategoryChange("sku", event.target.value)}
+          onChange={(event) => handleChange("sku", event.target.value)}
           placeholder="SKU interno"
+          disabled={!canManage}
         />
       </Form.Group>
       <Form.Group className="mb-3">
@@ -196,18 +287,24 @@ const UserCategoryManager = ({ categories }: UserCategoryManagerProps) => {
           as="textarea"
           rows={3}
           value={categoryForm.description}
-          onChange={(event) => handleCategoryChange("description", event.target.value)}
-          placeholder="Detalhes rápidos sobre a categoria"
+          onChange={(event) => handleChange("description", event.target.value)}
+          placeholder="Detalhes exibidos para o cliente"
+          maxLength={META_INTERACTIVE_BODY_LIMIT}
+          disabled={!canManage}
         />
+        <Form.Text className="text-secondary">
+          Máximo de {META_INTERACTIVE_BODY_LIMIT} caracteres utilizados nas mensagens do bot.
+        </Form.Text>
       </Form.Group>
       <Form.Group className="mb-3">
         <Form.Label>Status</Form.Label>
         <Form.Select
           value={categoryForm.status}
-          onChange={(event) => handleCategoryChange("status", event.target.value as "active" | "inactive")}
+          onChange={(event) => handleChange("status", event.target.value as CategoryFormState["status"])}
+          disabled={!canManage}
         >
-          <option value="active">Ativar categoria</option>
-          <option value="inactive">Manter inativa</option>
+          <option value="active">Manter ativa</option>
+          <option value="inactive">Deixar inativa</option>
         </Form.Select>
       </Form.Group>
       <Form.Group className="mb-3">
@@ -215,8 +312,18 @@ const UserCategoryManager = ({ categories }: UserCategoryManagerProps) => {
         <Form.Control
           type="file"
           accept="image/*"
-          onChange={(event) => handleCategoryChange("imageFile", event.target.files?.[0] ?? null)}
+          onChange={(event) => handleImageChange((event.target as HTMLInputElement).files?.[0] ?? null)}
+          disabled={!canManage}
         />
+        {(previewUrl || (currentImagePath && !categoryForm.removeImage)) && (
+          <div className="mt-3">
+            <img
+              src={previewUrl ?? `/${currentImagePath}`}
+              alt="Pré-visualização da categoria"
+              className="img-fluid rounded border"
+            />
+          </div>
+        )}
         {editingCategory && editingCategory.imagePath && (
           <Form.Check
             className="mt-2"
@@ -224,7 +331,8 @@ const UserCategoryManager = ({ categories }: UserCategoryManagerProps) => {
             id="remove-category-image"
             label="Remover imagem atual"
             checked={categoryForm.removeImage}
-            onChange={(event) => handleCategoryChange("removeImage", event.target.checked)}
+            onChange={(event) => handleChange("removeImage", event.target.checked)}
+            disabled={!canManage}
           />
         )}
       </Form.Group>
@@ -233,29 +341,28 @@ const UserCategoryManager = ({ categories }: UserCategoryManagerProps) => {
 
   return (
     <section>
-      <Card className="mb-4">
+      {renderPlanAlert()}
+
+      {categoryFeedback && (
+        <Alert variant={categoryFeedback.type} onClose={() => setCategoryFeedback(null)} dismissible>
+          {categoryFeedback.message}
+        </Alert>
+      )}
+
+      <Card>
         <Card.Body>
           <div className="d-flex flex-column flex-lg-row align-items-lg-center justify-content-lg-between gap-3 mb-3">
             <div>
               <h2 className="mb-1">Categorias</h2>
               <p className="mb-0 text-secondary">
-                Organize seus produtos digitais por temas, defina preços sugeridos e controle a visibilidade.
+                Organize seus produtos digitais por temas, defina valores e controle a disponibilidade no bot.
               </p>
             </div>
-            <Button onClick={() => openCategoryModal()} variant="primary">
+            <Button variant="primary" onClick={() => openCategoryModal()} disabled={!canManage || isSubmitting}>
               Nova categoria
             </Button>
           </div>
-          {categoryFeedback && (
-            <Alert
-              variant={categoryFeedback.type}
-              onClose={() => setCategoryFeedback(null)}
-              dismissible
-              className="mb-4"
-            >
-              {categoryFeedback.message}
-            </Alert>
-          )}
+
           <div className="table-responsive">
             <Table hover className="align-middle mb-0">
               <thead>
@@ -285,12 +392,7 @@ const UserCategoryManager = ({ categories }: UserCategoryManagerProps) => {
                             <span className="text-secondary small">{category.description}</span>
                           )}
                           {category.imagePath && (
-                            <a
-                              href={`/${category.imagePath}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="small"
-                            >
+                            <a href={`/${category.imagePath}`} target="_blank" rel="noreferrer" className="small">
                               Ver imagem
                             </a>
                           )}
@@ -298,18 +400,27 @@ const UserCategoryManager = ({ categories }: UserCategoryManagerProps) => {
                       </td>
                       <td>R$ {formatCurrency(category.price)}</td>
                       <td>{category.sku || "—"}</td>
-                      <td>{renderStatusBadge(category.isActive)}</td>
+                      <td>
+                        <Badge bg={category.isActive ? "success" : "secondary"}>
+                          {category.isActive ? "Ativa" : "Inativa"}
+                        </Badge>
+                      </td>
                       <td>{category.productCount}</td>
                       <td className="text-end">
                         <div className="d-flex justify-content-end gap-2">
-                          <Button size="sm" variant="outline-secondary" onClick={() => openCategoryModal(category)}>
+                          <Button
+                            size="sm"
+                            variant="outline-secondary"
+                            onClick={() => openCategoryModal(category)}
+                            disabled={!canManage || deletingCategoryId === category.id}
+                          >
                             Editar
                           </Button>
                           <Button
                             size="sm"
                             variant="outline-danger"
-                            disabled={deletingCategoryId === category.id}
-                            onClick={() => handleDeleteCategory(category)}
+                            onClick={() => handleDelete(category)}
+                            disabled={!canManage || deletingCategoryId === category.id}
                           >
                             {deletingCategoryId === category.id ? "Removendo..." : "Excluir"}
                           </Button>
@@ -324,17 +435,17 @@ const UserCategoryManager = ({ categories }: UserCategoryManagerProps) => {
         </Card.Body>
       </Card>
 
-      <Modal show={categoryModalOpen} onHide={resetCategoryForm} size="lg" centered>
+      <Modal show={categoryModalOpen} onHide={resetForm} size="lg" centered>
         <Modal.Header closeButton>
           <Modal.Title>{editingCategory ? "Editar categoria" : "Nova categoria"}</Modal.Title>
         </Modal.Header>
-        <Modal.Body>{renderCategoryForm()}</Modal.Body>
+        <Modal.Body>{renderForm()}</Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={resetCategoryForm} disabled={isCategorySubmitting}>
+          <Button variant="secondary" onClick={resetForm} disabled={isSubmitting}>
             Cancelar
           </Button>
-          <Button variant="primary" onClick={handleCategorySubmit} disabled={isCategorySubmitting}>
-            {isCategorySubmitting ? "Salvando..." : "Salvar"}
+          <Button variant="primary" onClick={handleSubmit} disabled={isSubmitting || !canManage}>
+            {isSubmitting ? "Salvando..." : "Salvar"}
           </Button>
         </Modal.Footer>
       </Modal>

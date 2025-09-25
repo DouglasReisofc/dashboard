@@ -5,7 +5,7 @@ import { getAdminUserById, updateAdminUser } from "lib/users";
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: any, // eslint-disable-line @typescript-eslint/no-explicit-any
 ) {
   try {
     const currentUser = await getCurrentUser();
@@ -35,6 +35,8 @@ export async function PATCH(
       balance,
       isActive,
       revokeSessions,
+      whatsappDialCode,
+      whatsappNumber,
     } = payload as {
       name?: unknown;
       email?: unknown;
@@ -43,6 +45,8 @@ export async function PATCH(
       balance?: unknown;
       isActive?: unknown;
       revokeSessions?: unknown;
+      whatsappDialCode?: unknown;
+      whatsappNumber?: unknown;
     };
 
     const updates: {
@@ -52,6 +56,7 @@ export async function PATCH(
       password?: string;
       balance?: number;
       isActive?: boolean;
+      whatsappNumber?: string | null;
     } = {};
 
     if (typeof name === "string") {
@@ -81,6 +86,44 @@ export async function PATCH(
 
     if (typeof isActive === "boolean") {
       updates.isActive = isActive;
+    }
+
+    if (
+      (typeof whatsappDialCode === "string" || whatsappDialCode === null) &&
+      (typeof whatsappNumber === "string" || whatsappNumber === null)
+    ) {
+      if (!whatsappDialCode && !whatsappNumber) {
+        updates.whatsappNumber = null;
+      } else if (typeof whatsappDialCode === "string" && typeof whatsappNumber === "string") {
+        const dial = whatsappDialCode.trim();
+        const numeric = whatsappNumber.replace(/[^0-9]/g, "");
+
+        if (!dial || !numeric) {
+          return NextResponse.json(
+            { message: "Informe o DDI e o número do WhatsApp." },
+            { status: 400 },
+          );
+        }
+
+        const dialCode = dial.startsWith("+") ? dial : `+${dial}`;
+
+        if (numeric.length < 8 || numeric.length > 15) {
+          return NextResponse.json(
+            { message: "Informe um número de WhatsApp válido (DDD + número)." },
+            { status: 400 },
+          );
+        }
+
+        const fullWhatsapp = `${dialCode}${numeric}`;
+        if (fullWhatsapp.length > 25) {
+          return NextResponse.json(
+            { message: "Número de WhatsApp excede o tamanho permitido." },
+            { status: 400 },
+          );
+        }
+
+        updates.whatsappNumber = fullWhatsapp;
+      }
     }
 
     const hasUpdates = Object.keys(updates).length > 0;

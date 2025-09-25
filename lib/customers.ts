@@ -10,6 +10,7 @@ import type {
   CustomerSummary,
   CustomerUpdateInput,
   DebitCustomerBalanceResult,
+  CreditCustomerBalanceResult,
 } from "types/customers";
 
 const mapCustomerRow = (row: CustomerRow): CustomerSummary => ({
@@ -86,6 +87,36 @@ export const findCustomerByWhatsappForUser = async (
   return mapCustomerRow(rows[0]);
 };
 
+export const findCustomerByPhoneForUser = async (
+  userId: number,
+  phone: string,
+): Promise<CustomerSummary | null> => {
+  const normalizedPhone = normalizePhone(phone);
+
+  if (!normalizedPhone) {
+    return null;
+  }
+
+  await ensureCustomerTable();
+  const db = getDb();
+
+  const [rows] = await db.query<CustomerRow[]>(
+    `
+      SELECT *
+      FROM customers
+      WHERE user_id = ? AND (phone_number = ? OR whatsapp_id = ?)
+      LIMIT 1
+    `,
+    [userId, normalizedPhone, normalizedPhone],
+  );
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  return mapCustomerRow(rows[0]);
+};
+
 const sanitizeBalance = (value: number) => {
   if (!Number.isFinite(value)) {
     return 0;
@@ -149,6 +180,39 @@ export const updateCustomerForUser = async (
 };
 
 const normalizePhone = (phone: string) => phone.replace(/[^0-9+]/g, "");
+
+const ensureCustomerRecord = async (
+  userId: number,
+  whatsappId: string,
+  options?: { displayName?: string | null; phoneNumber?: string | null },
+) => {
+  await ensureCustomerTable();
+  const db = getDb();
+
+  const normalizedPhone = options?.phoneNumber?.trim()
+    ? normalizePhone(options.phoneNumber)
+    : normalizePhone(whatsappId);
+  const phoneNumber = normalizedPhone || whatsappId;
+  const displayName = options?.displayName?.trim() || null;
+
+  await db.query(
+    `
+      INSERT INTO customers (user_id, whatsapp_id, phone_number, display_name, balance)
+      VALUES (?, ?, ?, ?, 0)
+      ON DUPLICATE KEY UPDATE
+        phone_number = CASE
+          WHEN VALUES(phone_number) IS NOT NULL AND VALUES(phone_number) <> '' THEN VALUES(phone_number)
+          ELSE phone_number
+        END,
+        display_name = CASE
+          WHEN VALUES(display_name) IS NOT NULL AND VALUES(display_name) <> '' THEN VALUES(display_name)
+          ELSE display_name
+        END,
+        updated_at = CURRENT_TIMESTAMP
+    `,
+    [userId, whatsappId, phoneNumber, displayName],
+  );
+};
 
 export const upsertCustomerInteraction = async (
   payload: CustomerInteractionPayload,
@@ -279,5 +343,53 @@ export const debitCustomerBalanceByWhatsapp = async (
     success: true,
     balance: updatedSummary.balance,
     customer: updatedSummary,
+  };
+};
+
+export const creditCustomerBalanceByWhatsapp = async (
+  userId: number,
+  whatsappId: string,
+  amount: number,
+  options?: { displayName?: string | null; phoneNumber?: string | null },
+): Promise<CreditCustomerBalanceResult> => {
+  const normalizedWhatsappId = whatsappId.trim();
+
+  if (!normalizedWhatsappId) {
+    return { success: false, balance: 0, reason: "invalid_amount" };
+  }
+
+  const normalizedAmount = sanitizeBalance(amount);
+
+  if (normalizedAmount <= 0) {
+    return { success: false, balance: 0, reason: "invalid_amount" };
+  }
+
+  await ensureCustomerRecord(userId, normalizedWhatsappId, options);
+  const db = getDb();
+
+  await db.query(
+    `
+      UPDATE customers
+      SET balance = balance + ?, updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = ? AND whatsapp_id = ?
+    `,
+    [normalizedAmount.toFixed(2), userId, normalizedWhatsappId],
+  );
+
+  const [rows] = await db.query<CustomerRow[]>(
+    `SELECT * FROM customers WHERE user_id = ? AND whatsapp_id = ? LIMIT 1`,
+    [userId, normalizedWhatsappId],
+  );
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return { success: false, balance: 0, reason: "not_found" };
+  }
+
+  const summary = mapCustomerRow(rows[0]);
+
+  return {
+    success: true,
+    balance: summary.balance,
+    customer: summary,
   };
 };

@@ -1,15 +1,5 @@
-import { Metadata } from "next";
 import Link from "next/link";
-import {
-  Badge,
-  Button,
-  Card,
-  CardBody,
-  Col,
-  Container,
-  Image,
-  Row,
-} from "react-bootstrap";
+import { Badge, Card, CardBody, Col, Container, Row } from "react-bootstrap";
 import {
   IconChartBar,
   IconLock,
@@ -17,13 +7,93 @@ import {
   IconSparkles,
 } from "@tabler/icons-react";
 
-import { getAssetPath } from "helper/assetPath";
+import Image from "next/image";
 
-export const metadata: Metadata = {
-  title: "StoreBot | Chatbots de vendas para produtos digitais",
-  description:
-    "Crie um chatbot oficial do WhatsApp com a Meta Cloud API para vender gifts, recargas, contas premium e mais com o StoreBot.",
+import heroDashboardImage from "public/images/png/dasher-ai.png";
+import workflowImage from "public/images/png/dasher-ui-bootstrap-5.jpg";
+
+import type { Metadata } from "next";
+import { getAdminSiteSettings } from "lib/admin-site";
+
+const DEFAULT_TITLE = "StoreBot | Chatbots de vendas para produtos digitais";
+const DEFAULT_DESCRIPTION =
+  "Crie um chatbot oficial do WhatsApp com a Meta Cloud API para vender gifts, recargas, contas premium e mais com o StoreBot.";
+
+const resolveAppUrl = () => {
+  const raw = process.env.APP_URL?.trim();
+  if (!raw) {
+    return "https://zap2.botadmin.shop";
+  }
+
+  try {
+    const normalized = raw.endsWith("/") ? raw.slice(0, -1) : raw;
+    // Will throw if invalid
+    new URL(normalized);
+    return normalized;
+  } catch {
+    return "https://zap2.botadmin.shop";
+  }
 };
+
+export const dynamic = "force-dynamic";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const appUrl = resolveAppUrl();
+
+  try {
+    const settings = await getAdminSiteSettings();
+    const title = settings.seoTitle ?? DEFAULT_TITLE;
+    const description = settings.seoDescription ?? DEFAULT_DESCRIPTION;
+    const ogImages = settings.seoImageUrl
+      ? [
+          {
+            url: settings.seoImageUrl,
+            width: 1200,
+            height: 630,
+            alt: settings.siteName ?? "StoreBot",
+          },
+        ]
+      : undefined;
+
+    return {
+      metadataBase: new URL(appUrl),
+      title,
+      description,
+      openGraph: {
+        title,
+        description,
+        url: appUrl,
+        siteName: settings.siteName ?? "StoreBot",
+        images: ogImages,
+        type: "website",
+      },
+      twitter: {
+        card: ogImages ? "summary_large_image" : "summary",
+        title,
+        description,
+        images: ogImages?.map((image) => image.url),
+      },
+    };
+  } catch (error) {
+    console.error("Failed to resolve site metadata", error);
+    return {
+      metadataBase: new URL(appUrl),
+      title: DEFAULT_TITLE,
+      description: DEFAULT_DESCRIPTION,
+      openGraph: {
+        title: DEFAULT_TITLE,
+        description: DEFAULT_DESCRIPTION,
+        url: appUrl,
+        siteName: "StoreBot",
+      },
+      twitter: {
+        card: "summary",
+        title: DEFAULT_TITLE,
+        description: DEFAULT_DESCRIPTION,
+      },
+    };
+  }
+}
 
 const features = [
   {
@@ -64,24 +134,22 @@ const LandingPage = () => {
                 documentos digitais automaticamente.
               </p>
               <div className="d-flex flex-wrap gap-3">
-                <Button as={Link} href="/sign-up" variant="primary" size="lg">
+                <Link href="/sign-up" className="btn btn-primary btn-lg">
                   Criar conta
-                </Button>
-                <Button
-                  as={Link}
-                  href="/sign-in"
-                  variant="outline-primary"
-                  size="lg"
-                >
+                </Link>
+                <Link href="/sign-in" className="btn btn-outline-primary btn-lg">
                   Já sou cliente
-                </Button>
+                </Link>
               </div>
             </Col>
-            <Col lg={6}>
+            <Col lg={6} className="text-center text-lg-end">
               <Image
-                src={getAssetPath("/images/png/dasher-ai.png")}
+                src={heroDashboardImage}
                 alt="Chatbot StoreBot para WhatsApp"
-                className="img-fluid rounded-4 shadow-sm"
+                priority
+                className="rounded-4 shadow-sm"
+                sizes="(max-width: 768px) 100vw, 50vw"
+                style={{ width: "100%", height: "auto" }}
               />
             </Col>
           </Row>
@@ -90,6 +158,12 @@ const LandingPage = () => {
 
       <section className="py-10">
         <Container>
+          <header className="text-center mb-6">
+            <h2 className="fw-bold mb-3">Recursos pensados para escalar seu atendimento</h2>
+            <p className="text-secondary mb-0">
+              Estruture catálogos digitais, automatize respostas e mantenha o controle das vendas em um ambiente seguro.
+            </p>
+          </header>
           <Row className="gy-4">
             {features.map((feature) => (
               <Col md={4} key={feature.title}>
@@ -111,9 +185,12 @@ const LandingPage = () => {
           <Row className="align-items-center gy-6">
             <Col lg={6}>
               <Image
-                src={getAssetPath("/images/png/dasher-ui-bootstrap-5.jpg")}
+                src={workflowImage}
                 alt="Fluxo do chatbot"
-                className="img-fluid rounded-4 shadow-sm"
+                loading="lazy"
+                className="rounded-4 shadow-sm"
+                sizes="(max-width: 768px) 100vw, 50vw"
+                style={{ width: "100%", height: "auto" }}
               />
             </Col>
             <Col lg={6}>
@@ -149,9 +226,9 @@ const LandingPage = () => {
               </p>
             </Col>
             <Col lg={4} className="text-lg-end">
-              <Button as={Link} href="/sign-up" size="lg" variant="primary">
+              <Link href="/sign-up" className="btn btn-primary btn-lg">
                 Começar agora
-              </Button>
+              </Link>
             </Col>
           </Row>
         </Container>

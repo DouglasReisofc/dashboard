@@ -13,7 +13,11 @@ import Sidebar from "./Sidebar";
 import useMenu from "hooks/useMenu";
 import { getAssetPath } from "helper/assetPath";
 
-const OffcanvasSidebar = () => {
+interface OffcanvasSidebarProps {
+  role: "admin" | "user";
+}
+
+const OffcanvasSidebar = ({ role }: OffcanvasSidebarProps) => {
   const { showMenu, toggleMenuHandler } = useMenu();
 
   return (
@@ -31,7 +35,7 @@ const OffcanvasSidebar = () => {
         </Link>
       </OffcanvasHeader>
       <OffcanvasBody className="p-0 ">
-        <Sidebar hideLogo />
+        <Sidebar hideLogo role={role} />
       </OffcanvasBody>
     </Offcanvas>
   );

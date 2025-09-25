@@ -77,6 +77,24 @@ export const getWebhookForUser = async (
   return webhook;
 };
 
+export const getWebhookRowForUser = async (
+  userId: number,
+): Promise<UserWebhookRow | null> => {
+  await ensureWebhookTable();
+  const db = getDb();
+
+  const [rows] = await db.query<UserWebhookRow[]>(
+    "SELECT * FROM user_webhooks WHERE user_id = ? LIMIT 1",
+    [userId],
+  );
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return null;
+  }
+
+  return rows[0];
+};
+
 export const getWebhookByPublicId = async (
   webhookId: string,
 ): Promise<UserWebhookRow | null> => {

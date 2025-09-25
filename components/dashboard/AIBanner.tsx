@@ -7,7 +7,7 @@ const AIBanner = () => {
     <Card
       className="card-lg mb-6"
       style={{
-        background: `linear-gradient(97.05deg, #008fba 0%, #00a76f 100%)`,
+        background: "linear-gradient(97.05deg, #008fba 0%, #007867 100%)",
       }}
     >
       <CardBody>

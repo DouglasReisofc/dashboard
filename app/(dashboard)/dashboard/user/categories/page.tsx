@@ -4,6 +4,7 @@ import { Metadata } from "next";
 import UserCategoryManager from "components/catalog/UserCategoryManager";
 import { getCurrentUser } from "lib/auth";
 import { getCategoriesForUser } from "lib/catalog";
+import { getUserPlanStatus } from "lib/plans";
 
 export const metadata: Metadata = {
   title: "Gerenciar categorias | StoreBot Dashboard",
@@ -12,7 +13,14 @@ export const metadata: Metadata = {
 
 const UserCategoriesPage = async () => {
   const user = await getCurrentUser();
-  const categories = user ? await getCategoriesForUser(user.id) : [];
+  if (!user) {
+    return null;
+  }
+
+  const [categories, planStatus] = await Promise.all([
+    getCategoriesForUser(user.id),
+    getUserPlanStatus(user.id),
+  ]);
 
   return (
     <Fragment>
@@ -22,7 +30,7 @@ const UserCategoriesPage = async () => {
           Centralize nomes, valores, descrições e status das categorias que organizam seus produtos digitais.
         </p>
       </div>
-      <UserCategoryManager categories={categories} />
+      <UserCategoryManager categories={categories} planStatus={planStatus} />
     </Fragment>
   );
 };

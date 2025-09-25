@@ -7,6 +7,7 @@ import {
 } from "lib/catalog";
 import { getCurrentUser } from "lib/auth";
 import { deleteUploadedFile, saveUploadedFile } from "lib/uploads";
+import { assertUserHasActivePlan, SubscriptionPlanError } from "lib/plans";
 
 const parsePrice = (value: FormDataEntryValue | null, fallback: number) => {
   if (typeof value !== "string") {
@@ -29,7 +30,7 @@ const parsePrice = (value: FormDataEntryValue | null, fallback: number) => {
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: any, // eslint-disable-line @typescript-eslint/no-explicit-any
 ) {
   try {
     const user = await getCurrentUser();
@@ -50,6 +51,10 @@ export async function PUT(
 
     if (user.role !== "admin" && existing.user_id !== user.id) {
       return NextResponse.json({ message: "Acesso negado." }, { status: 403 });
+    }
+
+    if (user.role !== "admin") {
+      await assertUserHasActivePlan(existing.user_id);
     }
 
     const formData = await request.formData();
@@ -84,7 +89,7 @@ export async function PUT(
       if (imagePath) {
         await deleteUploadedFile(imagePath);
       }
-      imagePath = await saveUploadedFile(image, "categories");
+      imagePath = await saveUploadedFile(image, "categories", { convertToWebp: false });
     } else if (shouldRemoveImage && imagePath) {
       await deleteUploadedFile(imagePath);
       imagePath = null;
@@ -101,6 +106,10 @@ export async function PUT(
 
     return NextResponse.json({ message: "Categoria atualizada." });
   } catch (error) {
+    if (error instanceof SubscriptionPlanError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
+
     console.error("Failed to update category", error);
     return NextResponse.json(
       { message: "Não foi possível atualizar a categoria." },
@@ -111,7 +120,7 @@ export async function PUT(
 
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: any, // eslint-disable-line @typescript-eslint/no-explicit-any
 ) {
   try {
     const user = await getCurrentUser();
@@ -134,6 +143,10 @@ export async function DELETE(
       return NextResponse.json({ message: "Acesso negado." }, { status: 403 });
     }
 
+    if (user.role !== "admin") {
+      await assertUserHasActivePlan(existing.user_id);
+    }
+
     if (existing.image_path) {
       await deleteUploadedFile(existing.image_path);
     }
@@ -142,6 +155,10 @@ export async function DELETE(
 
     return NextResponse.json({ message: "Categoria removida." });
   } catch (error) {
+    if (error instanceof SubscriptionPlanError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
+
     console.error("Failed to delete category", error);
     return NextResponse.json(
       { message: "Não foi possível remover a categoria." },

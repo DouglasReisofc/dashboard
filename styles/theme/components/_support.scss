@@ -1,0 +1,20 @@
+.support-contacts-card {
+  height: calc(100vh - 220px);
+}
+
+.support-contacts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem;
+}
+
+.support-contacts-grid .card {
+  min-height: 180px;
+  display: flex;
+}
+
+.support-contacts-grid .card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}

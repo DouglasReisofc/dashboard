@@ -1,23 +1,27 @@
 "use client";
 
-import { ChangeEvent, FormEvent, Fragment, useState } from "react";
+import { ChangeEvent, FormEvent, Fragment, useMemo, useState } from "react";
 import {
   Alert,
   Button,
   Card,
   CardBody,
   Col,
+  DropdownButton,
+  Dropdown,
   Form,
   FormCheck,
   FormControl,
   FormLabel,
   Image,
+  InputGroup,
   Row,
 } from "react-bootstrap";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { getAssetPath } from "helper/assetPath";
+import { PHONE_COUNTRIES, findCountryByDialCode } from "data/phone-countries";
 
 type SignUpFormState = {
   name: string;
@@ -25,6 +29,8 @@ type SignUpFormState = {
   password: string;
   confirmPassword: string;
   acceptTerms: boolean;
+  whatsappDialCode: string;
+  whatsappNumber: string;
 };
 
 const initialFormState: SignUpFormState = {
@@ -33,6 +39,8 @@ const initialFormState: SignUpFormState = {
   password: "",
   confirmPassword: "",
   acceptTerms: false,
+  whatsappDialCode: PHONE_COUNTRIES[0].dialCode,
+  whatsappNumber: "",
 };
 
 const SignUpClient = () => {
@@ -41,8 +49,12 @@ const SignUpClient = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const selectedCountry = useMemo(() => {
+    return findCountryByDialCode(formState.whatsappDialCode) ?? PHONE_COUNTRIES[0];
+  }, [formState.whatsappDialCode]);
+
   const updateField = <K extends keyof SignUpFormState>(field: K) =>
-    (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    (event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
       const value =
         field === "acceptTerms"
           ? (event.target as HTMLInputElement).checked
@@ -68,6 +80,12 @@ const SignUpClient = () => {
       return;
     }
 
+    const numericWhatsapp = formState.whatsappNumber.replace(/[^0-9]/g, "");
+    if (numericWhatsapp.length < 8 || numericWhatsapp.length > 15) {
+      setError("Informe um número de WhatsApp válido (DDD + número, apenas dígitos).");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -80,6 +98,8 @@ const SignUpClient = () => {
           name: formState.name,
           email: formState.email,
           password: formState.password,
+          whatsappDialCode: formState.whatsappDialCode,
+          whatsappNumber: numericWhatsapp,
         }),
       });
 
@@ -161,6 +181,70 @@ const SignUpClient = () => {
                       placeholder="nome@empresa.com"
                       required
                     />
+                  </Col>
+                  <Col md={12}>
+                    <FormLabel>WhatsApp</FormLabel>
+                    <InputGroup>
+                      <DropdownButton
+                        variant="outline-secondary"
+                        title={(
+                          <span className="d-inline-flex align-items-center gap-2">
+                            <img
+                              src={`/flags/${selectedCountry.code.toLowerCase()}.svg`}
+                              alt={`Bandeira ${selectedCountry.label}`}
+                              width={24}
+                              height={16}
+                              className="rounded border"
+                            />
+                            <span>{selectedCountry.dialCode}</span>
+                          </span>
+                        )}
+                        id="signUpWhatsappDialCode"
+                        onSelect={(eventKey) => {
+                          if (!eventKey) {
+                            return;
+                          }
+                          setFormState((previous) => ({
+                            ...previous,
+                            whatsappDialCode: eventKey,
+                          }));
+                        }}
+                      >
+                        {PHONE_COUNTRIES.map((country) => (
+                          <Dropdown.Item eventKey={country.dialCode} key={country.code}>
+                            <span className="d-inline-flex align-items-center gap-2">
+                              <img
+                                src={`/flags/${country.code.toLowerCase()}.svg`}
+                                alt={`Bandeira ${country.label}`}
+                                width={24}
+                                height={16}
+                                className="rounded border"
+                              />
+                              <span>{country.label} ({country.dialCode})</span>
+                            </span>
+                          </Dropdown.Item>
+                        ))}
+                      </DropdownButton>
+                      <FormControl
+                        id="signUpWhatsapp"
+                        type="tel"
+                        inputMode="numeric"
+                        pattern="[0-9]{8,15}"
+                        placeholder="DDD + número"
+                        value={formState.whatsappNumber}
+                        onChange={(event) => {
+                          const value = event.target.value.replace(/[^0-9]/g, "");
+                          setFormState((previous) => ({
+                            ...previous,
+                            whatsappNumber: value,
+                          }));
+                        }}
+                        required
+                      />
+                    </InputGroup>
+                    <Form.Text className="text-secondary">
+                      Selecione o DDI e digite apenas DDD + número, sem espaços ou símbolos.
+                    </Form.Text>
                   </Col>
                   <Col md={6}>
                     <FormLabel htmlFor="signUpPassword">Senha</FormLabel>

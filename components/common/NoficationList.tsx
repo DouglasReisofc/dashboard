@@ -1,472 +1,183 @@
 "use client";
-//import node modules libraries
-import SimpleBar from "simplebar-react";
-import { ListGroup, Nav, Offcanvas, Tab, Button } from "react-bootstrap";
-import Link from "next/link";
 
-//import custom components
-import Flex from "./Flex";
-import {
-  IconCalendarWeek,
-  IconChecks,
-  IconCircleFilled,
-  IconSettings,
-  IconShoppingCart,
-} from "@tabler/icons-react";
-import { Avatar } from "./Avatar";
+import { useCallback, useMemo, useState } from "react";
+import SimpleBar from "simplebar-react";
+import { ListGroup, Button, Modal, Offcanvas } from "react-bootstrap";
+
+import Flex from "components/common/Flex";
+import { IconCircleFilled } from "@tabler/icons-react";
+import type { UserNotification } from "types/notifications";
 
 interface NotificationProps {
   isOpen: boolean;
   onClose: () => void;
+  notifications: UserNotification[];
+  onMarkAllRead: () => Promise<void>;
+  onRefresh: () => Promise<void>;
 }
 
-const NoficationList: React.FC<NotificationProps> = ({ isOpen, onClose }) => {
+const formatDate = (iso: string) => {
+  try {
+    const date = new Date(iso);
+    return new Intl.DateTimeFormat("pt-BR", {
+      dateStyle: "short",
+      timeStyle: "short",
+      timeZone: "America/Sao_Paulo",
+    }).format(date);
+  } catch {
+    return iso;
+  }
+};
+
+const NoficationList: React.FC<NotificationProps> = ({
+  isOpen,
+  onClose,
+  notifications,
+  onMarkAllRead,
+  onRefresh,
+}) => {
+  const hasUnread = useMemo(
+    () => notifications.some((notification) => !notification.isRead),
+    [notifications],
+  );
+
+  const [selectedNotification, setSelectedNotification] = useState<UserNotification | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [isMarkingRead, setIsMarkingRead] = useState(false);
+
+  const handleNotificationClick = useCallback(
+    async (notification: UserNotification) => {
+      setSelectedNotification(notification);
+      setIsDetailOpen(true);
+
+      if (notification.isRead) {
+        return;
+      }
+
+      setIsMarkingRead(true);
+      try {
+        await fetch("/api/notifications", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ notificationIds: [notification.id] }),
+        });
+
+        setSelectedNotification({ ...notification, isRead: true });
+        await onRefresh();
+      } catch (error) {
+        console.error("Failed to mark notification as read", error);
+      } finally {
+        setIsMarkingRead(false);
+      }
+    },
+    [onRefresh],
+  );
+
+  const handleDetailClose = useCallback(() => {
+    setIsDetailOpen(false);
+    setSelectedNotification(null);
+  }, []);
+
   return (
-    <Offcanvas placement="end" show={isOpen} onHide={onClose}>
-      <div className="sticky-top bg-white">
-        <Offcanvas.Header className="gap-4" closeButton={true}>
-          <Flex justifyContent="between" className="w-100">
-            <h5 className="mb-0" id="offcanvasNotificationLabel">
-              Notifications
-            </h5>
-            <Flex alignItems="center" className="gap-3">
-              <Link href="#" className="link-primary">
-                <IconChecks size={24} strokeWidth={1.5} />
-              </Link>
-              <Link href="#" className="text-inherit">
-                <IconSettings size={24} strokeWidth={1.5} />
-              </Link>
+    <>
+      <Offcanvas placement="end" show={isOpen} onHide={onClose}>
+        <div className="sticky-top bg-white">
+          <Offcanvas.Header closeButton className="align-items-start gap-3">
+            <Flex justifyContent="between" className="w-100">
+              <div>
+                <h5 className="mb-0">Notificações</h5>
+                <small className="text-secondary">
+                  Acompanhe novas vendas, recargas e comunicados importantes por aqui.
+                </small>
+              </div>
+              <Button
+                size="sm"
+                variant="outline-primary"
+                type="button"
+                onClick={() => {
+                  void onRefresh();
+                }}
+              >
+                Atualizar
+              </Button>
             </Flex>
-          </Flex>
-        </Offcanvas.Header>
-      </div>
+          </Offcanvas.Header>
+        </div>
 
-      {/* Tab Content Start */}
-      <div className="mt-2">
-        <Tab.Container defaultActiveKey={"0"}>
-          <Nav className="nav-line-bottom" defaultActiveKey={"0"}>
-            <Nav.Item>
-              <Nav.Link role="button" eventKey={"0"}>
-                All
-              </Nav.Link>
-            </Nav.Item>
-            <Nav.Item>
-              <Nav.Link role="button" eventKey={"1"}>
-                Following
-              </Nav.Link>
-            </Nav.Item>
-            <Nav.Item>
-              <Nav.Link role="button" eventKey={"2"}>
-                Archive
-              </Nav.Link>
-            </Nav.Item>
-          </Nav>
-          <Tab.Content id="pills-tabContent">
-            <Tab.Pane eventKey={"0"}>
-              <SimpleBar style={{ maxHeight: 450 }}>
-                <ListGroup variant="flush">
-                  <ListGroup.Item
-                    action
-                    className="p-5 border-dashed border-bottom"
-                  >
-                    <div className="d-flex justify-content-between">
-                      <div className="d-flex flex-column gap-1">
-                        <div>New message from John Doe</div>
-                        <small className="text-secondary">2 minutes ago</small>
-                      </div>
-                      <div>
-                        <IconCircleFilled size={10} className="text-info" />
-                      </div>
-                    </div>
-                  </ListGroup.Item>
-                  <ListGroup.Item
-                    action
-                    className="p-5 border-dashed border-bottom"
-                  >
-                    <div className="d-flex justify-content-between">
-                      <div className="d-flex flex-column gap-1">
-                        <div>Your password will expire soon.</div>
-                        <small className="text-secondary">2 minutes ago</small>
-                      </div>
-                      <div>
-                        <IconCircleFilled size={10} className="text-info" />
-                      </div>
-                    </div>
-                  </ListGroup.Item>
-                  <ListGroup.Item
-                    action
-                    className="p-5 border-dashed border-bottom"
-                  >
-                    <div className="d-flex justify-content-between">
-                      <div className="d-flex gap-4 align-items-center">
-                        <Avatar
-                          type="image"
-                          src="/images/avatar/avatar-1.jpg"
-                          size="md"
-                          className="rounded-circle"
-                        />
-                        <div className="d-flex flex-column gap-1">
-                          <div>Alice uploaded a new profile picture.</div>
-                          <small className="text-secondary">1 hour ago</small>
-                        </div>
-                      </div>
-                      <div>
-                        <IconCircleFilled size={10} className="text-info" />
-                      </div>
-                    </div>
-                  </ListGroup.Item>
-                  <ListGroup.Item
-                    action
-                    className="p-5 border-dashed border-bottom"
-                  >
-                    <div className="d-flex justify-content-between">
-                      <div className="d-flex gap-4 align-items-center">
-                        <Avatar
-                          type="image"
-                          src="/images/avatar/avatar-2.jpg"
-                          size="md"
-                          className="rounded-circle"
-                        />
-                        <div className="d-flex flex-column gap-1">
-                          <div>Mike sent you a friend request.</div>
-                          <small className="text-secondary">
-                            5 minutes ago
-                          </small>
-                        </div>
-                      </div>
-                      <div>
-                        <IconCircleFilled size={10} className="text-info" />
-                      </div>
-                    </div>
-                    <div className="d-flex gap-2 align-items-center mt-4">
-                      <Button href="#" variant="primary" size="sm">
-                        Accept
-                      </Button>
-                      <Button href="#" variant="white" size="sm">
-                        Decline
-                      </Button>
-                    </div>
-                  </ListGroup.Item>
-                  <ListGroup.Item
-                    action
-                    className="p-5 border-dashed border-bottom"
-                  >
-                    <div className="d-flex justify-content-between">
-                      <div className="d-flex gap-4 align-items-center">
-                        <Avatar
-                          type="image"
-                          src="/images/avatar/avatar-3.jpg"
-                          size="md"
-                          className="rounded-circle"
-                        />
-                        <div className="d-flex flex-column gap-1">
-                          <div>Sophia commented on your post.</div>
-                          <small className="text-secondary">
-                            20 minutes ago
-                          </small>
-                        </div>
-                      </div>
-                      <div>
-                        <IconCircleFilled size={10} className="text-info" />
-                      </div>
-                    </div>
-                  </ListGroup.Item>
-                  <ListGroup.Item
-                    action
-                    className="p-5 border-dashed border-bottom"
-                  >
-                    <div className="d-flex justify-content-between">
-                      <div className="d-flex gap-4 align-items-center">
-                        <div className="icon-shape icon-md bg-primary-subtle text-primary-emphasis rounded-circle d-flex align-items-center justify-content-center">
-                          <IconSettings size={20} stroke={1.5} />
-                        </div>
-                        <div className="d-flex flex-column gap-1">
-                          <div>A system update has been installed.</div>
-                          <small className="text-secondary">
-                            30 minutes ago
-                          </small>
-                        </div>
-                      </div>
-                      <div>
-                        <IconCircleFilled size={10} className="text-info" />
-                      </div>
-                    </div>
-                  </ListGroup.Item>
-                  <ListGroup.Item
-                    action
-                    className="p-5 border-dashed border-bottom"
-                  >
-                    <div className="d-flex justify-content-between">
-                      <div className="d-flex gap-4 align-items-center">
-                        <div className="icon-shape icon-md bg-info-subtle text-info-emphasis rounded-circle d-flex align-items-center justify-content-center">
-                          <IconCalendarWeek size={20} stroke={1.5} />
-                        </div>
-                        <div className="d-flex flex-column gap-1">
-                          <div>Reminder: Team meeting at 3:00 PM.</div>
-                          <small className="text-secondary">1 hour ago</small>
-                        </div>
-                      </div>
-                      <div>
-                        <IconCircleFilled size={10} className="text-info" />
-                      </div>
-                    </div>
-                  </ListGroup.Item>
-                  <ListGroup.Item
-                    action
-                    className="p-5 border-dashed border-bottom"
-                  >
-                    <div className="d-flex justify-content-between">
-                      <div className="d-flex gap-4 align-items-center">
-                        <div className="icon-shape icon-md bg-danger-subtle text-danger-emphasis rounded-circle d-flex align-items-center justify-content-center">
-                          <IconShoppingCart size={20} stroke={1.5} />
-                        </div>
-                        <div className="d-flex flex-column gap-1">
-                          <div>Your order has been shipped!</div>
-                          <small className="text-secondary">2 hour ago</small>
-                        </div>
-                      </div>
-                      <div>
-                        <IconCircleFilled size={10} className="text-info" />
-                      </div>
-                    </div>
-                  </ListGroup.Item>
-                </ListGroup>
-              </SimpleBar>
-            </Tab.Pane>
-            <Tab.Pane eventKey={"1"}>
-              <SimpleBar style={{ maxHeight: 450 }}>
-                <ListGroup variant="flush">
-                  <ListGroup.Item
-                    action
-                    className="p-5 border-dashed border-bottom"
-                  >
-                    <div className="d-flex justify-content-between">
-                      <div className="d-flex gap-4 align-items-center">
-                        <div className="icon-shape icon-md bg-info-subtle text-info-emphasis rounded-circle d-flex align-items-center justify-content-center">
-                          <IconCalendarWeek size={20} stroke={1.5} />
-                        </div>
-                        <div className="d-flex flex-column gap-1">
-                          <div>Reminder: Team meeting at 3:00 PM.</div>
-                          <small className="text-secondary">1 hour ago</small>
-                        </div>
-                      </div>
+        <div className="px-4 pb-4">
+          <Button
+            variant="ghost"
+            className="w-100 mb-3"
+            onClick={() => {
+              void onMarkAllRead();
+            }}
+            disabled={!hasUnread}
+            type="button"
+          >
+            Marcar todas como lidas
+          </Button>
 
-                      <div>
-                        <IconCircleFilled
-                          size={10}
-                          color="currentColor"
-                          className="text-info"
-                        />
-                      </div>
-                    </div>
-                  </ListGroup.Item>
+          <SimpleBar style={{ maxHeight: 480 }}>
+            <ListGroup variant="flush" className="border rounded-3">
+              {notifications.length === 0 ? (
+                <ListGroup.Item className="py-5 text-center text-secondary">
+                  Nenhuma notificação por aqui ainda.
+                </ListGroup.Item>
+              ) : (
+                notifications.map((notification) => (
                   <ListGroup.Item
+                    key={notification.id}
                     action
-                    className="p-5 border-dashed border-bottom"
+                    onClick={() => {
+                      void handleNotificationClick(notification);
+                    }}
+                    className="py-4 px-4 border-bottom d-flex flex-column gap-2"
                   >
-                    <div className="d-flex justify-content-between">
-                      <div className="d-flex gap-4 align-items-center">
-                        <div className="icon-shape icon-md bg-danger-subtle text-danger-emphasis rounded-circle d-flex align-items-center justify-content-center">
-                          <IconShoppingCart size={20} stroke={1.5} />
-                        </div>
-                        <div className="d-flex flex-column gap-1">
-                          <div>Your order has been shipped!</div>
-                          <small className="text-secondary">2 hour ago</small>
-                        </div>
+                    <Flex justifyContent="between" alignItems="center">
+                      <div className="d-flex flex-column">
+                        <strong className="text-truncate">{notification.title}</strong>
+                        <small className="text-secondary">{formatDate(notification.createdAt)}</small>
                       </div>
-                      <div>
-                        <IconCircleFilled size={10} className="text-info" />
-                      </div>
-                    </div>
+                      {!notification.isRead && (
+                        <IconCircleFilled size={10} className="text-primary" />
+                      )}
+                    </Flex>
+                    <p className="mb-0 text-secondary" style={{ whiteSpace: "pre-line" }}>
+                      {notification.message}
+                    </p>
                   </ListGroup.Item>
-                  <ListGroup.Item
-                    action
-                    className="p-5 border-dashed border-bottom"
-                  >
-                    <div className="d-flex justify-content-between">
-                      <div className="d-flex gap-4 align-items-center">
-                        <Avatar
-                          type="image"
-                          src="/images/avatar/avatar-3.jpg"
-                          size="md"
-                          className="rounded-circle"
-                        />
-                        <div className="d-flex flex-column gap-1">
-                          <div>Sophia commented on your post.</div>
-                          <small className="text-secondary">
-                            20 minutes ago
-                          </small>
-                        </div>
-                      </div>
-                      <div>
-                        <IconCircleFilled size={10} className="text-info" />
-                      </div>
-                    </div>
-                  </ListGroup.Item>
-                  <ListGroup.Item
-                    action
-                    className="p-5 border-dashed border-bottom"
-                  >
-                    <div className="d-flex justify-content-between">
-                      <div className="d-flex gap-4 align-items-center">
-                        <div className="icon-shape icon-md bg-primary-subtle text-primary-emphasis rounded-circle d-flex align-items-center justify-content-center">
-                          <IconSettings size={20} stroke={1.5} />
-                        </div>
-                        <div className="d-flex flex-column gap-1">
-                          <div>A system update has been installed.</div>
-                          <small className="text-secondary">
-                            30 minutes ago
-                          </small>
-                        </div>
-                      </div>
-                      <div>
-                        <IconCircleFilled size={10} className="text-info" />
-                      </div>
-                    </div>
-                  </ListGroup.Item>
-                  <ListGroup.Item
-                    action
-                    className="p-5 border-dashed border-bottom"
-                  >
-                    <div className="d-flex justify-content-between">
-                      <div className="d-flex gap-4 align-items-center">
-                        <div className="icon-shape icon-md bg-info-subtle text-info-emphasis rounded-circle d-flex align-items-center justify-content-center">
-                          <IconCalendarWeek size={20} stroke={1.5} />
-                        </div>
-                        <div className="d-flex flex-column gap-1">
-                          <div>Reminder: Team meeting at 3:00 PM.</div>
-                          <small className="text-secondary">1 hour ago</small>
-                        </div>
-                      </div>
+                ))
+              )}
+            </ListGroup>
+          </SimpleBar>
+        </div>
+      </Offcanvas>
 
-                      <div>
-                        <IconCircleFilled
-                          size={10}
-                          color="currentColor"
-                          className="text-info"
-                        />
-                      </div>
-                    </div>
-                  </ListGroup.Item>
-                  <ListGroup.Item
-                    action
-                    className="p-5 border-dashed border-bottom"
-                  >
-                    <div className="d-flex justify-content-between">
-                      <div className="d-flex gap-4 align-items-center">
-                        <div className="icon-shape icon-md bg-danger-subtle text-danger-emphasis rounded-circle d-flex align-items-center justify-content-center">
-                          <IconShoppingCart size={20} stroke={1.5} />
-                        </div>
-                        <div className="d-flex flex-column gap-1">
-                          <div>Your order has been shipped!</div>
-                          <small className="text-secondary">2 hour ago</small>
-                        </div>
-                      </div>
-                      <div>
-                        <IconCircleFilled size={10} className="text-info" />
-                      </div>
-                    </div>
-                  </ListGroup.Item>
-                </ListGroup>
-              </SimpleBar>
-            </Tab.Pane>
-            <Tab.Pane eventKey={"2"}>
-              <SimpleBar style={{ maxHeight: 450 }}>
-                <ListGroup variant="flush">
-                  <ListGroup.Item
-                    action
-                    className="p-5 border-dashed border-bottom"
-                  >
-                    <div className="d-flex justify-content-between">
-                      <div className="d-flex flex-column gap-1">
-                        <div>New message from John Doe</div>
-                        <small className="text-secondary">2 minutes ago</small>
-                      </div>
-                      <div>
-                        <IconCircleFilled size={10} className="text-info" />
-                      </div>
-                    </div>
-                  </ListGroup.Item>
-                  <ListGroup.Item
-                    action
-                    className="p-5 border-dashed border-bottom"
-                  >
-                    <div className="d-flex justify-content-between">
-                      <div className="d-flex flex-column gap-1">
-                        <div>Your password will expire soon.</div>
-                        <small className="text-secondary">2 minutes ago</small>
-                      </div>
-                      <div>
-                        <IconCircleFilled size={10} className="text-info" />
-                      </div>
-                    </div>
-                  </ListGroup.Item>
-                  <ListGroup.Item
-                    action
-                    className="p-5 border-dashed border-bottom"
-                  >
-                    <div className="d-flex justify-content-between">
-                      <div className="d-flex gap-4 align-items-center">
-                        <Avatar
-                          type="image"
-                          src="/images/avatar/avatar-1.jpg"
-                          size="md"
-                          className="rounded-circle"
-                        />
-                        <div className="d-flex flex-column gap-1">
-                          <div>Alice uploaded a new profile picture.</div>
-                          <small className="text-secondary">1 hour ago</small>
-                        </div>
-                      </div>
-                      <div>
-                        <IconCircleFilled size={10} className="text-info" />
-                      </div>
-                    </div>
-                  </ListGroup.Item>
-                  <ListGroup.Item
-                    action
-                    className="p-5 border-dashed border-bottom"
-                  >
-                    <div className="d-flex justify-content-between">
-                      <div className="d-flex gap-4 align-items-center">
-                        <Avatar
-                          type="image"
-                          src="/images/avatar/avatar-2.jpg"
-                          size="md"
-                          className="rounded-circle"
-                        />
-                        <div className="d-flex flex-column gap-1">
-                          <div>Mike sent you a friend request.</div>
-                          <small className="text-secondary">
-                            5 minutes ago
-                          </small>
-                        </div>
-                      </div>
-                      <div>
-                        <IconCircleFilled size={10} className="text-info" />
-                      </div>
-                    </div>
-                    <div className="d-flex gap-2 align-items-center mt-4">
-                      <Button href="#" variant="primary" size="sm">
-                        Accept
-                      </Button>
-                      <Button href="#" variant="white" size="sm">
-                        Decline
-                      </Button>
-                    </div>
-                  </ListGroup.Item>
-                </ListGroup>
-              </SimpleBar>
-            </Tab.Pane>
-          </Tab.Content>
-        </Tab.Container>
-      </div>
-      <div className="px-5 py-3 text-center bg-white position-absolute bottom-0 border-top border-dashed w-100 text-center">
-        <Link href="#!" className="text-inherit">
-          View all
-        </Link>
-      </div>
-    </Offcanvas>
+      <Modal show={isDetailOpen && Boolean(selectedNotification)} onHide={handleDetailClose} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>{selectedNotification?.title ?? "Notificação"}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {selectedNotification && (
+            <div className="d-flex flex-column gap-3">
+              <small className="text-secondary">
+                Recebida em {formatDate(selectedNotification.createdAt)}
+              </small>
+              <p className="mb-0" style={{ whiteSpace: "pre-line" }}>
+                {selectedNotification.message}
+              </p>
+            </div>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="outline-secondary" onClick={handleDetailClose} disabled={isMarkingRead}>
+            Fechar
+          </Button>
+        </Modal.Footer>
+      </Modal>
+    </>
   );
 };
 

@@ -2,10 +2,10 @@
 
 //import node modules libraries
 import React, { useState } from "react";
-import { Dropdown } from "react-bootstrap";
+import { Button, Dropdown } from "react-bootstrap";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { IconLogout } from "@tabler/icons-react";
+import { IconLogout, IconPencil } from "@tabler/icons-react";
 
 //import routes files
 import { UserMenuItem } from "routes/HeaderRoute";
@@ -13,6 +13,7 @@ import { UserMenuItem } from "routes/HeaderRoute";
 //import custom components
 import { Avatar } from "components/common/Avatar";
 import type { SessionUser } from "types/auth";
+import ProfileEditModal from "components/profile/ProfileEditModal";
 
 interface UserToggleProps {
   children?: React.ReactNode;
@@ -28,6 +29,7 @@ const CustomToggle = React.forwardRef<HTMLAnchorElement, UserToggleProps>(
         event.preventDefault();
         onClick?.(event);
       }}
+      className="d-inline-flex align-items-center"
     >
       {children}
     </Link>
@@ -42,8 +44,10 @@ interface UserMenuProps {
 const UserMenu: React.FC<UserMenuProps> = ({ user }) => {
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isProfileModalOpen, setProfileModalOpen] = useState(false);
 
   const filteredMenu = UserMenuItem.filter((item) => item.roles.includes(user.role));
+  const avatarSrc = user.avatarUrl ?? "/images/avatar/avatar-fallback.jpg";
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -59,33 +63,57 @@ const UserMenu: React.FC<UserMenuProps> = ({ user }) => {
   };
 
   return (
-    <Dropdown>
-      <Dropdown.Toggle as={CustomToggle}>
-        <Avatar type="initial" name={user.name} size="sm" soft />
-      </Dropdown.Toggle>
-      <Dropdown.Menu align="end" className="p-0 dropdown-menu-md">
-        <div className="d-flex gap-3 align-items-center border-dashed border-bottom px-4 py-4">
-          <Avatar type="initial" name={user.name} size="md" soft showExact />
-          <div>
-            <h4 className="mb-0 fs-5">{user.name}</h4>
-            <p className="mb-0 text-secondary small">{user.email}</p>
-            <span className="badge bg-light text-dark text-uppercase mt-2">{user.role}</span>
+    <>
+      <Dropdown align="end" className="user-menu-dropdown">
+        <Dropdown.Toggle as={CustomToggle}>
+          <Avatar
+            type="image"
+            src={avatarSrc}
+            alt={user.name}
+            size="sm"
+            className="rounded-circle border"
+          />
+        </Dropdown.Toggle>
+        <Dropdown.Menu align="end" className="p-0 dropdown-menu-md">
+          <div className="d-flex gap-3 align-items-center border-bottom px-4 py-4 bg-white">
+            <Avatar
+              type="image"
+              src={avatarSrc}
+              alt={user.name}
+              size="md"
+              className="rounded-circle border"
+            />
+            <div>
+              <h4 className="mb-0 fs-5 text-capitalize">{user.name}</h4>
+              <p className="mb-0 text-secondary small">{user.email}</p>
+              <span className="badge bg-light text-dark text-uppercase mt-2">{user.role}</span>
+            </div>
           </div>
-        </div>
-        <div className="p-3 d-flex flex-column gap-1">
-          {filteredMenu.map((item) => (
-            <Dropdown.Item
-              key={item.id}
-              as={Link}
-              href={item.link}
-              className="d-flex align-items-center gap-2"
+          <div className="px-4 py-3 border-bottom bg-light-subtle">
+            <Button
+              variant="outline-primary"
+              size="sm"
+              className="d-inline-flex align-items-center gap-2"
+              onClick={() => setProfileModalOpen(true)}
             >
-              <span>{item.icon}</span>
-              <span>{item.title}</span>
-            </Dropdown.Item>
-          ))}
-        </div>
-        <div className="border-dashed border-top mb-4 pt-4 px-6">
+              <IconPencil size={18} />
+              Editar perfil
+            </Button>
+          </div>
+          <div className="p-3 d-flex flex-column gap-1">
+            {filteredMenu.map((item) => (
+              <Dropdown.Item
+                key={item.id}
+                as={Link}
+                href={item.link}
+                className="d-flex align-items-center gap-2"
+              >
+                <span>{item.icon}</span>
+                <span>{item.title}</span>
+              </Dropdown.Item>
+            ))}
+          </div>
+        <div className="border-top px-4 py-3 bg-light-subtle">
           <button
             type="button"
             className="btn btn-link text-secondary d-flex align-items-center gap-2 p-0"
@@ -98,8 +126,14 @@ const UserMenu: React.FC<UserMenuProps> = ({ user }) => {
             <span>{isLoggingOut ? "Saindo..." : "Sair"}</span>
           </button>
         </div>
-      </Dropdown.Menu>
-    </Dropdown>
+        </Dropdown.Menu>
+      </Dropdown>
+      <ProfileEditModal
+        show={isProfileModalOpen}
+        onHide={() => setProfileModalOpen(false)}
+        user={user}
+      />
+    </>
   );
 };
 
