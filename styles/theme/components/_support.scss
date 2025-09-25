@@ -4,9 +4,31 @@
 
 .support-contacts-grid {
   display: grid;
-  gap: 1.5rem;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1.25rem;
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
+}
+
+.support-contacts-grid-item {
+  min-width: 0;
+  display: flex;
+}
+
+.support-contacts-grid .card {
+  flex: 1 1 auto;
+  display: flex;
+}
+
+.support-contacts-grid .card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .support-contacts-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (min-width: 1200px) {
@@ -19,22 +41,4 @@
   .support-contacts-grid {
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   }
-}
-
-@media (max-width: 767.98px) {
-  .support-contacts-grid {
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    overflow-y: auto;
-  }
-}
-
-.support-contacts-grid .card {
-  min-height: 180px;
-  display: flex;
-}
-
-.support-contacts-grid .card-body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
 }
