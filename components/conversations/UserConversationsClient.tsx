@@ -844,7 +844,7 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
                 ) : threads.length === 0 ? (
                   <div className="text-secondary text-center py-4">Nenhum atendimento em andamento.</div>
                 ) : (
-                  <div className="support-contacts-grid d-grid gap-3">
+                  <div className="d-grid support-contacts-grid gap-3">
                     {threads.map((thread) => {
                       const title = thread.customerName || thread.profileName || thread.whatsappId;
                       const unread = unreadCounts[thread.whatsappId] ?? 0;
