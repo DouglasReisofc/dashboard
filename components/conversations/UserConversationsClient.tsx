@@ -844,12 +844,18 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
                 ) : threads.length === 0 ? (
                   <div className="text-secondary text-center py-4">Nenhum atendimento em andamento.</div>
                 ) : (
-                  <div className="support-contacts-grid">
+                  <Row
+                    className="support-contacts-grid"
+                    xs={1}
+                    md={2}
+                    xl={3}
+                    xxl={4}
+                  >
                     {threads.map((thread) => {
                       const title = thread.customerName || thread.profileName || thread.whatsappId;
                       const unread = unreadCounts[thread.whatsappId] ?? 0;
                       return (
-                        <div key={`grid-${thread.whatsappId}`} className="support-contacts-grid-item">
+                        <Col key={`grid-${thread.whatsappId}`}>
                           <Card
                             role="button"
                             onClick={() => handleSelect(thread)}
@@ -877,10 +883,10 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
                               </div>
                             </Card.Body>
                           </Card>
-                        </div>
+                        </Col>
                       );
                     })}
-                  </div>
+                  </Row>
                 )}
               </Card.Body>
             </Card>
