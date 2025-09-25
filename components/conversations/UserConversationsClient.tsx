@@ -715,7 +715,9 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
   );
 
   const renderThreadTile = (thread: ThreadSummary, options?: { active?: boolean }) => {
-    const title = thread.customerName || thread.profileName || thread.whatsappId;
+    const displayName = thread.customerName || thread.profileName;
+    const title = displayName || thread.whatsappId;
+    const identifier = thread.whatsappId;
     const unread = unreadCounts[thread.whatsappId] ?? 0;
     const isActive = options?.active ?? false;
 
@@ -730,22 +732,35 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
           aria-pressed={isActive}
           style={{ cursor: "pointer" }}
         >
-          <Card.Body className="d-flex flex-column gap-3 h-100">
-            <div className="d-flex justify-content-between align-items-start gap-2">
-              <span className="fw-semibold text-truncate" title={title}>
-                {title}
-              </span>
-              <div className="d-flex align-items-center gap-2 flex-shrink-0">
+          <Card.Body className="support-thread-card__body d-flex flex-column gap-3 h-100">
+            <div className="support-thread-card__header d-flex justify-content-between align-items-start gap-2">
+              <div className="support-thread-card__title text-truncate">
+                <span className="fw-semibold d-block text-truncate" title={title}>
+                  {title}
+                </span>
+                {displayName ? (
+                  <span className="support-thread-card__identifier text-secondary small text-truncate">
+                    {identifier}
+                  </span>
+                ) : null}
+              </div>
+              <div className="support-thread-card__meta d-flex align-items-center gap-2 flex-shrink-0">
                 {unread > 0 && <Badge bg="danger">{unread}</Badge>}
                 <Badge bg={thread.status === "open" ? "success" : "secondary"}>
                   {thread.status === "open" ? "Aberto" : "Encerrado"}
                 </Badge>
               </div>
             </div>
-            <div className="text-secondary small text-truncate" title={thread.lastMessagePreview ?? undefined}>
+            <div
+              className="support-thread-card__preview text-secondary small text-truncate d-none d-sm-block"
+              title={thread.lastMessagePreview ?? undefined}
+            >
               {thread.lastMessagePreview ?? "Sem mensagens"}
             </div>
-            <div className="text-secondary small mt-auto" suppressHydrationWarning>
+            <div
+              className="support-thread-card__timestamp text-secondary small mt-auto d-none d-sm-block"
+              suppressHydrationWarning
+            >
               {thread.lastMessageAt ? formatDateTime(thread.lastMessageAt) : "-"}
             </div>
           </Card.Body>
