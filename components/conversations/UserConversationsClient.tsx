@@ -10,7 +10,6 @@ import {
   Col,
   Form,
   Image,
-  ListGroup,
   Modal,
   Row,
   Spinner,
@@ -715,6 +714,46 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
       (!isSending && (messageDraft.trim().length > 0 || pendingMedia.length > 0)),
   );
 
+  const renderThreadTile = (thread: ThreadSummary, options?: { active?: boolean }) => {
+    const title = thread.customerName || thread.profileName || thread.whatsappId;
+    const unread = unreadCounts[thread.whatsappId] ?? 0;
+    const isActive = options?.active ?? false;
+
+    return (
+      <div key={`grid-${thread.whatsappId}`} className="support-contacts-grid-item">
+        <Card
+          role="button"
+          onClick={() => handleSelect(thread)}
+          className={`support-thread-card shadow-sm h-100${
+            isActive ? " support-thread-card--active" : ""
+          }`}
+          aria-pressed={isActive}
+          style={{ cursor: "pointer" }}
+        >
+          <Card.Body className="d-flex flex-column gap-3 h-100">
+            <div className="d-flex justify-content-between align-items-start gap-2">
+              <span className="fw-semibold text-truncate" title={title}>
+                {title}
+              </span>
+              <div className="d-flex align-items-center gap-2 flex-shrink-0">
+                {unread > 0 && <Badge bg="danger">{unread}</Badge>}
+                <Badge bg={thread.status === "open" ? "success" : "secondary"}>
+                  {thread.status === "open" ? "Aberto" : "Encerrado"}
+                </Badge>
+              </div>
+            </div>
+            <div className="text-secondary small text-truncate" title={thread.lastMessagePreview ?? undefined}>
+              {thread.lastMessagePreview ?? "Sem mensagens"}
+            </div>
+            <div className="text-secondary small mt-auto" suppressHydrationWarning>
+              {thread.lastMessageAt ? formatDateTime(thread.lastMessageAt) : "-"}
+            </div>
+          </Card.Body>
+        </Card>
+      </div>
+    );
+  };
+
   const handleAttachClick = () => {
     if (!conversation?.within24h) {
       setFeedback({
@@ -845,41 +884,7 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
                   <div className="text-secondary text-center py-4">Nenhum atendimento em andamento.</div>
                 ) : (
                   <div className="support-contacts-grid">
-                    {threads.map((thread) => {
-                      const title = thread.customerName || thread.profileName || thread.whatsappId;
-                      const unread = unreadCounts[thread.whatsappId] ?? 0;
-                      return (
-                        <div key={`grid-${thread.whatsappId}`} className="support-contacts-grid-item">
-                          <Card
-                            role="button"
-                            onClick={() => handleSelect(thread)}
-                            className="shadow-sm support-thread-card h-100"
-                            style={{ cursor: "pointer" }}
-                          >
-                            <Card.Body className="d-flex flex-column gap-3 h-100">
-                              <div className="d-flex justify-content-between align-items-start gap-2">
-                                <span className="fw-semibold text-truncate" title={title}>{title}</span>
-                                <div className="d-flex align-items-center gap-2 flex-shrink-0">
-                                  {unread > 0 && <Badge bg="danger">{unread}</Badge>}
-                                  <Badge bg={thread.status === "open" ? "success" : "secondary"}>
-                                    {thread.status === "open" ? "Aberto" : "Encerrado"}
-                                  </Badge>
-                                </div>
-                              </div>
-                              <div
-                                className="text-secondary small text-truncate"
-                                title={thread.lastMessagePreview ?? undefined}
-                              >
-                                {thread.lastMessagePreview ?? "Sem mensagens"}
-                              </div>
-                              <div className="text-secondary small mt-auto" suppressHydrationWarning>
-                                {thread.lastMessageAt ? formatDateTime(thread.lastMessageAt) : "-"}
-                              </div>
-                            </Card.Body>
-                          </Card>
-                        </div>
-                      );
-                    })}
+                    {threads.map((thread) => renderThreadTile(thread))}
                   </div>
                 )}
               </Card.Body>
@@ -893,7 +898,10 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
               <Card.Header>
                 <Card.Title as="h2" className="h6 mb-0">Contatos em suporte</Card.Title>
               </Card.Header>
-              <Card.Body className="p-0" style={{ maxHeight: "calc(100vh - 260px)", overflowY: "auto" }}>
+              <Card.Body
+                className="p-3"
+                style={{ maxHeight: "calc(100vh - 260px)", overflowY: "auto" }}
+              >
                 {loadingThreads ? (
                   <div className="d-flex align-items-center justify-content-center py-4">
                     <Spinner animation="border" size="sm" />
@@ -903,40 +911,11 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
                 ) : threads.length === 0 ? (
                   <div className="text-secondary text-center py-4">Nenhum atendimento em andamento.</div>
                 ) : (
-                  <ListGroup variant="flush">
-                    {threads.map((thread) => {
-                      const active = selectedId === thread.whatsappId;
-                      const title = thread.customerName || thread.profileName || thread.whatsappId;
-                      const unread = unreadCounts[thread.whatsappId] ?? 0;
-                      return (
-                        <ListGroup.Item
-                          key={thread.whatsappId}
-                          action
-                          active={active}
-                          onClick={() => handleSelect(thread)}
-                          className="d-flex flex-column gap-1"
-                        >
-                          <div className="d-flex justify-content-between align-items-center gap-2">
-                            <span className="fw-semibold">{title}</span>
-                            <div className="d-flex align-items-center gap-2">
-                              {unread > 0 && <Badge bg="danger">{unread}</Badge>}
-                              {thread.status === "open" ? (
-                                <Badge bg="success">Aberto</Badge>
-                              ) : (
-                                <Badge bg="secondary">Encerrado</Badge>
-                              )}
-                            </div>
-                          </div>
-                          <div className="text-secondary small text-truncate">
-                            {thread.lastMessagePreview ?? "Sem mensagens"}
-                          </div>
-                          <div className="text-secondary small" suppressHydrationWarning>
-                            {thread.lastMessageAt ? formatDateTime(thread.lastMessageAt) : "-"}
-                          </div>
-                        </ListGroup.Item>
-                      );
-                    })}
-                  </ListGroup>
+                  <div className="support-contacts-grid support-contacts-grid--stacked">
+                    {threads.map((thread) =>
+                      renderThreadTile(thread, { active: selectedId === thread.whatsappId }),
+                    )}
+                  </div>
                 )}
               </Card.Body>
             </Card>
@@ -997,42 +976,13 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
                     <Card.Header>
                       <Card.Title as="h3" className="h6 mb-0">Escolha uma conversa</Card.Title>
                     </Card.Header>
-                    <Card.Body style={{ maxHeight: 420, overflowY: "auto" }} className="p-0">
+                    <Card.Body style={{ maxHeight: 420, overflowY: "auto" }} className="p-3">
                       {threads.length === 0 ? (
                         <div className="text-secondary text-center py-4">Nenhum atendimento em andamento.</div>
                       ) : (
-                        <ListGroup variant="flush">
-                          {threads.map((thread) => {
-                            const title = thread.customerName || thread.profileName || thread.whatsappId;
-                            const unread = unreadCounts[thread.whatsappId] ?? 0;
-                            return (
-                              <ListGroup.Item
-                                key={`picker-${thread.whatsappId}`}
-                                action
-                                onClick={() => handleSelect(thread)}
-                                className="d-flex flex-column gap-1"
-                              >
-                                <div className="d-flex justify-content-between align-items-center gap-2">
-                                  <span className="fw-semibold">{title}</span>
-                                  <div className="d-flex align-items-center gap-2">
-                                    {unread > 0 && <Badge bg="danger">{unread}</Badge>}
-                                    {thread.status === "open" ? (
-                                      <Badge bg="success">Aberto</Badge>
-                                    ) : (
-                                      <Badge bg="secondary">Encerrado</Badge>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="text-secondary small text-truncate">
-                                  {thread.lastMessagePreview ?? "Sem mensagens"}
-                                </div>
-                                <div className="text-secondary small" suppressHydrationWarning>
-                                  {thread.lastMessageAt ? formatDateTime(thread.lastMessageAt) : "-"}
-                                </div>
-                              </ListGroup.Item>
-                            );
-                          })}
-                        </ListGroup>
+                        <div className="support-contacts-grid support-contacts-grid--stacked">
+                          {threads.map((thread) => renderThreadTile(thread))}
+                        </div>
                       )}
                     </Card.Body>
                   </Card>
