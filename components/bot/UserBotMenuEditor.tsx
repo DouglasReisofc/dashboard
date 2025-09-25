@@ -521,7 +521,9 @@ const UserBotMenuEditor = ({ config }: UserBotMenuEditorProps) => {
                   <Form.Control
                     type="file"
                     accept="image/*"
-                    onChange={(event) => handleFileChange(event.target.files?.[0] ?? null)}
+                    onChange={(event) =>
+                      handleFileChange((event.target as HTMLInputElement).files?.[0] ?? null)
+                    }
                   />
                   <Form.Text className="text-secondary d-block mb-2">
                     Utilize uma imagem para destacar o menu enviado automaticamente.

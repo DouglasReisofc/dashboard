@@ -4,6 +4,7 @@ import { Metadata } from "next";
 import UserProductManager from "components/catalog/UserProductManager";
 import { getCurrentUser } from "lib/auth";
 import { getCategoriesForUser, getProductsForUser } from "lib/catalog";
+import { getUserPlanStatus } from "lib/plans";
 
 export const metadata: Metadata = {
   title: "Gerenciar produtos digitais | StoreBot Dashboard",
@@ -13,9 +14,15 @@ export const metadata: Metadata = {
 const UserProductsPage = async () => {
   const user = await getCurrentUser();
 
-  const [categories, products] = user
-    ? await Promise.all([getCategoriesForUser(user.id), getProductsForUser(user.id)])
-    : [[], []];
+  if (!user) {
+    return null;
+  }
+
+  const [categories, products, planStatus] = await Promise.all([
+    getCategoriesForUser(user.id),
+    getProductsForUser(user.id),
+    getUserPlanStatus(user.id),
+  ]);
 
   return (
     <Fragment>
@@ -25,7 +32,7 @@ const UserProductsPage = async () => {
           Cadastre conteúdos secretos, organize anexos opcionais e defina o limite de revendas de cada produto.
         </p>
       </div>
-      <UserProductManager categories={categories} products={products} />
+      <UserProductManager categories={categories} products={products} planStatus={planStatus} />
     </Fragment>
   );
 };

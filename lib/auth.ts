@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { cache } from "react";
+import { unstable_noStore as noStore } from "next/cache";
 
 import {
   ensureSessionTable,
@@ -21,6 +21,20 @@ const ADMIN_ROLE_ALIASES = new Set([
   "super_admin",
 ]);
 
+const normalizeAvatarUrl = (value: string | null): string | null => {
+  if (!value) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const sanitized = trimmed.replace(/^\/+/, "").replace(/\\/g, "/");
+  return `/${sanitized}`;
+};
+
 export const normalizeUserRole = (value: unknown): "admin" | "user" => {
   if (typeof value === "string") {
     const normalized = value.trim().toLowerCase();
@@ -35,6 +49,16 @@ export const normalizeUserRole = (value: unknown): "admin" | "user" => {
 
   return "user";
 };
+
+const mapUserRowToSessionUser = (user: UserRow): SessionUser => ({
+  id: Number(user.id),
+  name: user.name ?? "",
+  email: user.email ?? "",
+  role: normalizeUserRole(user.role),
+  isActive: Boolean(user.is_active),
+  whatsappNumber: user.whatsapp_number ?? null,
+  avatarUrl: normalizeAvatarUrl(user.avatar_path ?? null),
+});
 
 export const SESSION_COOKIE = "sb_session";
 const SESSION_TTL_DAYS = 7;
@@ -150,7 +174,44 @@ const findActiveSession = async (
   return session;
 };
 
-export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
+export const getSessionUserById = async (sessionId: string): Promise<SessionUser | null> => {
+  if (!sessionId) {
+    return null;
+  }
+
+  try {
+    const session = await findActiveSession(sessionId);
+    if (!session) {
+      return null;
+    }
+
+    await ensureUserTable();
+    const db = getDb();
+    const [users] = await db.query<UserRow[]>(
+      `SELECT id, name, email, role, is_active, whatsapp_number, avatar_path FROM users WHERE id = ? LIMIT 1`,
+      [session.user_id],
+    );
+
+    if (!users.length) {
+      return null;
+    }
+
+    const user = users[0];
+
+    if (!user.is_active) {
+      await revokeSession(session.id);
+      return null;
+    }
+
+    return mapUserRowToSessionUser(user);
+  } catch (error) {
+    console.error("Failed to resolve session user", error);
+    return null;
+  }
+};
+
+export const getCurrentUser = async (): Promise<SessionUser | null> => {
+  noStore();
   const cookieStore = await cookies();
   const sessionId = cookieStore.get(SESSION_COOKIE)?.value;
 
@@ -168,7 +229,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
     await ensureUserTable();
     const db = getDb();
     const [users] = await db.query<UserRow[]>(
-      `SELECT id, name, email, role, is_active FROM users WHERE id = ? LIMIT 1`,
+      `SELECT id, name, email, role, is_active, whatsapp_number, avatar_path FROM users WHERE id = ? LIMIT 1`,
       [session.user_id],
     );
 
@@ -183,15 +244,9 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
       return null;
     }
 
-    return {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: normalizeUserRole(user.role),
-      isActive: Boolean(user.is_active),
-    } satisfies SessionUser;
+    return mapUserRowToSessionUser(user);
   } catch (error) {
-    console.error("Failed to resolve session", error);
+    console.error("Failed to load current user", error);
     return null;
   }
-});
+};

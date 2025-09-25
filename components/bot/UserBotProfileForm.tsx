@@ -388,7 +388,7 @@ const UserBotProfileForm = ({ profile, hasWebhookCredentials }: UserBotProfileFo
                 <Form.Control
                   type="file"
                   accept="image/*"
-                  onChange={(event) => setPhotoFile(event.target.files?.[0] ?? null)}
+                  onChange={(event) => setPhotoFile((event.target as HTMLInputElement).files?.[0] ?? null)}
                   disabled={!hasWebhookCredentials || isUploadingPhoto}
                 />
 

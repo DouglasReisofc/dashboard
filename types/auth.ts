@@ -4,4 +4,6 @@ export type SessionUser = {
   email: string;
   role: "admin" | "user";
   isActive: boolean;
+  whatsappNumber: string | null;
+  avatarUrl: string | null;
 };

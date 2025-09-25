@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { ResultSetHeader } from "mysql2";
+import { ResultSetHeader, RowDataPacket } from "mysql2";
 
 import type {
   MercadoPagoCheckoutCharge,
@@ -1109,4 +1109,61 @@ export const updatePaymentChargeStatus = async (
   }
 
   return mapChargeRow(rows[0]);
+};
+
+export const getChargeHistoryForUser = async (
+  userId: number,
+  limit = 50,
+): Promise<PaymentCharge[]> => {
+  await ensurePaymentChargeTable();
+  const db = getDb();
+
+  const [rows] = await db.query<UserPaymentChargeRow[]>(
+    `
+      SELECT *
+      FROM user_payment_charges
+      WHERE user_id = ?
+      ORDER BY created_at DESC, id DESC
+      LIMIT ?
+    `,
+    [userId, limit],
+  );
+
+  return rows.map(mapChargeRow);
+};
+
+export const getApprovedChargeTotalsForUser = async (
+  userId: number,
+): Promise<{ totalAmount: number; totalCount: number }> => {
+  await ensurePaymentChargeTable();
+  const db = getDb();
+
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+      SELECT
+        COUNT(*) AS total_count,
+        COALESCE(SUM(amount), 0) AS total_amount
+      FROM user_payment_charges
+      WHERE user_id = ? AND LOWER(status) = 'approved'
+    `,
+    [userId],
+  );
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return {
+      totalAmount: 0,
+      totalCount: 0,
+    };
+  }
+
+  const { total_count: totalCountRaw, total_amount: totalAmountRaw } = rows[0];
+
+  return {
+    totalCount: typeof totalCountRaw === "number"
+      ? totalCountRaw
+      : Number.parseInt(String(totalCountRaw ?? 0), 10) || 0,
+    totalAmount: typeof totalAmountRaw === "number"
+      ? Number(totalAmountRaw)
+      : Number.parseFloat(String(totalAmountRaw ?? 0)) || 0,
+  };
 };

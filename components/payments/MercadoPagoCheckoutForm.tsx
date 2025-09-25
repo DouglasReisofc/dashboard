@@ -67,6 +67,7 @@ const PAYMENT_METHOD_OPTIONS: readonly {
 
 interface MercadoPagoCheckoutFormProps {
   config: MercadoPagoCheckoutConfig;
+  updatePath?: string;
 }
 
 type Feedback = { type: "success" | "danger"; message: string } | null;
@@ -96,7 +97,7 @@ const buildInitialState = (config: MercadoPagoCheckoutConfig): FormState => ({
   allowedPaymentMethods: uniqueList(config.allowedPaymentMethods),
 });
 
-const MercadoPagoCheckoutForm = ({ config }: MercadoPagoCheckoutFormProps) => {
+const MercadoPagoCheckoutForm = ({ config, updatePath = "/api/payments/mercadopago/checkout" }: MercadoPagoCheckoutFormProps) => {
   const router = useRouter();
   const [formState, setFormState] = useState<FormState>(() => buildInitialState(config));
   const [feedback, setFeedback] = useState<Feedback>(null);
@@ -199,7 +200,7 @@ const MercadoPagoCheckoutForm = ({ config }: MercadoPagoCheckoutFormProps) => {
       allowedPaymentMethods: formState.allowedPaymentMethods,
     };
 
-    const response = await fetch("/api/payments/mercadopago/checkout", {
+    const response = await fetch(updatePath, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",

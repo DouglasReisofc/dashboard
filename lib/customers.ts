@@ -87,6 +87,36 @@ export const findCustomerByWhatsappForUser = async (
   return mapCustomerRow(rows[0]);
 };
 
+export const findCustomerByPhoneForUser = async (
+  userId: number,
+  phone: string,
+): Promise<CustomerSummary | null> => {
+  const normalizedPhone = normalizePhone(phone);
+
+  if (!normalizedPhone) {
+    return null;
+  }
+
+  await ensureCustomerTable();
+  const db = getDb();
+
+  const [rows] = await db.query<CustomerRow[]>(
+    `
+      SELECT *
+      FROM customers
+      WHERE user_id = ? AND (phone_number = ? OR whatsapp_id = ?)
+      LIMIT 1
+    `,
+    [userId, normalizedPhone, normalizedPhone],
+  );
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  return mapCustomerRow(rows[0]);
+};
+
 const sanitizeBalance = (value: number) => {
   if (!Number.isFinite(value)) {
     return 0;

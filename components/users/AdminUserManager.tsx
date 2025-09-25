@@ -7,7 +7,10 @@ import {
   Button,
   Card,
   Col,
+  Dropdown,
+  DropdownButton,
   Form,
+  InputGroup,
   Modal,
   Row,
   Table,
@@ -15,6 +18,7 @@ import {
 import { useRouter } from "next/navigation";
 
 import type { AdminUserSummary } from "types/users";
+import { PHONE_COUNTRIES, findCountryByDialCode } from "data/phone-countries";
 
 type Feedback = { type: "success" | "danger"; message: string } | null;
 
@@ -35,6 +39,8 @@ const AdminUserManager = ({ users }: AdminUserManagerProps) => {
     balance: "0",
     isActive: true,
     revokeSessions: false,
+    whatsappDialCode: PHONE_COUNTRIES[0].dialCode,
+    whatsappNumber: "",
   });
 
   const resetForm = () => {
@@ -46,6 +52,8 @@ const AdminUserManager = ({ users }: AdminUserManagerProps) => {
       balance: "0",
       isActive: true,
       revokeSessions: false,
+      whatsappDialCode: PHONE_COUNTRIES[0].dialCode,
+      whatsappNumber: "",
     });
   };
 
@@ -60,6 +68,27 @@ const AdminUserManager = ({ users }: AdminUserManagerProps) => {
       currency: "BRL",
       minimumFractionDigits: 2,
     }).format(value);
+
+  const formatWhatsapp = (value: string | null) => {
+    if (!value) {
+      return "-";
+    }
+
+    const trimmed = value.trim();
+    const match = trimmed.match(/^(\+\d{1,4})(\d{4,})$/);
+    if (!match) {
+      return trimmed;
+    }
+
+    const [, dialCode, rest] = match;
+    if (rest.length === 10) {
+      return `${dialCode} ${rest.slice(0, 2)} ${rest.slice(2, 6)}-${rest.slice(6)}`;
+    }
+    if (rest.length === 11) {
+      return `${dialCode} ${rest.slice(0, 2)} ${rest.slice(2, 7)}-${rest.slice(7)}`;
+    }
+    return `${dialCode} ${rest}`;
+  };
 
   const updateUser = async (
     user: AdminUserSummary,
@@ -116,6 +145,35 @@ const AdminUserManager = ({ users }: AdminUserManagerProps) => {
 
   const openEditModal = (user: AdminUserSummary) => {
     setEditingUser(user);
+
+    const splitWhatsapp = (() => {
+      if (!user.whatsappNumber) {
+        return {
+          dialCode: PHONE_COUNTRIES[0].dialCode,
+          number: "",
+        };
+      }
+
+      const trimmed = user.whatsappNumber.trim();
+      const matchedCountry = [...PHONE_COUNTRIES]
+        .sort((a, b) => b.dialCode.length - a.dialCode.length)
+        .find((country) => trimmed.startsWith(country.dialCode));
+
+      if (matchedCountry) {
+        const rest = trimmed.slice(matchedCountry.dialCode.length).replace(/[^0-9]/g, "");
+        return {
+          dialCode: matchedCountry.dialCode,
+          number: rest,
+        };
+      }
+
+      const digits = trimmed.replace(/[^0-9]/g, "");
+      return {
+        dialCode: PHONE_COUNTRIES[0].dialCode,
+        number: digits,
+      };
+    })();
+
     setFormState({
       name: user.name,
       email: user.email,
@@ -124,6 +182,8 @@ const AdminUserManager = ({ users }: AdminUserManagerProps) => {
       balance: user.balance.toFixed(2),
       isActive: user.isActive,
       revokeSessions: false,
+      whatsappDialCode: splitWhatsapp.dialCode,
+      whatsappNumber: splitWhatsapp.number,
     });
   };
 
@@ -169,6 +229,23 @@ const AdminUserManager = ({ users }: AdminUserManagerProps) => {
       payload.revokeSessions = true;
     }
 
+    const whatsappDigits = formState.whatsappNumber.replace(/[^0-9]/g, "");
+    if (whatsappDigits.length > 0 && (whatsappDigits.length < 8 || whatsappDigits.length > 15)) {
+      setFeedback({
+        type: "danger",
+        message: "Informe um número de WhatsApp válido (DDD + número).",
+      });
+      return;
+    }
+
+    if (whatsappDigits.length > 0) {
+      payload.whatsappDialCode = formState.whatsappDialCode;
+      payload.whatsappNumber = whatsappDigits;
+    } else if (editingUser.whatsappNumber) {
+      payload.whatsappDialCode = null;
+      payload.whatsappNumber = null;
+    }
+
     const success = await updateUser(
       editingUser,
       payload,
@@ -211,6 +288,7 @@ const AdminUserManager = ({ users }: AdminUserManagerProps) => {
                 <tr>
                   <th>Nome</th>
                   <th>E-mail</th>
+                  <th>WhatsApp</th>
                   <th>Perfil</th>
                   <th>Status</th>
                   <th>Saldo</th>
@@ -221,7 +299,7 @@ const AdminUserManager = ({ users }: AdminUserManagerProps) => {
               <tbody>
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center text-secondary py-4">
+                    <td colSpan={8} className="text-center text-secondary py-4">
                       Nenhum usuário cadastrado no momento.
                     </td>
                   </tr>
@@ -234,6 +312,7 @@ const AdminUserManager = ({ users }: AdminUserManagerProps) => {
                       <td>
                         <span className="text-secondary">{user.email}</span>
                       </td>
+                      <td>{formatWhatsapp(user.whatsappNumber)}</td>
                       <td>
                         <span className="badge bg-light text-dark text-uppercase">{user.role}</span>
                       </td>
@@ -311,6 +390,73 @@ const AdminUserManager = ({ users }: AdminUserManagerProps) => {
                     onChange={(event) => handleFormChange("email", event.target.value)}
                     placeholder="usuario@exemplo.com"
                   />
+                </Form.Group>
+              </Col>
+              <Col md={12}>
+                <Form.Group controlId="editUserWhatsapp">
+                  <Form.Label>WhatsApp</Form.Label>
+                  <InputGroup>
+                    <DropdownButton
+                      variant="outline-secondary"
+                      id="editUserWhatsappDial"
+                      title={(() => {
+                        const selected = findCountryByDialCode(formState.whatsappDialCode) ?? PHONE_COUNTRIES[0];
+                        return (
+                          <span className="d-inline-flex align-items-center gap-2">
+                            <img
+                              src={`/flags/${selected.code.toLowerCase()}.svg`}
+                              alt={`Bandeira ${selected.label}`}
+                              width={24}
+                              height={16}
+                              className="rounded border"
+                            />
+                            <span>{selected.dialCode}</span>
+                          </span>
+                        );
+                      })()}
+                      onSelect={(eventKey) => {
+                        if (!eventKey) {
+                          return;
+                        }
+                        setFormState((prev) => ({
+                          ...prev,
+                          whatsappDialCode: eventKey,
+                        }));
+                      }}
+                    >
+                      {PHONE_COUNTRIES.map((country) => (
+                        <Dropdown.Item eventKey={country.dialCode} key={country.code}>
+                          <span className="d-inline-flex align-items-center gap-2">
+                            <img
+                              src={`/flags/${country.code.toLowerCase()}.svg`}
+                              alt={`Bandeira ${country.label}`}
+                              width={24}
+                              height={16}
+                              className="rounded border"
+                            />
+                            <span>{country.label} ({country.dialCode})</span>
+                          </span>
+                        </Dropdown.Item>
+                      ))}
+                    </DropdownButton>
+                    <Form.Control
+                      type="tel"
+                      inputMode="numeric"
+                      pattern="[0-9]{0,15}"
+                      placeholder="DDD + número"
+                      value={formState.whatsappNumber}
+                      onChange={(event) => {
+                        const digits = event.target.value.replace(/[^0-9]/g, "");
+                        setFormState((prev) => ({
+                          ...prev,
+                          whatsappNumber: digits,
+                        }));
+                      }}
+                    />
+                  </InputGroup>
+                  <Form.Text className="text-secondary">
+                    Informe apenas números. Para remover o WhatsApp, deixe em branco.
+                  </Form.Text>
                 </Form.Group>
               </Col>
               <Col md={6}>

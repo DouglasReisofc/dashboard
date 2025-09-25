@@ -36,6 +36,8 @@ import {
   sendImageFromUrl,
   sendProductFile,
   sendTextMessage,
+  sendSupportFinishPrompt,
+  SUPPORT_FINISH_BUTTON_ID,
 } from "lib/meta";
 import {
   createMercadoPagoCheckoutCharge,
@@ -45,9 +47,59 @@ import {
   getPaymentMethodSummariesForUser,
   getPixChargeImageUrl,
 } from "lib/payments";
+import { recordPurchaseHistoryEntry } from "lib/purchase-history";
 import { getWebhookByPublicId, recordWebhookEvent } from "lib/webhooks";
+import {
+  getOrCreateSupportThread,
+  getSupportThreadByWhatsapp,
+  recordSupportMessage,
+  closeSupportThread,
+  reopenSupportThread,
+  buildSupportThreadSummary,
+  serializeSupportMessage,
+} from "lib/support";
+import { getUserBasicById } from "lib/users";
+import { EmailNotConfiguredError, sendEmail } from "lib/email";
+import { sendBotProductPurchaseNotification } from "lib/notifications";
+import {
+  emitPurchaseCreated,
+  emitSupportMessageEvent,
+  emitSupportThreadUpdate,
+  type PurchaseCreatedPayload,
+} from "lib/realtime";
 import type { CategorySummary } from "types/catalog";
 import type { PaymentMethodProvider } from "types/payments";
+
+type WhatsAppInteractiveReply = {
+  id?: string | null;
+  title?: string | null;
+};
+
+type WhatsAppInteractive = {
+  type?: string | null;
+  button_reply?: WhatsAppInteractiveReply | null;
+  list_reply?: WhatsAppInteractiveReply | null;
+};
+
+type WhatsAppMedia = {
+  id?: string | null;
+  mime_type?: string | null;
+  filename?: string | null;
+  caption?: string | null;
+} | null;
+
+type WhatsAppMessage = {
+  id?: string | null;
+  type?: string | null;
+  timestamp?: string | number | null;
+  text?: { body?: string | null } | null;
+  interactive?: WhatsAppInteractive | null;
+  image?: WhatsAppMedia;
+  document?: WhatsAppMedia;
+  audio?: WhatsAppMedia;
+  video?: WhatsAppMedia;
+  sticker?: WhatsAppMedia;
+};
 
 type ChangeValue = {
   messaging_product?: string;
@@ -93,6 +145,140 @@ const parseTimestamp = (raw: unknown): number | null => {
   }
 
   return null;
+};
+
+const resolveInteractiveReplyId = (message: WhatsAppMessage | null | undefined) => {
+  if (!message || typeof message !== "object") {
+    return null;
+  }
+  if (message.type !== "interactive" || !message.interactive) {
+    return null;
+  }
+  const interactive = message.interactive;
+  if (interactive?.type === "button_reply") {
+    return interactive.button_reply?.id ?? null;
+  }
+  if (interactive?.type === "list_reply") {
+    return interactive.list_reply?.id ?? null;
+  }
+  return null;
+};
+
+const resolveInteractiveTitle = (message: WhatsAppMessage | null | undefined) => {
+  if (!message || typeof message !== "object") {
+    return null;
+  }
+  if (message.type !== "interactive" || !message.interactive) {
+    return null;
+  }
+  const interactive = message.interactive;
+  if (interactive?.type === "button_reply") {
+    return interactive.button_reply?.title ?? interactive.button_reply?.id ?? null;
+  }
+  if (interactive?.type === "list_reply") {
+    return interactive.list_reply?.title ?? interactive.list_reply?.id ?? null;
+  }
+  return null;
+};
+
+const extractMessageText = (message: WhatsAppMessage | null | undefined) => {
+  if (!message || typeof message !== "object") {
+    return null;
+  }
+
+  switch (message.type) {
+    case "text":
+      return message.text?.body ?? null;
+    case "interactive":
+      return resolveInteractiveTitle(message);
+    case "image":
+      return message.image?.caption ?? null;
+    case "document":
+      return message.document?.caption ?? null;
+    case "audio":
+    case "video":
+    case "sticker":
+      return message[message.type as "audio" | "video" | "sticker"]?.caption ?? message.type ?? null;
+    default:
+      return null;
+  }
+};
+
+const simplifyPayload = (message: WhatsAppMessage | null | undefined) => {
+  if (!message || typeof message !== "object") {
+    return null;
+  }
+
+  const base: Record<string, unknown> = {
+    id: message.id ?? null,
+    type: message.type ?? null,
+    timestamp: message.timestamp ?? null,
+  };
+
+  if (message.type === "image" && message.image?.id) {
+    return {
+      ...base,
+      mediaId: message.image.id,
+      mimeType: message.image.mime_type ?? null,
+      caption: message.image.caption ?? null,
+      mediaType: "image",
+    };
+  }
+  if (message.type === "document" && message.document?.id) {
+    return {
+      ...base,
+      mediaId: message.document.id,
+      mimeType: message.document.mime_type ?? null,
+      filename: message.document.filename ?? null,
+      caption: message.document.caption ?? null,
+      mediaType: "document",
+    };
+  }
+  if (message.type === "audio" && message.audio?.id) {
+    return {
+      ...base,
+      mediaId: message.audio.id,
+      mimeType: message.audio.mime_type ?? null,
+      mediaType: "audio",
+    };
+  }
+  if (message.type === "video" && message.video?.id) {
+    return {
+      ...base,
+      mediaId: message.video.id,
+      mimeType: message.video.mime_type ?? null,
+      caption: message.video.caption ?? null,
+      mediaType: "video",
+    };
+  }
+  if (message.type === "sticker" && message.sticker?.id) {
+    return {
+      ...base,
+      mediaId: message.sticker.id,
+      mediaType: "sticker",
+      caption: message.sticker.caption ?? null,
+    };
+  }
+  if (message.type === "interactive") {
+    return {
+      ...base,
+      interactive: message.interactive ?? null,
+      selectionTitle: resolveInteractiveTitle(message),
+    };
+  }
+
+  if (message.type === "text" && message.text?.body) {
+    return {
+      ...base,
+      text: message.text.body,
+    };
+  }
+
+  try {
+    return JSON.parse(JSON.stringify(message));
+  } catch {
+    return message;
+  }
 };
 
 const replyWithBotMenu = async (
@@ -146,6 +332,66 @@ const replyWithBotMenu = async (
     }
   } catch (balanceError) {
     console.error("[Meta Webhook] Não foi possível recuperar o saldo do cliente", balanceError);
+  }
+
+  const messageTimestamp = timestampSeconds ? new Date(timestampSeconds * 1000) : new Date();
+  const supportThread = await getSupportThreadByWhatsapp(webhook.user_id, recipient);
+
+  if (supportThread && supportThread.status === "open") {
+    const interactiveReplyId = resolveInteractiveReplyId(incomingMessage as WhatsAppMessage);
+    const messageText = extractMessageText(incomingMessage as WhatsAppMessage);
+
+    const inboundRecord = await recordSupportMessage({
+      userId: webhook.user_id,
+      whatsappId: recipient,
+      direction: "inbound",
+      messageType: incomingMessage.type ?? "unknown",
+      text: messageText,
+      payload: simplifyPayload(incomingMessage as WhatsAppMessage),
+      messageId: typeof incomingMessage.id === "string" ? incomingMessage.id : null,
+      timestamp: messageTimestamp,
+      customerName: contactName ?? null,
+      profileName: contactName ?? null,
+    });
+
+    const inboundMessage = serializeSupportMessage(inboundRecord.message);
+    const inboundSummary = await buildSupportThreadSummary(webhook.user_id, inboundRecord.thread);
+    emitSupportMessageEvent({
+      userId: webhook.user_id,
+      whatsappId: inboundRecord.thread.whatsappId,
+      message: inboundMessage,
+    });
+    emitSupportThreadUpdate({ userId: webhook.user_id, thread: inboundSummary });
+
+    if (interactiveReplyId === SUPPORT_FINISH_BUTTON_ID) {
+      const farewell = "Obrigado! Encerramos seu atendimento. Se precisar de algo, retorne a qualquer momento.";
+      await sendTextMessage({ webhook, to: recipient, text: farewell });
+      const farewellRecord = await recordSupportMessage({
+        userId: webhook.user_id,
+        whatsappId: recipient,
+        direction: "outbound",
+        messageType: "text",
+        text: farewell,
+      });
+      const farewellMessage = serializeSupportMessage(farewellRecord.message);
+      const farewellSummary = await buildSupportThreadSummary(webhook.user_id, farewellRecord.thread);
+      emitSupportMessageEvent({
+        userId: webhook.user_id,
+        whatsappId: farewellRecord.thread.whatsappId,
+        message: farewellMessage,
+      });
+      emitSupportThreadUpdate({ userId: webhook.user_id, thread: farewellSummary });
+
+      await closeSupportThread(webhook.user_id, recipient);
+      const closedThread = await getSupportThreadByWhatsapp(webhook.user_id, recipient);
+      if (closedThread) {
+        const closedSummary = await buildSupportThreadSummary(webhook.user_id, closedThread);
+        emitSupportThreadUpdate({ userId: webhook.user_id, thread: closedSummary });
+      }
+      await sendMainMenu();
+    }
+
+    return;
   }
 
   let cachedCategories: CategorySummary[] | null = null;
@@ -854,6 +1100,79 @@ const replyWithBotMenu = async (
         text: purchaseSummary,
       });
 
+      let purchaseEventPayload: PurchaseCreatedPayload["purchase"] | null = null;
+
+      try {
+        await recordPurchaseHistoryEntry({
+          userId: webhook.user_id,
+          customerId: debitResult.customer?.id ?? null,
+          customerWhatsapp: recipient,
+          customerName:
+            debitResult.customer?.displayName
+            ?? debitResult.customer?.profileName
+            ?? contactName
+            ?? null,
+          categoryId: category.id,
+          categoryName: category.name,
+          categoryPrice: category.price,
+          categoryDescription: category.description ?? null,
+          productId: availableProduct.id,
+          productDetails: availableProduct.details,
+          productFilePath: availableProduct.filePath,
+          metadata: {
+            purchaseSummary,
+            balanceAfterPurchase: customerBalance,
+          },
+        });
+
+        purchaseEventPayload = {
+          categoryName: category.name,
+          categoryPrice: category.price,
+          customerName:
+            debitResult.customer?.displayName
+            ?? debitResult.customer?.profileName
+            ?? contactName
+            ?? null,
+          customerWhatsapp: recipient,
+          purchasedAt: new Date().toISOString(),
+          productDetails: availableProduct.details,
+        };
+      } catch (historyError) {
+        console.error(
+          "[Meta Webhook] Não foi possível registrar o histórico de compra",
+          historyError,
+        );
+      }
+
+      if (purchaseEventPayload) {
+        emitPurchaseCreated({
+          userId: webhook.user_id,
+          purchase: purchaseEventPayload,
+        });
+
+        try {
+          const owner = await getUserBasicById(webhook.user_id);
+          if (owner) {
+            await sendBotProductPurchaseNotification({
+              userId: owner.id,
+              userName: owner.name,
+              userEmail: owner.email ?? null,
+              categoryName: category.name,
+              amount: category.price,
+              customerName: purchaseEventPayload.customerName ?? null,
+              customerWhatsapp: purchaseEventPayload.customerWhatsapp ?? null,
+              customerBalanceAfter: customerBalance,
+              productDetails: availableProduct.details,
+            });
+          }
+        } catch (notificationError) {
+          console.error(
+            "[Meta Webhook] Falha ao notificar compra do bot",
+            notificationError,
+          );
+        }
+      }
+
       if (availableProduct.filePath) {
         const botConfig = await resolveBotConfig();
         const detailTemplate = renderCategoryDetailTemplate(
@@ -966,19 +1285,97 @@ const replyWithBotMenu = async (
 
     if (buttonReplyId === MENU_BUTTON_IDS.support) {
       const botConfig = await resolveBotConfig();
-      const message = renderSupportReply(
+      const supportReply = renderSupportReply(
         botConfig
           ? { supportReplyText: botConfig.supportReplyText, variables: botConfig.variables }
           : null,
         getContext(),
       );
 
+      await getOrCreateSupportThread(webhook.user_id, recipient, {
+        customerName: contactName ?? null,
+        profileName: contactName ?? null,
+      });
+      await reopenSupportThread(webhook.user_id, recipient);
+
+      const initialRecord = await recordSupportMessage({
+        userId: webhook.user_id,
+        whatsappId: recipient,
+        direction: "inbound",
+        messageType: incomingMessage.type ?? "interactive",
+        text: resolveInteractiveTitle(incomingMessage as WhatsAppMessage) ?? "Suporte",
+        payload: simplifyPayload(incomingMessage as WhatsAppMessage),
+        messageId: typeof incomingMessage.id === "string" ? incomingMessage.id : null,
+        timestamp: messageTimestamp,
+        customerName: contactName ?? null,
+        profileName: contactName ?? null,
+      });
+
+      const initialMessage = serializeSupportMessage(initialRecord.message);
+      const initialSummary = await buildSupportThreadSummary(webhook.user_id, initialRecord.thread);
+      emitSupportMessageEvent({
+        userId: webhook.user_id,
+        whatsappId: initialRecord.thread.whatsappId,
+        message: initialMessage,
+      });
+      emitSupportThreadUpdate({ userId: webhook.user_id, thread: initialSummary });
+
       await sendTextMessage({
         webhook,
         to: recipient,
-        text: message,
+        text: supportReply,
       });
-      await sendMainMenu();
+      const replyRecord = await recordSupportMessage({
+        userId: webhook.user_id,
+        whatsappId: recipient,
+        direction: "outbound",
+        messageType: "text",
+        text: supportReply,
+      });
+      const replyMessage = serializeSupportMessage(replyRecord.message);
+      const replySummary = await buildSupportThreadSummary(webhook.user_id, replyRecord.thread);
+      emitSupportMessageEvent({
+        userId: webhook.user_id,
+        whatsappId: replyRecord.thread.whatsappId,
+        message: replyMessage,
+      });
+      emitSupportThreadUpdate({ userId: webhook.user_id, thread: replySummary });
+
+      const finishPrompt = "Quando finalizar, toque no botão abaixo para encerrar o atendimento.";
+      await sendSupportFinishPrompt({ webhook, to: recipient, bodyText: finishPrompt });
+      const promptRecord = await recordSupportMessage({
+        userId: webhook.user_id,
+        whatsappId: recipient,
+        direction: "outbound",
+        messageType: "interactive",
+        text: "Encerrar atendimento",
+      });
+      const promptMessage = serializeSupportMessage(promptRecord.message);
+      const promptSummary = await buildSupportThreadSummary(webhook.user_id, promptRecord.thread);
+      emitSupportMessageEvent({
+        userId: webhook.user_id,
+        whatsappId: promptRecord.thread.whatsappId,
+        message: promptMessage,
+      });
+      emitSupportThreadUpdate({ userId: webhook.user_id, thread: promptSummary });
+
+      try {
+        const owner = await getUserBasicById(webhook.user_id);
+        if (owner?.email) {
+          const customerLabel = contactName ? `${contactName} (${recipient})` : recipient;
+          const text = `Novo atendimento solicitado por ${customerLabel}. Responda pelo painel do StoreBot.`;
+          await sendEmail({
+            to: owner.email,
+            subject: "Novo atendimento de suporte",
+            text,
+          });
+        }
+      } catch (emailError) {
+        if (!(emailError instanceof EmailNotConfiguredError)) {
+          console.error("[Meta Webhook] Falha ao enviar notificação de suporte", emailError);
+        }
+      }
+
       return;
     }
   }
@@ -1053,7 +1450,7 @@ export async function POST(
     console.info(
       "[Meta Webhook] Evento recebido",
       {
-        webhookId: webhook.public_id,
+        webhookId: webhook.id,
         userId: webhook.user_id,
         eventType,
         timestamp: new Date().toISOString(),

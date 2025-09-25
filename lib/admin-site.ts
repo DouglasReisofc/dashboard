@@ -31,16 +31,23 @@ const DEFAULT_SETTINGS: AdminSiteSettings = {
   heroButtonUrl: null,
   seoTitle: null,
   seoDescription: null,
+  seoImageUrl: null,
   footerText: null,
   updatedAt: null,
 };
 
 const MAX_LOGO_SIZE = 5 * 1024 * 1024;
+const MAX_SEO_IMAGE_SIZE = 3 * 1024 * 1024;
 const LOGO_ALLOWED_MIME = new Set([
   "image/png",
   "image/jpeg",
   "image/webp",
   "image/svg+xml",
+]);
+const SEO_IMAGE_ALLOWED_MIME = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
 ]);
 
 const sanitizeText = (value: unknown, maxLength: number): string => {
@@ -125,6 +132,7 @@ const validateImageFile = (
   maxSize: number,
   allowedMime: Set<string>,
   maxLabel: string,
+  formatsHint: string,
 ) => {
   if (!(file instanceof File)) {
     throw new AdminSiteSettingsError("Arquivo de imagem inválido.");
@@ -135,7 +143,7 @@ const validateImageFile = (
   }
 
   if (!allowedMime.has(file.type)) {
-    throw new AdminSiteSettingsError("Envie imagens nos formatos PNG, JPG, WEBP ou SVG.");
+    throw new AdminSiteSettingsError(`Envie imagens nos formatos ${formatsHint}.`);
   }
 };
 
@@ -156,6 +164,7 @@ const mapRowToSettings = (row: AdminSiteSettingsRow | null): AdminSiteSettings =
     heroButtonUrl: row.hero_button_url ?? null,
     seoTitle: row.seo_title ?? null,
     seoDescription: row.seo_description ?? null,
+    seoImageUrl: row.seo_image_path ? resolveUploadedFileUrl(row.seo_image_path) : null,
     footerText: row.footer_text ?? null,
     updatedAt: row.updated_at ? row.updated_at.toISOString() : null,
   };
@@ -221,6 +230,7 @@ const extractFormPayload = (formData: FormData) => {
   };
 
   const logoEntry = formData.get("logo");
+  const seoImageEntry = formData.get("seoImage");
 
   return {
     payload: {
@@ -237,7 +247,9 @@ const extractFormPayload = (formData: FormData) => {
       footerText: getOptional("footerText"),
     },
     removeLogo: String(formData.get("removeLogo")).toLowerCase() === "true",
+    removeSeoImage: String(formData.get("removeSeoImage")).toLowerCase() === "true",
     logoFile: logoEntry instanceof File ? logoEntry : null,
+    seoImageFile: seoImageEntry instanceof File ? seoImageEntry : null,
   };
 };
 
@@ -252,24 +264,40 @@ export const saveAdminSiteSettingsFromForm = async (
   );
   const existing = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
 
-  const { payload, removeLogo, logoFile } = extractFormPayload(formData);
+  const { payload, removeLogo, removeSeoImage, logoFile, seoImageFile } = extractFormPayload(formData);
   const normalized = normalizePayload(payload);
 
   let nextLogoPath = existing?.logo_path ?? null;
+  let nextSeoImagePath = existing?.seo_image_path ?? null;
   let logoToDelete: string | null = null;
+  let seoImageToDelete: string | null = null;
 
   if (removeLogo && nextLogoPath) {
     logoToDelete = nextLogoPath;
     nextLogoPath = null;
   }
 
+  if (removeSeoImage && nextSeoImagePath) {
+    seoImageToDelete = nextSeoImagePath;
+    nextSeoImagePath = null;
+  }
+
   if (logoFile && logoFile.size > 0) {
-    validateImageFile(logoFile, MAX_LOGO_SIZE, LOGO_ALLOWED_MIME, "5 MB");
+    validateImageFile(logoFile, MAX_LOGO_SIZE, LOGO_ALLOWED_MIME, "5 MB", "PNG, JPG, WEBP ou SVG");
     const stored = await saveUploadedFile(logoFile, "admin/site");
     if (!removeLogo && existing?.logo_path) {
       logoToDelete = existing.logo_path;
     }
     nextLogoPath = stored;
+  }
+
+  if (seoImageFile && seoImageFile.size > 0) {
+    validateImageFile(seoImageFile, MAX_SEO_IMAGE_SIZE, SEO_IMAGE_ALLOWED_MIME, "3 MB", "PNG, JPG ou WEBP");
+    const stored = await saveUploadedFile(seoImageFile, "admin/seo");
+    if (!removeSeoImage && existing?.seo_image_path) {
+      seoImageToDelete = existing.seo_image_path;
+    }
+    nextSeoImagePath = stored;
   }
 
   await db.query(
@@ -279,6 +307,7 @@ export const saveAdminSiteSettingsFromForm = async (
         site_name = ?,
         tagline = ?,
         logo_path = ?,
+        seo_image_path = ?,
         support_email = ?,
         support_phone = ?,
         hero_title = ?,
@@ -294,6 +323,7 @@ export const saveAdminSiteSettingsFromForm = async (
       normalized.siteName,
       normalized.tagline,
       nextLogoPath,
+      nextSeoImagePath,
       normalized.supportEmail,
       normalized.supportPhone,
       normalized.heroTitle,
@@ -308,6 +338,10 @@ export const saveAdminSiteSettingsFromForm = async (
 
   if (logoToDelete) {
     await deleteUploadedFile(logoToDelete);
+  }
+
+  if (seoImageToDelete) {
+    await deleteUploadedFile(seoImageToDelete);
   }
 
   return getAdminSiteSettings();

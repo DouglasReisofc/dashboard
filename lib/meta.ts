@@ -3,7 +3,6 @@ import path from "path";
 import type { CategorySummary, ProductSummary } from "types/catalog";
 import type { BotMenuConfig } from "types/bot";
 import type { PaymentConfirmationMessageConfig } from "types/payments";
-import type { UserWebhookRow } from "./db";
 import { formatCurrency } from "./format";
 import {
   BotTemplateContext,
@@ -30,7 +29,7 @@ import {
   META_MEDIA_CAPTION_LIMIT,
 } from "./meta-limits";
 
-const getAppBaseUrl = () => {
+export const getAppBaseUrl = () => {
   const rawUrl = process.env.APP_URL?.trim();
   if (!rawUrl) {
     return "http://localhost:4478";
@@ -72,11 +71,18 @@ export const MENU_BUTTON_IDS = {
   support: "storebot_menu_support",
 } as const;
 
+export const SUPPORT_FINISH_BUTTON_ID = "storebot_support_finish" as const;
+
 export const CATEGORY_LIST_ROW_PREFIX = "storebot_category_";
 export const CATEGORY_LIST_NEXT_PREFIX = "storebot_list_next_";
 export const CATEGORY_PURCHASE_BUTTON_PREFIX = "storebot_buy_category_";
 export const ADD_BALANCE_OPTION_PREFIX = "storebot_add_balance_";
 export const PAYMENT_METHOD_OPTION_PREFIX = "storebot_payment_method_";
+
+export type MetaWebhookCredentials = {
+  access_token: string | null;
+  phone_number_id: string | null;
+};
 
 type ButtonDefinition = {
   id: string;
@@ -114,13 +120,14 @@ const sanitizeInteractiveLabel = (text: string, maxLength: number) => {
   return trimmed.length > maxLength ? trimmed.slice(0, maxLength) : trimmed;
 };
 
-type MetaMessagePayload = {
+export type MetaMessagePayload = {
   messaging_product: "whatsapp";
   to: string;
+  recipient_type?: "individual" | "group";
 } & Record<string, unknown>;
 
 const postMetaMessage = async (
-  webhook: UserWebhookRow,
+  webhook: MetaWebhookCredentials,
   payload: MetaMessagePayload,
   context: { successLog: string; failureLog: string },
 ) => {
@@ -142,6 +149,7 @@ const postMetaMessage = async (
     ...payload,
     messaging_product: "whatsapp",
     to: trimmedRecipient,
+    recipient_type: payload.recipient_type ?? "individual",
   };
 
   const version = getMetaApiVersion();
@@ -514,7 +522,7 @@ const buildCategoryDetailPayload = (
 };
 
 export const sendBotMenuReply = async (options: {
-  webhook: UserWebhookRow;
+  webhook: MetaWebhookCredentials;
   to: string;
   config: BotMenuConfig | null | undefined;
   context: BotTemplateContext;
@@ -562,7 +570,7 @@ export const sendBotMenuReply = async (options: {
 };
 
 export const sendCategoryListReply = async (options: {
-  webhook: UserWebhookRow;
+  webhook: MetaWebhookCredentials;
   to: string;
   categories: CategoryListEntry[];
   page: number;
@@ -593,7 +601,7 @@ export const sendCategoryListReply = async (options: {
 };
 
 export const sendCategoryDetailReply = async (options: {
-  webhook: UserWebhookRow;
+  webhook: MetaWebhookCredentials;
   to: string;
   category: CategorySummary;
   config: BotMenuConfig | null | undefined;
@@ -612,7 +620,7 @@ export const sendCategoryDetailReply = async (options: {
 };
 
 export const sendAddBalanceOptions = async (options: {
-  webhook: UserWebhookRow;
+  webhook: MetaWebhookCredentials;
   to: string;
   header: string;
   body: string;
@@ -644,7 +652,7 @@ export const sendAddBalanceOptions = async (options: {
 };
 
 export const sendTextMessage = async (options: {
-  webhook: UserWebhookRow;
+  webhook: MetaWebhookCredentials;
   to: string;
   text: string;
 }) => {
@@ -673,7 +681,7 @@ export const sendTextMessage = async (options: {
 };
 
 export const sendInteractiveCtaUrlMessage = async (options: {
-  webhook: UserWebhookRow;
+  webhook: MetaWebhookCredentials;
   to: string;
   bodyText: string;
   buttonText: string;
@@ -765,7 +773,7 @@ export const sendInteractiveCtaUrlMessage = async (options: {
 };
 
 export const sendInteractiveCopyCodeMessage = async (options: {
-  webhook: UserWebhookRow;
+  webhook: MetaWebhookCredentials;
   to: string;
   bodyText: string;
   buttonText: string;
@@ -831,6 +839,197 @@ export const sendInteractiveCopyCodeMessage = async (options: {
   });
 };
 
+export const sendInteractiveReplyButtonsMessage = async (options: {
+  webhook: MetaWebhookCredentials;
+  to: string;
+  bodyText: string;
+  buttons: Array<{ id: string; title: string }>;
+  footerText?: string | null;
+  headerText?: string | null;
+}) => {
+  const { webhook, to, bodyText, buttons, footerText, headerText } = options;
+
+  if (!buttons.length) {
+    console.warn("[Meta Webhook] Mensagem de botões sem botões válidos.");
+    return;
+  }
+
+  const sanitizedBody = sanitizeInteractiveText(bodyText);
+  if (!sanitizedBody) {
+    console.warn("[Meta Webhook] Mensagem de botões sem corpo.");
+    return;
+  }
+
+  const mappedButtons = buttons.slice(0, META_INTERACTIVE_BUTTON_LIMIT).map((button) => ({
+    type: "reply" as const,
+    reply: {
+      id: button.id,
+      title:
+        sanitizeInteractiveLabel(button.title, META_INTERACTIVE_BUTTON_LIMIT) ||
+        `Opção ${button.id}`,
+    },
+  }));
+
+  const interactive: Record<string, unknown> = {
+    type: "button",
+    body: {
+      text: sanitizedBody,
+    },
+    action: {
+      buttons: mappedButtons,
+    },
+  };
+
+  const sanitizedFooter = sanitizeInteractiveText(footerText ?? "", META_INTERACTIVE_FOOTER_LIMIT);
+  if (sanitizedFooter) {
+    interactive.footer = { text: sanitizedFooter };
+  }
+
+  const sanitizedHeader = sanitizeInteractiveLabel(headerText ?? "", META_INTERACTIVE_HEADER_LIMIT);
+  if (sanitizedHeader) {
+    interactive.header = { type: "text", text: sanitizedHeader };
+  }
+
+  const payload: MetaMessagePayload = {
+    messaging_product: "whatsapp",
+    to,
+    type: "interactive",
+    interactive,
+  };
+
+  await postMetaMessage(webhook, payload, {
+    successLog: `Mensagem interativa (botões) enviada para ${to}`,
+    failureLog: `Falha ao enviar mensagem interativa (botões) para ${to}`,
+  });
+};
+
+const uploadMediaToWhatsApp = async (
+  webhook: MetaWebhookCredentials,
+  media: { buffer: Buffer; filename: string; mime?: string | null },
+) => {
+  if (!webhook.access_token || !webhook.phone_number_id) {
+    throw new Error("Webhook sem credenciais para upload de mídia.");
+  }
+
+  const version = getMetaApiVersion();
+  const uploadUrl = `https://graph.facebook.com/${version}/${webhook.phone_number_id}/media`;
+  const formData = new FormData();
+  formData.append("messaging_product", "whatsapp");
+  const trimmedMime = media.mime && media.mime.trim() ? media.mime.trim() : null;
+  if (trimmedMime) {
+    formData.append("type", trimmedMime);
+  }
+
+  const filename = media.filename && media.filename.trim()
+    ? media.filename.trim()
+    : `upload-${Date.now()}`;
+
+  const blob = new Blob([media.buffer], {
+    type: trimmedMime ?? "application/octet-stream",
+  });
+  formData.append("file", blob, filename);
+
+  const response = await fetch(uploadUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${webhook.access_token}`,
+    },
+    body: formData,
+  });
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok || !data?.id) {
+    const message = data?.error?.message ?? "Falha ao enviar arquivo para a Meta";
+    throw new Error(message);
+  }
+
+  return {
+    mediaId: data.id as string,
+  };
+};
+
+export type MediaMessageOptions = {
+  webhook: MetaWebhookCredentials;
+  to: string;
+  mediaId: string;
+  mediaType: "image" | "document" | "audio" | "video" | "sticker";
+  caption?: string | null;
+  filename?: string | null;
+};
+
+export const sendMediaMessage = async (options: MediaMessageOptions) => {
+  const { webhook, to, mediaId, mediaUrl, mediaType, caption, filename } = options;
+
+  if (!mediaId && !mediaUrl) {
+    throw new Error("É necessário informar mediaId ou mediaUrl para enviar a mídia.");
+  }
+
+  const payload: MetaMessagePayload = {
+    messaging_product: "whatsapp",
+    to,
+    type: mediaType,
+    [mediaType]: (() => {
+      const mediaPayload: Record<string, unknown> = {};
+      if (mediaId) {
+        mediaPayload.id = mediaId;
+      }
+      if (mediaUrl) {
+        mediaPayload.link = mediaUrl;
+      }
+      if ((mediaType === "image" || mediaType === "video" || mediaType === "document") && caption) {
+        mediaPayload.caption = caption;
+      }
+      if (mediaType === "document" && filename) {
+        mediaPayload.filename = filename;
+      }
+      return mediaPayload;
+    })(),
+  };
+
+  await postMetaMessage(webhook, payload, {
+    successLog: `Mídia (${mediaType}) enviada para ${to}`,
+    failureLog: `Falha ao enviar mídia (${mediaType}) para ${to}`,
+  });
+};
+
+export const uploadAndSendMedia = async (options: {
+  webhook: MetaWebhookCredentials;
+  to: string;
+  file: File;
+  mediaType: MediaMessageOptions["mediaType"];
+  caption?: string | null;
+}) => {
+  const { webhook, to, file, mediaType, caption } = options;
+  let buffer = Buffer.from(await file.arrayBuffer());
+  let mime = typeof file.type === "string" && file.type.trim() ? file.type.trim() : "";
+  let filename = file.name && file.name.trim() ? file.name.trim() : `upload-${Date.now()}`;
+  let effectiveMediaType = mediaType;
+
+  if (mediaType === "image" && mime === "image/webp") {
+    const sharp = await import("sharp");
+    buffer = await sharp.default(buffer).jpeg({ quality: 88 }).toBuffer();
+    mime = "image/jpeg";
+    filename = filename.replace(/\.webp$/i, ".jpg");
+  } else if (mediaType === "sticker" && mime !== "image/webp") {
+    effectiveMediaType = "image";
+  }
+
+  const { mediaId } = await uploadMediaToWhatsApp(webhook, {
+    buffer,
+    filename,
+    mime: mime || null,
+  });
+  await sendMediaMessage({
+    webhook,
+    to,
+    mediaId,
+    mediaType: effectiveMediaType,
+    caption: caption ?? null,
+    filename,
+  });
+  return mediaId;
+};
+
 const applyPaymentConfirmationTemplate = (
   template: string,
   context: { amount: number; balance: number },
@@ -845,7 +1044,7 @@ const applyPaymentConfirmationTemplate = (
 };
 
 export const sendPaymentConfirmationMessage = async (options: {
-  webhook: UserWebhookRow;
+  webhook: MetaWebhookCredentials;
   to: string;
   config: PaymentConfirmationMessageConfig;
   amount: number;
@@ -891,7 +1090,7 @@ export const sendPaymentConfirmationMessage = async (options: {
 };
 
 export const sendImageFromUrl = async (options: {
-  webhook: UserWebhookRow;
+  webhook: MetaWebhookCredentials;
   to: string;
   imageUrl: string;
   caption?: string | null;
@@ -920,8 +1119,43 @@ export const sendImageFromUrl = async (options: {
   });
 };
 
+export const sendDocumentFromUrl = async (options: {
+  webhook: MetaWebhookCredentials;
+  to: string;
+  documentUrl: string;
+  filename?: string | null;
+  caption?: string | null;
+}) => {
+  const { webhook, to, documentUrl, filename, caption } = options;
+  const trimmedUrl = documentUrl.trim();
+
+  if (!trimmedUrl) {
+    console.warn("[Meta Webhook] URL do documento vazia ignorada");
+    return;
+  }
+
+  const sanitizedCaption = caption?.trim();
+  const payload: MetaMessagePayload = {
+    messaging_product: "whatsapp",
+    to,
+    type: "document",
+    document: {
+      link: trimmedUrl,
+      ...(filename?.trim() ? { filename: filename.trim() } : {}),
+      ...(sanitizedCaption
+        ? { caption: sanitizedCaption.slice(0, META_MEDIA_CAPTION_LIMIT) }
+        : {}),
+    },
+  };
+
+  await postMetaMessage(webhook, payload, {
+    successLog: `Documento enviado para ${to}`,
+    failureLog: `Falha ao enviar documento para ${to}`,
+  });
+};
+
 export const sendProductFile = async (options: {
-  webhook: UserWebhookRow;
+  webhook: MetaWebhookCredentials;
   to: string;
   product: ProductSummary;
   caption?: string;
@@ -964,5 +1198,30 @@ export const sendProductFile = async (options: {
   await postMetaMessage(webhook, payload, {
     successLog: `Arquivo do produto ${product.id} enviado para ${to}`,
     failureLog: `Falha ao enviar arquivo do produto ${product.id} para ${to}`,
+  });
+};
+
+export const dispatchMetaMessage = postMetaMessage;
+
+export const sendSupportFinishPrompt = async (options: {
+  webhook: MetaWebhookCredentials;
+  to: string;
+  bodyText: string;
+  footerText?: string | null;
+}) => {
+  const { webhook, to, bodyText, footerText } = options;
+  const payload = buildInteractiveMenuPayload(to, bodyText, {
+    footerText: footerText ?? null,
+    buttons: [
+      {
+        id: SUPPORT_FINISH_BUTTON_ID,
+        title: "Encerrar atendimento",
+      },
+    ],
+  });
+
+  await postMetaMessage(webhook, payload, {
+    successLog: `Prompt de encerramento de suporte enviado para ${to}`,
+    failureLog: `Falha ao enviar prompt de encerramento para ${to}`,
   });
 };

@@ -3,7 +3,11 @@ import { Metadata } from "next";
 
 import { getCurrentUser } from "lib/auth";
 import { getCategoriesForUser, getProductsForUser } from "lib/catalog";
+import { getApprovedChargeTotalsForUser } from "lib/payments";
+import { getPurchaseStatsForUser } from "lib/purchase-history";
+import { getUserBalanceById } from "lib/users";
 import { formatDate } from "lib/format";
+import { Avatar } from "components/common/Avatar";
 
 export const metadata: Metadata = {
   title: "Painel do usuário | StoreBot Dashboard",
@@ -13,9 +17,18 @@ export const metadata: Metadata = {
 
 const UserPanelPage = async () => {
   const user = await getCurrentUser();
-  const [categories, products] = user
-    ? await Promise.all([getCategoriesForUser(user.id), getProductsForUser(user.id)])
-    : [[], []];
+
+  if (!user) {
+    return null;
+  }
+
+  const [categories, products, balance, purchaseStats, chargeTotals] = await Promise.all([
+    getCategoriesForUser(user.id),
+    getProductsForUser(user.id),
+    getUserBalanceById(user.id),
+    getPurchaseStatsForUser(user.id),
+    getApprovedChargeTotalsForUser(user.id),
+  ]);
 
   const activeCategories = categories.filter((category) => category.isActive).length;
   const productsWithLimit = products.filter((product) => product.resaleLimit > 0).length;
@@ -24,17 +37,90 @@ const UserPanelPage = async () => {
   const recentCategories = categories.slice(0, 5);
   const recentProducts = products.slice(0, 5);
 
+  const formatCurrencyValue = (value: number) =>
+    value.toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  const formatWhatsapp = (value: string | null) => {
+    if (!value) {
+      return "WhatsApp não informado";
+    }
+
+    const trimmed = value.trim();
+    const match = trimmed.match(/^(\+\d{1,4})(\d{4,})$/);
+    if (!match) {
+      return trimmed;
+    }
+
+    const [, dial, rest] = match;
+    if (rest.length === 10) {
+      return `${dial} ${rest.slice(0, 2)} ${rest.slice(2, 6)}-${rest.slice(6)}`;
+    }
+    if (rest.length === 11) {
+      return `${dial} ${rest.slice(0, 2)} ${rest.slice(2, 7)}-${rest.slice(7)}`;
+    }
+    return `${dial} ${rest}`;
+  };
+
+  const whatsappLabel = formatWhatsapp(user.whatsappNumber ?? null);
+  const avatarSrc = user.avatarUrl ?? "/images/avatar/avatar-fallback.jpg";
+
   return (
     <Fragment>
       <div className="mb-6">
-        <h1 className="mb-2">Painel</h1>
-        <p className="text-secondary mb-0">
-          {user ? `${user.name}, ` : ""}
-          acompanhe rapidamente quantas categorias e produtos você cadastrou antes de abrir os gerenciadores.
-        </p>
+        <div className="d-flex flex-column flex-lg-row align-items-lg-center gap-4">
+          <div className="d-flex align-items-center gap-3">
+            <Avatar
+              type="image"
+              src={avatarSrc}
+              alt={user.name}
+              size="lg"
+              className="rounded-circle border"
+            />
+            <div>
+              <h1 className="mb-1">Olá, {user.name}!</h1>
+              <p className="text-secondary mb-0">{whatsappLabel}</p>
+              <small className="text-secondary">
+                Acompanhe suas vendas, ganhos e cadastros mais recentes de um jeito rápido.
+              </small>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="row g-4 mb-4">
+        <div className="col-sm-6 col-xl-3">
+          <div className="card h-100">
+            <div className="card-body">
+              <p className="text-secondary mb-1">Saldo disponível</p>
+              <h3 className="mb-0">R$ {formatCurrencyValue(balance)}</h3>
+            </div>
+          </div>
+        </div>
+        <div className="col-sm-6 col-xl-3">
+          <div className="card h-100">
+            <div className="card-body">
+              <p className="text-secondary mb-1">Total de vendas</p>
+              <h3 className="mb-0">{purchaseStats.totalSales}</h3>
+              <small className="text-secondary">
+                Receita acumulada de R$ {formatCurrencyValue(purchaseStats.totalRevenue)}
+              </small>
+            </div>
+          </div>
+        </div>
+        <div className="col-sm-6 col-xl-3">
+          <div className="card h-100">
+            <div className="card-body">
+              <p className="text-secondary mb-1">Ganhos com recargas</p>
+              <h3 className="mb-0">R$ {formatCurrencyValue(chargeTotals.totalAmount)}</h3>
+              <small className="text-secondary">
+                {chargeTotals.totalCount} pagamento(s) aprovado(s)
+              </small>
+            </div>
+          </div>
+        </div>
         <div className="col-sm-6 col-xl-3">
           <div className="card h-100">
             <div className="card-body">
@@ -64,6 +150,14 @@ const UserPanelPage = async () => {
             <div className="card-body">
               <p className="text-secondary mb-1">Produtos com limite</p>
               <h3 className="mb-0">{productsWithLimit}</h3>
+            </div>
+          </div>
+        </div>
+        <div className="col-sm-6 col-xl-3">
+          <div className="card h-100">
+            <div className="card-body">
+              <p className="text-secondary mb-1">Produtos com anexo</p>
+              <h3 className="mb-0">{productsWithAttachment}</h3>
             </div>
           </div>
         </div>
@@ -134,16 +228,6 @@ const UserPanelPage = async () => {
         </div>
       </div>
 
-      <div className="row g-4 mt-1">
-        <div className="col-sm-6 col-xl-3">
-          <div className="card h-100">
-            <div className="card-body">
-              <p className="text-secondary mb-1">Produtos com anexo</p>
-              <h3 className="mb-0">{productsWithAttachment}</h3>
-            </div>
-          </div>
-        </div>
-      </div>
     </Fragment>
   );
 };

@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 
 import { ensureUserTable, getDb, UserRow } from "lib/db";
+import type { RowDataPacket } from "mysql2/promise";
 import { createSession, normalizeUserRole, setSessionCookie } from "lib/auth";
 
 export async function POST(request: Request) {
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
     await ensureUserTable();
     const db = getDb();
 
-    const [users] = await db.query<UserRow[]>(
+    const [users] = await db.query<(UserRow & RowDataPacket)[]>(
       "SELECT * FROM users WHERE email = ? LIMIT 1",
       [normalizedEmail],
     );
@@ -58,6 +59,18 @@ export async function POST(request: Request) {
     }
 
     const session = await createSession(user.id);
+    const normalizeAvatarUrl = (value: string | null) => {
+      if (!value) {
+        return null;
+      }
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return null;
+      }
+      const sanitized = trimmed.replace(/^\/+/, "").replace(/\\/g, "/");
+      return `/${sanitized}`;
+    };
+
     const response = NextResponse.json(
       {
         user: {
@@ -66,6 +79,8 @@ export async function POST(request: Request) {
           email: user.email,
           role: normalizeUserRole(user.role),
           isActive: Boolean(user.is_active),
+          whatsappNumber: user.whatsapp_number ?? null,
+          avatarUrl: normalizeAvatarUrl(user.avatar_path ?? null),
         },
         message: "Login realizado com sucesso.",
       },

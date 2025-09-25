@@ -10,6 +10,7 @@ export interface AdminSiteSettings {
   heroButtonUrl: string | null;
   seoTitle: string | null;
   seoDescription: string | null;
+  seoImageUrl: string | null;
   footerText: string | null;
   updatedAt: string | null;
 }

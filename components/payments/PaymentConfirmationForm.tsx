@@ -13,6 +13,7 @@ import {
 
 interface PaymentConfirmationFormProps {
   config: PaymentConfirmationMessageConfig;
+  updatePath?: string;
 }
 
 type FormState = {
@@ -29,7 +30,10 @@ const buildInitialState = (config: PaymentConfirmationMessageConfig): FormState 
 
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 
-const PaymentConfirmationForm = ({ config }: PaymentConfirmationFormProps) => {
+const PaymentConfirmationForm = ({
+  config,
+  updatePath = "/api/payments/confirmation",
+}: PaymentConfirmationFormProps) => {
   const router = useRouter();
   const [formState, setFormState] = useState<FormState>(() => buildInitialState(config));
   const [feedback, setFeedback] = useState<Feedback>(null);
@@ -160,7 +164,7 @@ const PaymentConfirmationForm = ({ config }: PaymentConfirmationFormProps) => {
       payload.set("media", selectedFile);
     }
 
-    const response = await fetch("/api/payments/confirmation", {
+    const response = await fetch(updatePath, {
       method: "PUT",
       body: payload,
     });

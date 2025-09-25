@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 
 import type { AdminSiteSettings, AdminSiteSettingsPayload } from "types/admin-site";
 
@@ -10,7 +10,10 @@ interface AdminSiteSettingsFormProps {
   initialSettings: AdminSiteSettings;
 }
 
-type FormState = AdminSiteSettingsPayload & { logoUrl: string | null };
+type FormState = AdminSiteSettingsPayload & {
+  logoUrl: string | null;
+  seoImageUrl: string | null;
+};
 
 type FeedbackState = { type: "success" | "error"; message: string } | null;
 
@@ -53,10 +56,12 @@ const mapSettingsToFormState = (settings: AdminSiteSettings): FormState => ({
   heroButtonUrl: settings.heroButtonUrl,
   seoTitle: settings.seoTitle,
   seoDescription: settings.seoDescription,
+  seoImageUrl: settings.seoImageUrl,
   footerText: settings.footerText,
 });
 
 const AdminSiteSettingsForm = ({ initialSettings }: AdminSiteSettingsFormProps) => {
+  const router = useRouter();
   const [formState, setFormState] = useState<FormState>(() => mapSettingsToFormState(initialSettings));
   const [persistedSettings, setPersistedSettings] = useState<AdminSiteSettings>(initialSettings);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
@@ -64,6 +69,9 @@ const AdminSiteSettingsForm = ({ initialSettings }: AdminSiteSettingsFormProps) 
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [removeLogo, setRemoveLogo] = useState(false);
+  const [seoImageFile, setSeoImageFile] = useState<File | null>(null);
+  const [seoImagePreview, setSeoImagePreview] = useState<string | null>(null);
+  const [removeSeoImage, setRemoveSeoImage] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const activeOption = useMemo(
@@ -80,6 +88,7 @@ const AdminSiteSettingsForm = ({ initialSettings }: AdminSiteSettingsFormProps) 
       return new Intl.DateTimeFormat("pt-BR", {
         dateStyle: "short",
         timeStyle: "short",
+        timeZone: "America/Sao_Paulo",
       }).format(new Date(persistedSettings.updatedAt));
     } catch {
       return null;
@@ -99,6 +108,20 @@ const AdminSiteSettingsForm = ({ initialSettings }: AdminSiteSettingsFormProps) 
       URL.revokeObjectURL(previewUrl);
     };
   }, [logoFile]);
+
+  useEffect(() => {
+    if (!seoImageFile) {
+      setSeoImagePreview(null);
+      return () => {};
+    }
+
+    const previewUrl = URL.createObjectURL(seoImageFile);
+    setSeoImagePreview(previewUrl);
+
+    return () => {
+      URL.revokeObjectURL(previewUrl);
+    };
+  }, [seoImageFile]);
 
   const handleSiteNameChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { value } = event.target;
@@ -126,11 +149,30 @@ const AdminSiteSettingsForm = ({ initialSettings }: AdminSiteSettingsFormProps) 
     setRemoveLogo(false);
   };
 
+  const handleSeoImageFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files && event.target.files.length > 0 ? event.target.files[0] : null;
+
+    if (!file) {
+      setSeoImageFile(null);
+      return;
+    }
+
+    setSeoImageFile(file);
+    setRemoveSeoImage(false);
+  };
+
   const handleClearLogoFile = () => {
     setLogoFile(null);
     setLogoPreview(null);
     setRemoveLogo(false);
     setFormState((current) => ({ ...current, logoUrl: persistedSettings.logoUrl }));
+  };
+
+  const handleClearSeoImageFile = () => {
+    setSeoImageFile(null);
+    setSeoImagePreview(null);
+    setRemoveSeoImage(false);
+    setFormState((current) => ({ ...current, seoImageUrl: persistedSettings.seoImageUrl }));
   };
 
   const handleRemoveLogoClick = () => {
@@ -140,9 +182,21 @@ const AdminSiteSettingsForm = ({ initialSettings }: AdminSiteSettingsFormProps) 
     setFormState((current) => ({ ...current, logoUrl: null }));
   };
 
+  const handleRemoveSeoImageClick = () => {
+    setRemoveSeoImage(true);
+    setSeoImageFile(null);
+    setSeoImagePreview(null);
+    setFormState((current) => ({ ...current, seoImageUrl: null }));
+  };
+
   const handleCancelLogoRemoval = () => {
     setRemoveLogo(false);
     setFormState((current) => ({ ...current, logoUrl: persistedSettings.logoUrl }));
+  };
+
+  const handleCancelSeoImageRemoval = () => {
+    setRemoveSeoImage(false);
+    setFormState((current) => ({ ...current, seoImageUrl: persistedSettings.seoImageUrl }));
   };
 
   const resetForm = () => {
@@ -151,6 +205,9 @@ const AdminSiteSettingsForm = ({ initialSettings }: AdminSiteSettingsFormProps) 
     setLogoFile(null);
     setLogoPreview(null);
     setRemoveLogo(false);
+    setSeoImageFile(null);
+    setSeoImagePreview(null);
+    setRemoveSeoImage(false);
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -172,9 +229,14 @@ const AdminSiteSettingsForm = ({ initialSettings }: AdminSiteSettingsFormProps) 
         payloadToSend.set("seoDescription", formState.seoDescription ?? "");
         payloadToSend.set("footerText", formState.footerText ?? "");
         payloadToSend.set("removeLogo", String(removeLogo));
+        payloadToSend.set("removeSeoImage", String(removeSeoImage));
 
         if (logoFile) {
           payloadToSend.set("logo", logoFile);
+        }
+
+        if (seoImageFile) {
+          payloadToSend.set("seoImage", seoImageFile);
         }
 
         const response = await fetch("/api/admin/site", {
@@ -194,8 +256,12 @@ const AdminSiteSettingsForm = ({ initialSettings }: AdminSiteSettingsFormProps) 
           setPersistedSettings(nextSettings);
           setFormState(mapSettingsToFormState(nextSettings));
           setRemoveLogo(false);
+          setRemoveSeoImage(false);
           setLogoFile(null);
           setLogoPreview(null);
+          setSeoImageFile(null);
+          setSeoImagePreview(null);
+          router.refresh();
         }
 
         setFeedback({
@@ -215,6 +281,9 @@ const AdminSiteSettingsForm = ({ initialSettings }: AdminSiteSettingsFormProps) 
   const currentLogoUrl = removeLogo ? null : formState.logoUrl;
   const displayLogo = logoPreview ?? currentLogoUrl;
   const showCancelRemoval = removeLogo && Boolean(persistedSettings.logoUrl);
+  const currentSeoImageUrl = removeSeoImage ? null : formState.seoImageUrl;
+  const displaySeoImage = seoImagePreview ?? currentSeoImageUrl;
+  const showCancelSeoRemoval = removeSeoImage && Boolean(persistedSettings.seoImageUrl);
 
   return (
     <div className="d-flex flex-column gap-4">
@@ -301,14 +370,11 @@ const AdminSiteSettingsForm = ({ initialSettings }: AdminSiteSettingsFormProps) 
                 </label>
                 {displayLogo && (
                   <div className="d-flex align-items-start gap-3 mb-3">
-                    <Image
-                      src={displayLogo}
+                    <img
+                      src={displayLogo ?? ""}
                       alt="Prévia da logo do site"
-                      width={96}
-                      height={96}
-                      unoptimized
                       className="rounded border bg-white p-2"
-                      style={{ maxWidth: "96px", maxHeight: "96px", objectFit: "contain" }}
+                      style={{ width: "96px", height: "96px", objectFit: "contain" }}
                     />
                     <div className="d-flex flex-column gap-2">
                       <span className="text-secondary small">
@@ -514,6 +580,89 @@ const AdminSiteSettingsForm = ({ initialSettings }: AdminSiteSettingsFormProps) 
             <h2 className="h5 mb-0">SEO e rodapé</h2>
           </div>
           <div className="card-body d-flex flex-column gap-3">
+            <div>
+              <label className="form-label" htmlFor="seoPreviewImage">
+                Imagem de pré-visualização (Open Graph)
+              </label>
+              {displaySeoImage && (
+                <div className="d-flex align-items-start gap-3 mb-3">
+                  <img
+                    src={displaySeoImage ?? ""}
+                    alt="Prévia da imagem para redes sociais"
+                    className="rounded border bg-white"
+                    style={{ width: "200px", height: "120px", objectFit: "cover" }}
+                  />
+                  <div className="d-flex flex-column gap-2">
+                    <span className="text-secondary small">
+                      {seoImagePreview
+                        ? "Prévia da nova imagem (ainda não salva)."
+                        : "Imagem atual usada nas pré-visualizações de link."}
+                    </span>
+                    <div className="d-flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="btn btn-outline-danger btn-sm"
+                        onClick={handleRemoveSeoImageClick}
+                        disabled={isPending}
+                      >
+                        Remover imagem
+                      </button>
+                      {seoImagePreview && (
+                        <button
+                          type="button"
+                          className="btn btn-outline-secondary btn-sm"
+                          onClick={handleClearSeoImageFile}
+                          disabled={isPending}
+                        >
+                          Descartar imagem nova
+                        </button>
+                      )}
+                      {showCancelSeoRemoval && (
+                        <button
+                          type="button"
+                          className="btn btn-outline-secondary btn-sm"
+                          onClick={handleCancelSeoImageRemoval}
+                          disabled={isPending}
+                        >
+                          Cancelar remoção
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {!displaySeoImage && (
+                <p className="text-secondary small mb-3">
+                  Envie uma arte 1200×630 px (JPG, PNG ou WEBP) de até 3 MB para aparecer nas prévias de redes sociais.
+                </p>
+              )}
+              <input
+                id="seoPreviewImage"
+                name="seoImage"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="form-control"
+                onChange={handleSeoImageFileChange}
+                disabled={isPending}
+              />
+              {removeSeoImage && !seoImagePreview && (
+                <p className="text-secondary small mb-0 mt-2">
+                  A imagem atual será removida ao salvar.
+                </p>
+              )}
+              {showCancelSeoRemoval && !seoImagePreview && (
+                <div className="d-flex flex-wrap gap-2 mt-2">
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary btn-sm"
+                    onClick={handleCancelSeoImageRemoval}
+                    disabled={isPending}
+                  >
+                    Cancelar remoção
+                  </button>
+                </div>
+              )}
+            </div>
             <div>
               <label className="form-label" htmlFor="seoTitle">
                 Título para mecanismos de busca

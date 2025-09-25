@@ -8,6 +8,7 @@ import {
 } from "lib/catalog";
 import { getCurrentUser } from "lib/auth";
 import { deleteUploadedFile, saveUploadedFile } from "lib/uploads";
+import { assertUserHasActivePlan, SubscriptionPlanError } from "lib/plans";
 
 const parseInteger = (value: FormDataEntryValue | null, fallback: number) => {
   if (typeof value !== "string") {
@@ -20,13 +21,17 @@ const parseInteger = (value: FormDataEntryValue | null, fallback: number) => {
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: any, // eslint-disable-line @typescript-eslint/no-explicit-any
 ) {
   try {
     const user = await getCurrentUser();
 
     if (!user) {
       return NextResponse.json({ message: "Não autenticado." }, { status: 401 });
+    }
+
+    if (user.role !== "admin") {
+      await assertUserHasActivePlan(user.id);
     }
 
     const productId = Number.parseInt(params.id, 10);
@@ -80,7 +85,7 @@ export async function PUT(
       if (filePath) {
         await deleteUploadedFile(filePath);
       }
-      filePath = await saveUploadedFile(file, "products");
+      filePath = await saveUploadedFile(file, "products", { convertToWebp: false });
     } else if (shouldRemoveFile && filePath) {
       await deleteUploadedFile(filePath);
       filePath = null;
@@ -96,6 +101,10 @@ export async function PUT(
 
     return NextResponse.json({ message: "Produto atualizado." });
   } catch (error) {
+    if (error instanceof SubscriptionPlanError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
+
     console.error("Failed to update product", error);
     return NextResponse.json(
       { message: "Não foi possível atualizar o produto." },
@@ -106,7 +115,7 @@ export async function PUT(
 
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: any, // eslint-disable-line @typescript-eslint/no-explicit-any
 ) {
   try {
     const user = await getCurrentUser();
@@ -129,6 +138,10 @@ export async function DELETE(
       return NextResponse.json({ message: "Acesso negado." }, { status: 403 });
     }
 
+    if (user.role !== "admin") {
+      await assertUserHasActivePlan(existing.user_id);
+    }
+
     if (existing.file_path) {
       await deleteUploadedFile(existing.file_path);
     }
@@ -137,6 +150,10 @@ export async function DELETE(
 
     return NextResponse.json({ message: "Produto removido." });
   } catch (error) {
+    if (error instanceof SubscriptionPlanError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
+
     console.error("Failed to delete product", error);
     return NextResponse.json(
       { message: "Não foi possível remover o produto." },

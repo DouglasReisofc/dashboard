@@ -16,11 +16,17 @@ interface SidebarProps {
   hideLogo: boolean;
   containerId?: string;
   role: "admin" | "user";
+  siteSettings?: {
+    siteName: string;
+    logoUrl: string | null;
+  };
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ hideLogo = false, containerId, role }) => {
+const Sidebar: React.FC<SidebarProps> = ({ hideLogo = false, containerId, role, siteSettings }) => {
   const pathname = usePathname();
   const menuItems = getDashboardMenu(role);
+  const logoSrc = siteSettings?.logoUrl ?? "/images/brand/logo/logo-icon.svg";
+  const siteTitle = siteSettings?.siteName ?? "StoreBot";
 
   const isActiveLink = (link?: string) => {
     if (!link) return false;
@@ -40,8 +46,8 @@ const Sidebar: React.FC<SidebarProps> = ({ hideLogo = false, containerId, role }
         {hideLogo || (
           <div className="brand-logo">
             <Link href="/" className="d-none d-md-flex align-items-center gap-2">
-              <Image src={getAssetPath("/images/brand/logo/logo-icon.svg")} alt="StoreBot" />
-              <span className="fw-bold fs-4 site-logo-text">StoreBot</span>
+              <Image src={getAssetPath(logoSrc)} alt={siteTitle} />
+              <span className="fw-bold fs-4 site-logo-text">{siteTitle}</span>
             </Link>
           </div>
         )}

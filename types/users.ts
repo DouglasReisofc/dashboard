@@ -5,6 +5,8 @@ export type AdminUserSummary = {
   role: "admin" | "user";
   isActive: boolean;
   balance: number;
+  whatsappNumber: string | null;
+  avatarUrl: string | null;
   createdAt: string;
   updatedAt: string;
   activeSessions: number;

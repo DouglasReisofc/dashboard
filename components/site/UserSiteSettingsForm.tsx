@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Alert, Button, Card, Col, Form, Image, Row, Spinner } from "react-bootstrap";
 
 import type { SiteFooterLink, SiteSettings } from "types/site";
@@ -17,6 +18,7 @@ const mapSettingsToFormState = (settings: SiteSettings): SiteSettingsFormState =
   footerLinks: settings.footerLinks.length > 0 ? settings.footerLinks : [{ label: "", url: "" }],
   logoUrl: settings.logoUrl,
   faviconUrl: settings.faviconUrl,
+  seoImageUrl: settings.seoImageUrl,
   updatedAt: settings.updatedAt,
 });
 
@@ -41,6 +43,7 @@ type SiteSettingsFormState = {
   footerLinks: FormFooterLink[];
   logoUrl: string | null;
   faviconUrl: string | null;
+  seoImageUrl: string | null;
   updatedAt: string | null;
 };
 
@@ -57,17 +60,22 @@ const formatUpdatedAt = (value: string | null) => {
   return new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "short",
     timeStyle: "short",
+    timeZone: "America/Sao_Paulo",
   }).format(date);
 };
 
 const UserSiteSettingsForm = ({ settings }: SiteSettingsFormProps) => {
+  const router = useRouter();
   const [formState, setFormState] = useState<SiteSettingsFormState>(() => mapSettingsToFormState(settings));
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [faviconFile, setFaviconFile] = useState<File | null>(null);
+  const [seoImageFile, setSeoImageFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [faviconPreview, setFaviconPreview] = useState<string | null>(null);
+  const [seoImagePreview, setSeoImagePreview] = useState<string | null>(null);
   const [removeLogo, setRemoveLogo] = useState(false);
   const [removeFavicon, setRemoveFavicon] = useState(false);
+  const [removeSeoImage, setRemoveSeoImage] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
 
@@ -75,10 +83,13 @@ const UserSiteSettingsForm = ({ settings }: SiteSettingsFormProps) => {
     setFormState(mapSettingsToFormState(settings));
     setRemoveLogo(false);
     setRemoveFavicon(false);
+    setRemoveSeoImage(false);
     setLogoFile(null);
     setFaviconFile(null);
+    setSeoImageFile(null);
     setLogoPreview(null);
     setFaviconPreview(null);
+    setSeoImagePreview(null);
   }, [settings]);
 
   useEffect(() => {
@@ -103,7 +114,19 @@ const UserSiteSettingsForm = ({ settings }: SiteSettingsFormProps) => {
     return () => URL.revokeObjectURL(url);
   }, [faviconFile]);
 
+  useEffect(() => {
+    if (!seoImageFile) {
+      setSeoImagePreview(null);
+      return () => {};
+    }
+
+    const url = URL.createObjectURL(seoImageFile);
+    setSeoImagePreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [seoImageFile]);
+
   const formattedUpdatedAt = useMemo(() => formatUpdatedAt(formState.updatedAt), [formState.updatedAt]);
+  const displaySeoImage = removeSeoImage ? null : seoImagePreview ?? formState.seoImageUrl;
 
   const handleFooterLinkChange = (index: number, field: keyof FormFooterLink, value: string) => {
     setFormState((previous) => {
@@ -183,8 +206,13 @@ const UserSiteSettingsForm = ({ settings }: SiteSettingsFormProps) => {
       formData.set("favicon", faviconFile);
     }
 
+    if (seoImageFile) {
+      formData.set("seoImage", seoImageFile);
+    }
+
     formData.set("removeLogo", String(removeLogo));
     formData.set("removeFavicon", String(removeFavicon));
+    formData.set("removeSeoImage", String(removeSeoImage));
 
     const response = await fetch("/api/site", {
       method: "POST",
@@ -204,8 +232,14 @@ const UserSiteSettingsForm = ({ settings }: SiteSettingsFormProps) => {
       setFormState(mapSettingsToFormState(data.settings));
       setLogoFile(null);
       setFaviconFile(null);
+      setSeoImageFile(null);
       setRemoveLogo(false);
       setRemoveFavicon(false);
+      setRemoveSeoImage(false);
+      setLogoPreview(null);
+      setFaviconPreview(null);
+      setSeoImagePreview(null);
+      router.refresh();
     }
 
     setFeedback({
@@ -263,7 +297,7 @@ const UserSiteSettingsForm = ({ settings }: SiteSettingsFormProps) => {
                   <Form.Control
                     type="file"
                     accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                    onChange={(event) => setLogoFile(event.target.files?.[0] ?? null)}
+                    onChange={(event) => setLogoFile((event.target as HTMLInputElement).files?.[0] ?? null)}
                   />
                   <Form.Check
                     type="switch"
@@ -293,7 +327,7 @@ const UserSiteSettingsForm = ({ settings }: SiteSettingsFormProps) => {
                   <Form.Control
                     type="file"
                     accept="image/png,image/jpeg,image/webp,image/x-icon"
-                    onChange={(event) => setFaviconFile(event.target.files?.[0] ?? null)}
+                    onChange={(event) => setFaviconFile((event.target as HTMLInputElement).files?.[0] ?? null)}
                   />
                   <Form.Check
                     type="switch"
@@ -331,6 +365,49 @@ const UserSiteSettingsForm = ({ settings }: SiteSettingsFormProps) => {
           <Card.Text className="text-secondary">
             Personalize os títulos e descrições exibidos em mecanismos de busca e redes sociais.
           </Card.Text>
+
+          <Form.Group controlId="site-seo-image" className="mb-3">
+            <Form.Label>Imagem de pré-visualização (Open Graph)</Form.Label>
+            <Form.Control
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(event) => {
+                const file = (event.target as HTMLInputElement).files?.[0] ?? null;
+                setSeoImageFile(file);
+                if (file) {
+                  setRemoveSeoImage(false);
+                }
+              }}
+            />
+            <Form.Text>
+              Use imagens 1200×630 px nos formatos JPG, PNG ou WEBP com até 3 MB.
+            </Form.Text>
+            <Form.Check
+              type="switch"
+              id="site-remove-seo-image"
+              label="Remover imagem de pré-visualização"
+              className="mt-2"
+              checked={removeSeoImage}
+              onChange={(event) => setRemoveSeoImage(event.target.checked)}
+              disabled={!formState.seoImageUrl && !seoImageFile}
+            />
+            {removeSeoImage && !seoImagePreview && formState.seoImageUrl && (
+              <Form.Text className="d-block text-secondary mt-1">
+                A imagem atual será removida ao salvar.
+              </Form.Text>
+            )}
+            {displaySeoImage && (
+              <div className="mt-3">
+                <span className="d-block text-secondary small mb-2">Pré-visualização</span>
+                <Image
+                  src={displaySeoImage ?? ""}
+                  alt="Pré-visualização para redes sociais"
+                  fluid
+                  style={{ maxHeight: 280, width: "100%", objectFit: "cover" }}
+                />
+              </div>
+            )}
+          </Form.Group>
 
           <Form.Group controlId="site-seo-title" className="mb-3">
             <Form.Label>Título para SEO</Form.Label>

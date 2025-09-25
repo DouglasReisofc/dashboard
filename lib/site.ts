@@ -1,4 +1,5 @@
 import { RowDataPacket } from "mysql2";
+import { unstable_noStore as noStore } from "next/cache";
 
 import type { SiteFooterLink, SiteSettings } from "types/site";
 
@@ -23,6 +24,7 @@ const DEFAULT_SITE_NAME = "Minha loja virtual";
 const DEFAULT_SEO_TITLE = "Minha loja virtual";
 const MAX_LOGO_SIZE = 5 * 1024 * 1024;
 const MAX_FAVICON_SIZE = 512 * 1024;
+const MAX_SEO_IMAGE_SIZE = 3 * 1024 * 1024;
 const MAX_FOOTER_LINKS = 5;
 const MAX_KEYWORDS = 12;
 const LOGO_ALLOWED_MIME = new Set([
@@ -37,6 +39,11 @@ const FAVICON_ALLOWED_MIME = new Set([
   "image/webp",
   "image/svg+xml",
   "image/x-icon",
+]);
+const SEO_IMAGE_ALLOWED_MIME = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
 ]);
 
 const sanitizeText = (value: unknown, maxLength: number): string => {
@@ -146,6 +153,7 @@ const mapRowToSettings = (row: UserSiteSettingsRow | null): SiteSettings => {
       faviconUrl: null,
       seoTitle: DEFAULT_SEO_TITLE,
       seoDescription: null,
+      seoImageUrl: null,
       seoKeywords: [],
       footerText: null,
       footerLinks: [],
@@ -167,6 +175,7 @@ const mapRowToSettings = (row: UserSiteSettingsRow | null): SiteSettings => {
     faviconUrl: row.favicon_path ? resolveUploadedFileUrl(row.favicon_path) : null,
     seoTitle: row.seo_title ?? null,
     seoDescription: row.seo_description ?? null,
+    seoImageUrl: row.seo_image_path ? resolveUploadedFileUrl(row.seo_image_path) : null,
     seoKeywords: keywords,
     footerText: row.footer_text ?? null,
     footerLinks: row.footer_links
@@ -199,6 +208,7 @@ const mapRowToSettings = (row: UserSiteSettingsRow | null): SiteSettings => {
 };
 
 export const getSiteSettingsForUser = async (userId: number): Promise<SiteSettings> => {
+  noStore();
   await ensureSiteSettingsTable();
 
   const db = getDb();
@@ -263,14 +273,18 @@ export const saveSiteSettingsFromForm = async (
 
   const removeLogo = String(formData.get("removeLogo")).toLowerCase() === "true";
   const removeFavicon = String(formData.get("removeFavicon")).toLowerCase() === "true";
+  const removeSeoImage = String(formData.get("removeSeoImage")).toLowerCase() === "true";
 
   const logoFile = formData.get("logo");
   const faviconFile = formData.get("favicon");
+  const seoImageFile = formData.get("seoImage");
 
   let nextLogoPath = existing?.logo_path ?? null;
   let nextFaviconPath = existing?.favicon_path ?? null;
+  let nextSeoImagePath = existing?.seo_image_path ?? null;
   let logoToDelete: string | null = null;
   let faviconToDelete: string | null = null;
+  let seoImageToDelete: string | null = null;
 
   if (removeLogo && nextLogoPath) {
     logoToDelete = nextLogoPath;
@@ -280,6 +294,11 @@ export const saveSiteSettingsFromForm = async (
   if (removeFavicon && nextFaviconPath) {
     faviconToDelete = nextFaviconPath;
     nextFaviconPath = null;
+  }
+
+  if (removeSeoImage && nextSeoImagePath) {
+    seoImageToDelete = nextSeoImagePath;
+    nextSeoImagePath = null;
   }
 
   if (logoFile instanceof File && logoFile.size > 0) {
@@ -303,6 +322,15 @@ export const saveSiteSettingsFromForm = async (
     nextFaviconPath = stored;
   }
 
+  if (seoImageFile instanceof File && seoImageFile.size > 0) {
+    validateImageFile(seoImageFile, MAX_SEO_IMAGE_SIZE, SEO_IMAGE_ALLOWED_MIME, "3 MB");
+    const stored = await saveUploadedFile(seoImageFile, "site/seo");
+    if (!removeSeoImage && existing?.seo_image_path) {
+      seoImageToDelete = existing.seo_image_path;
+    }
+    nextSeoImagePath = stored;
+  }
+
   const keywordsValue = keywords.join(",");
   const footerLinksValue = footerLinks.length > 0 ? JSON.stringify(footerLinks) : null;
 
@@ -314,17 +342,19 @@ export const saveSiteSettingsFromForm = async (
         tagline,
         logo_path,
         favicon_path,
+        seo_image_path,
         seo_title,
         seo_description,
         seo_keywords,
         footer_text,
         footer_links
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
         site_name = VALUES(site_name),
         tagline = VALUES(tagline),
         logo_path = VALUES(logo_path),
         favicon_path = VALUES(favicon_path),
+        seo_image_path = VALUES(seo_image_path),
         seo_title = VALUES(seo_title),
         seo_description = VALUES(seo_description),
         seo_keywords = VALUES(seo_keywords),
@@ -337,6 +367,7 @@ export const saveSiteSettingsFromForm = async (
       tagline,
       nextLogoPath,
       nextFaviconPath,
+      nextSeoImagePath,
       seoTitle,
       seoDescription,
       keywordsValue || null,
@@ -348,6 +379,7 @@ export const saveSiteSettingsFromForm = async (
   await Promise.all([
     logoToDelete ? deleteUploadedFile(logoToDelete) : Promise.resolve(),
     faviconToDelete ? deleteUploadedFile(faviconToDelete) : Promise.resolve(),
+    seoImageToDelete ? deleteUploadedFile(seoImageToDelete) : Promise.resolve(),
   ]);
 
   return getSiteSettingsForUser(userId);

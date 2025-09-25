@@ -21,10 +21,22 @@ type ViewOption = {
   description: string;
 };
 
+type PaymentsEndpoints = {
+  pix?: string;
+  checkout?: string;
+  confirmation?: string;
+};
+
+type ViewOptionsOverride = Partial<Record<ViewId, Partial<ViewOption>>>;
+
 interface UserPaymentsConfigProps {
   pixConfig: MercadoPagoPixConfig;
   checkoutConfig: MercadoPagoCheckoutConfig;
   confirmationConfig: PaymentConfirmationMessageConfig;
+  endpoints?: PaymentsEndpoints;
+  cardTitle?: string;
+  cardDescription?: string;
+  viewOptionsOverride?: ViewOptionsOverride;
 }
 
 const VIEW_OPTIONS: readonly ViewOption[] = [
@@ -67,12 +79,34 @@ const UserPaymentsConfig = ({
   pixConfig,
   checkoutConfig,
   confirmationConfig,
+  endpoints,
+  cardTitle,
+  cardDescription,
+  viewOptionsOverride,
 }: UserPaymentsConfigProps) => {
   const [activeView, setActiveView] = useState<ViewId>(() => resolveInitialView(pixConfig, checkoutConfig));
 
+  const options = useMemo(() => {
+    if (!viewOptionsOverride) {
+      return VIEW_OPTIONS;
+    }
+
+    return VIEW_OPTIONS.map((option) => {
+      const override = viewOptionsOverride[option.id];
+      if (!override) {
+        return option;
+      }
+
+      return {
+        ...option,
+        ...override,
+      };
+    });
+  }, [viewOptionsOverride]);
+
   const activeOption = useMemo(
-    () => VIEW_OPTIONS.find((option) => option.id === activeView) ?? VIEW_OPTIONS[0],
-    [activeView],
+    () => options.find((option) => option.id === activeView) ?? options[0],
+    [activeView, options],
   );
 
   return (
@@ -80,14 +114,15 @@ const UserPaymentsConfig = ({
       <Card>
         <Card.Body>
           <Card.Title as="h2" className="h5">
-            Integrações Mercado Pago
+            {cardTitle ?? "Integrações Mercado Pago"}
           </Card.Title>
           <Card.Text className="text-secondary mb-3">
-            Selecione abaixo qual modalidade deseja configurar para personalizar a experiência de pagamento do seu bot.
+            {cardDescription ??
+              "Selecione abaixo qual modalidade deseja configurar para personalizar a experiência de pagamento do seu bot."}
           </Card.Text>
 
           <div className="d-flex flex-wrap gap-2">
-            {VIEW_OPTIONS.map((option) => (
+            {options.map((option) => (
               <Button
                 key={option.id}
                 variant={activeView === option.id ? "primary" : "outline-primary"}
@@ -102,9 +137,24 @@ const UserPaymentsConfig = ({
         </Card.Body>
       </Card>
 
-      {activeView === "pix" && <MercadoPagoPixForm config={pixConfig} />}
-      {activeView === "checkout" && <MercadoPagoCheckoutForm config={checkoutConfig} />}
-      {activeView === "confirmation" && <PaymentConfirmationForm config={confirmationConfig} />}
+      {activeView === "pix" && (
+        <MercadoPagoPixForm
+          config={pixConfig}
+          updatePath={endpoints?.pix}
+        />
+      )}
+      {activeView === "checkout" && (
+        <MercadoPagoCheckoutForm
+          config={checkoutConfig}
+          updatePath={endpoints?.checkout}
+        />
+      )}
+      {activeView === "confirmation" && (
+        <PaymentConfirmationForm
+          config={confirmationConfig}
+          updatePath={endpoints?.confirmation}
+        />
+      )}
     </div>
   );
 };

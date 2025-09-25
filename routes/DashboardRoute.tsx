@@ -10,6 +10,9 @@ import {
   IconTags,
   IconUsers,
   IconSettings,
+  IconCalendar,
+  IconMail,
+  IconShoppingBag,
 } from "@tabler/icons-react";
 
 //import custom type
@@ -27,6 +30,30 @@ const adminMenu: MenuItemType[] = [
     title: "Config. do site",
     link: "/dashboard/admin/site",
     icon: <IconSettings size={20} strokeWidth={1.5} />,
+  },
+  {
+    id: "admin-bot",
+    title: "Bot administrativo",
+    link: "/dashboard/admin/bot",
+    icon: <IconRobot size={20} strokeWidth={1.5} />,
+  },
+  {
+    id: "admin-plans",
+    title: "Planos",
+    link: "/dashboard/admin/planos",
+    icon: <IconCalendar size={20} strokeWidth={1.5} />,
+  },
+  {
+    id: "admin-payments",
+    title: "Pagamentos",
+    link: "/dashboard/admin/pagamentos",
+    icon: <IconCreditCard size={20} strokeWidth={1.5} />,
+  },
+  {
+    id: "admin-notifications",
+    title: "Notificações",
+    link: "/dashboard/admin/notificacoes",
+    icon: <IconMail size={20} strokeWidth={1.5} />,
   },
   {
     id: "admin-categories",
@@ -56,6 +83,12 @@ const userMenu: MenuItemType[] = [
     icon: <IconHome size={20} strokeWidth={1.5} />,
   },
   {
+    id: "user-plan",
+    title: "Meu plano",
+    link: "/dashboard/user/plano",
+    icon: <IconCalendar size={20} strokeWidth={1.5} />,
+  },
+  {
     id: "user-categories",
     title: "Categorias",
     link: "/dashboard/user/categories",
@@ -68,22 +101,28 @@ const userMenu: MenuItemType[] = [
     icon: <IconPackage size={20} strokeWidth={1.5} />,
   },
   {
+    id: "user-purchases",
+    title: "Compras",
+    link: "/dashboard/user/compras",
+    icon: <IconShoppingBag size={20} strokeWidth={1.5} />,
+  },
+  {
     id: "user-customers",
     title: "Clientes",
     link: "/dashboard/user/clientes",
     icon: <IconUsers size={20} strokeWidth={1.5} />,
   },
   {
+    id: "user-conversations",
+    title: "Suporte",
+    link: "/dashboard/user/conversas",
+    icon: <IconMail size={20} strokeWidth={1.5} />,
+  },
+  {
     id: "user-bot",
     title: "Configurar bot",
     link: "/dashboard/user/configurar-bot",
     icon: <IconRobot size={20} strokeWidth={1.5} />,
-  },
-  {
-    id: "user-site",
-    title: "Config. do site",
-    link: "/dashboard/user/site",
-    icon: <IconWorld size={20} strokeWidth={1.5} />,
   },
   {
     id: "user-payments",

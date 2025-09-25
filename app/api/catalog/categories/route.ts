@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getAllCategories, getCategoriesForUser, insertCategory } from "lib/catalog";
+import {
+  countCategoriesForUser,
+  getAllCategories,
+  getCategoriesForUser,
+  insertCategory,
+} from "lib/catalog";
 import type { AdminCategorySummary, CategorySummary } from "types/catalog";
 import { ensureCategoryTable } from "lib/db";
 import { getCurrentUser } from "lib/auth";
 import { saveUploadedFile } from "lib/uploads";
+import { assertUserHasActivePlan, validatePlanCategoryLimit, SubscriptionPlanError } from "lib/plans";
 
 const parsePrice = (value: FormDataEntryValue | null) => {
   if (typeof value !== "string") {
@@ -66,6 +72,12 @@ export async function POST(request: NextRequest) {
     }
 
     const formData = await request.formData();
+    if (user.role !== "admin") {
+      const { plan } = await assertUserHasActivePlan(user.id);
+      const existingCount = await countCategoriesForUser(user.id);
+      validatePlanCategoryLimit(plan, existingCount);
+    }
+
     const name = formData.get("name");
     const sku = formData.get("sku");
     const description = formData.get("description") ?? "";
@@ -94,7 +106,7 @@ export async function POST(request: NextRequest) {
 
     let imagePath: string | null = null;
     if (image instanceof File && image.size > 0) {
-      imagePath = await saveUploadedFile(image, "categories");
+      imagePath = await saveUploadedFile(image, "categories", { convertToWebp: false });
     }
 
     const categoryId = await insertCategory({
@@ -115,6 +127,10 @@ export async function POST(request: NextRequest) {
       { status: 201 },
     );
   } catch (error: unknown) {
+    if (error instanceof SubscriptionPlanError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
+
     console.error("Failed to create category", error);
     return NextResponse.json(
       { message: "Não foi possível criar a categoria." },

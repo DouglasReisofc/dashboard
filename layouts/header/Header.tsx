@@ -1,15 +1,9 @@
 "use client";
 //import node module libraries
-import React, { Fragment, useState } from "react";
+import React, { Fragment, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useMediaQuery } from "react-responsive";
-import {
-  IconArrowBarLeft,
-  IconArrowBarRight,
-  IconBell,
-  IconMenu2,
-  IconSearch,
-} from "@tabler/icons-react";
+import { IconArrowBarLeft, IconArrowBarRight, IconBell, IconMenu2 } from "@tabler/icons-react";
 import { Container, ListGroup, Navbar, Button } from "react-bootstrap";
 
 //import custom components
@@ -22,16 +16,87 @@ import OffcanvasSidebar from "layouts/OffcanvasSidebar";
 import useMenu from "hooks/useMenu";
 
 import type { SessionUser } from "types/auth";
+import type { UserNotification } from "types/notifications";
 
 interface HeaderProps {
   user: SessionUser;
+  siteSettings?: {
+    siteName: string;
+  };
 }
 
-const Header: React.FC<HeaderProps> = ({ user }) => {
+const Header: React.FC<HeaderProps> = ({ user, siteSettings }) => {
   const [isNoficationOpen, setIsNotificationOpen] = useState<boolean>(false);
+  const [notifications, setNotifications] = useState<UserNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const { toggleMenuHandler, handleCollapsed } = useMenu();
 
   const isTablet = useMediaQuery({ maxWidth: 990 });
+
+  const loadNotifications = useCallback(async () => {
+    try {
+      const response = await fetch("/api/notifications", {
+        method: "GET",
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      const data = await response.json();
+      setNotifications(Array.isArray(data.notifications) ? data.notifications : []);
+      setUnreadCount(typeof data.unreadCount === "number" ? data.unreadCount : 0);
+    } catch {
+      // ignore errors silently for header badge
+    }
+  }, []);
+
+  const handleOpenNotifications = useCallback(async () => {
+    await loadNotifications();
+    setIsNotificationOpen(true);
+  }, [loadNotifications]);
+
+  const handleMarkAllRead = useCallback(async () => {
+    try {
+      const response = await fetch("/api/notifications", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ notificationIds: "all" }),
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      await loadNotifications();
+    } catch {
+      // ignore temporary errors
+    }
+  }, [loadNotifications]);
+
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
+
+  useEffect(() => {
+    const handler = () => {
+      loadNotifications();
+    };
+
+    window.addEventListener("support:new-inbound", handler);
+    window.addEventListener("purchase:created", handler as EventListener);
+    window.addEventListener("notification:created", handler as EventListener);
+    return () => {
+      window.removeEventListener("support:new-inbound", handler);
+      window.removeEventListener("purchase:created", handler as EventListener);
+      window.removeEventListener("notification:created", handler as EventListener);
+    };
+  }, [loadNotifications]);
 
   return (
     <Fragment>
@@ -73,31 +138,30 @@ const Header: React.FC<HeaderProps> = ({ user }) => {
                 </Link>
               </div>
             )}
+            {!isTablet && siteSettings?.siteName && (
+              <span className="fw-semibold text-secondary ms-2 d-none d-lg-inline">
+                {siteSettings.siteName}
+              </span>
+            )}
           </Flex>
           <ListGroup
             bsPrefix="list-unstyled"
             as={"ul"}
             className="d-flex align-items-center mb-0 gap-2"
           >
-            <ListGroup.Item as="li">
-              <Button variant="white">
-                <span>
-                  <IconSearch size={16} />
-                </span>
-                <small className="ms-1">⌘K</small>
-              </Button>
-            </ListGroup.Item>
-
-            <ListGroup.Item as="li">
-              <Button
+           <ListGroup.Item as="li">
+             <Button
                 variant="ghost"
                 className="position-relative btn-icon rounded-circle"
-                onClick={() => setIsNotificationOpen(true)}
+                onClick={handleOpenNotifications}
               >
                 <IconBell size={20} />
-                <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger mt-2 ms-n2">
-                  2<span className="visually-hidden">unread messages</span>
-                </span>
+                {unreadCount > 0 && (
+                  <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger mt-2 ms-n2">
+                    {unreadCount}
+                    <span className="visually-hidden">notificações não lidas</span>
+                  </span>
+                )}
               </Button>
             </ListGroup.Item>
             <ListGroup.Item as="li">
@@ -109,8 +173,11 @@ const Header: React.FC<HeaderProps> = ({ user }) => {
       <NoficationList
         isOpen={isNoficationOpen}
         onClose={() => setIsNotificationOpen(false)}
+        notifications={notifications}
+        onMarkAllRead={handleMarkAllRead}
+        onRefresh={loadNotifications}
       />
-      {isTablet && <OffcanvasSidebar />}
+      {isTablet && <OffcanvasSidebar role={user.role} />}
     </Fragment>
   );
 };

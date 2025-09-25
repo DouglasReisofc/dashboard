@@ -76,6 +76,23 @@
   min-width: 29rem !important;
 }
 
+.user-menu-dropdown .dropdown-toggle::after {
+  display: none;
+}
+
+.user-menu-dropdown .dropdown-menu {
+  margin-top: 0.75rem !important;
+  border: 0;
+  border-radius: 1rem;
+  box-shadow: 0 1rem 3rem rgba(15, 23, 42, 0.12);
+  min-width: 18rem !important;
+  overflow: hidden;
+}
+
+.user-menu-dropdown .dropdown-menu .bg-light-subtle {
+  background-color: rgba(241, 245, 249, 0.6) !important;
+}
+
 // dropdown toggle arrow
 .dropdown-toggle::after {
   margin-left: 0.255em;

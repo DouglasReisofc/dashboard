@@ -14,6 +14,7 @@ import {
 
 interface MercadoPagoPixFormProps {
   config: MercadoPagoPixConfig;
+  updatePath?: string;
 }
 
 type Feedback = { type: "success" | "danger"; message: string } | null;
@@ -42,7 +43,7 @@ const buildInitialState = (config: MercadoPagoPixConfig): FormState => ({
   instructions: config.instructions ?? "",
 });
 
-const MercadoPagoPixForm = ({ config }: MercadoPagoPixFormProps) => {
+const MercadoPagoPixForm = ({ config, updatePath = "/api/payments/mercadopago" }: MercadoPagoPixFormProps) => {
   const router = useRouter();
   const [formState, setFormState] = useState<FormState>(() => buildInitialState(config));
   const [feedback, setFeedback] = useState<Feedback>(null);
@@ -102,7 +103,7 @@ const MercadoPagoPixForm = ({ config }: MercadoPagoPixFormProps) => {
       instructions: formState.instructions,
     };
 
-    const response = await fetch("/api/payments/mercadopago", {
+    const response = await fetch(updatePath, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",

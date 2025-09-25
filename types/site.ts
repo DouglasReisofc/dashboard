@@ -10,6 +10,7 @@ export interface SiteSettings {
   faviconUrl: string | null;
   seoTitle: string | null;
   seoDescription: string | null;
+  seoImageUrl: string | null;
   seoKeywords: string[];
   footerText: string | null;
   footerLinks: SiteFooterLink[];
