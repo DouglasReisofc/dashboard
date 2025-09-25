@@ -4,10 +4,19 @@
 
 .support-contacts-grid {
   --support-contacts-card-min-height: 160px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
   align-content: start;
 }
 
-.support-contacts-grid > * {
+@media (min-width: 768px) {
+  .support-contacts-grid {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  }
+}
+
+.support-contacts-grid-item {
   display: flex;
 }
 
