@@ -6,6 +6,7 @@ import Sidebar from "layouts/Sidebar";
 import { getCurrentUser } from "lib/auth";
 import { getSiteSettingsForUser } from "lib/site";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,14 @@ const DashboardLayout = async ({ children }: DashboardProps) => {
   if (!user) {
     redirect("/sign-in");
   }
+
+  const headersList = headers();
+  const pathname = headersList.get("x-next-pathname") || "";
+
+  const containerClass =
+    pathname === "/dashboard/user/conversas"
+      ? "container-fluid"
+      : "custom-container";
 
   const siteSettings = await getSiteSettingsForUser(user.id);
   const currentYear = new Date().getFullYear();
@@ -36,7 +45,7 @@ const DashboardLayout = async ({ children }: DashboardProps) => {
       />
       <div id="content" className="position-relative min-vh-100 d-flex flex-column">
         <Header user={user} siteSettings={{ siteName: siteSettings.siteName }} />
-        <div className="custom-container py-4 flex-grow-1">{children}</div>
+        <div className={`${containerClass} py-4 flex-grow-1`}>{children}</div>
         <footer className="custom-container mt-auto py-3 text-secondary text-center">
           StoreBot Dashboard © {currentYear}. Todos os direitos reservados.
         </footer>
