@@ -377,22 +377,6 @@ const UserWebhookDetails = ({ webhook, events, tutorials }: Props) => {
         profile: payload?.profile ?? null,
       };
 
-      const successDetails = captureDetails();
-
-      if (normalizedResult.displayPhoneNumber) {
-        successDetails["Número exibido"] = normalizedResult.displayPhoneNumber;
-      }
-
-      if (normalizedResult.verifiedName) {
-        successDetails["Nome verificado"] = normalizedResult.verifiedName;
-      }
-
-      setFeedback({
-        type: "success",
-        message: normalizedResult.message,
-        details: successDetails,
-      });
-
       setTestResult(normalizedResult);
       setIsTestModalOpen(true);
     } catch (error) {
