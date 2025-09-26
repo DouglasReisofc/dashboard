@@ -9,6 +9,7 @@ import type {
   MercadoPagoPixCharge,
   MercadoPagoPixConfig,
   PaymentCharge,
+  PaymentChargeMetadata,
   PaymentConfirmationMessageConfig,
   PaymentMethodSummary,
 } from "types/payments";
@@ -428,7 +429,7 @@ const mapCheckoutPaymentMethodRow = (
   } satisfies MercadoPagoCheckoutConfig;
 };
 
-const parseChargeMetadata = (raw: unknown): Record<string, unknown> | null => {
+const parseChargeMetadata = (raw: unknown): PaymentChargeMetadata | null => {
   if (typeof raw !== "string" || raw.trim().length === 0) {
     return null;
   }
@@ -436,7 +437,7 @@ const parseChargeMetadata = (raw: unknown): Record<string, unknown> | null => {
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>;
+      return parsed as PaymentChargeMetadata;
     }
   } catch (error) {
     console.warn("Failed to parse charge metadata", error);
@@ -1130,6 +1131,69 @@ export const getChargeHistoryForUser = async (
   );
 
   return rows.map(mapChargeRow);
+};
+
+const normalizeChargeNote = (note: string): string => note.trim();
+
+const serializeChargeMetadata = (metadata: PaymentChargeMetadata | null): string | null => {
+  if (!metadata || Object.keys(metadata).length === 0) {
+    return null;
+  }
+
+  return JSON.stringify(metadata);
+};
+
+export const updateChargeAdminNote = async (
+  userId: number,
+  chargeId: number,
+  adminNote: string,
+): Promise<PaymentCharge | null> => {
+  await ensurePaymentChargeTable();
+  const db = getDb();
+
+  const [rows] = await db.query<UserPaymentChargeRow[]>(
+    `SELECT * FROM user_payment_charges WHERE id = ? AND user_id = ? LIMIT 1`,
+    [chargeId, userId],
+  );
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return null;
+  }
+
+  const currentRow = rows[0];
+  const existingMetadata = parseChargeMetadata(currentRow.metadata);
+  const normalizedNote = normalizeChargeNote(adminNote);
+  let nextMetadata: PaymentChargeMetadata | null = existingMetadata ? { ...existingMetadata } : null;
+
+  if (normalizedNote.length > 0) {
+    nextMetadata = nextMetadata ? { ...nextMetadata, adminNote: normalizedNote } : { adminNote: normalizedNote };
+  } else if (nextMetadata) {
+    const rest: PaymentChargeMetadata = { ...nextMetadata };
+    delete rest.adminNote;
+    nextMetadata = Object.keys(rest).length > 0 ? rest : null;
+  }
+
+  const metadataString = serializeChargeMetadata(nextMetadata);
+
+  await db.query(
+    `
+      UPDATE user_payment_charges
+      SET metadata = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ?
+    `,
+    [metadataString, chargeId, userId],
+  );
+
+  const [updatedRows] = await db.query<UserPaymentChargeRow[]>(
+    `SELECT * FROM user_payment_charges WHERE id = ? AND user_id = ? LIMIT 1`,
+    [chargeId, userId],
+  );
+
+  if (!Array.isArray(updatedRows) || updatedRows.length === 0) {
+    return null;
+  }
+
+  return mapChargeRow(updatedRows[0]);
 };
 
 export const getApprovedChargeTotalsForUser = async (

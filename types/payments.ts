@@ -67,9 +67,14 @@ export type PaymentCharge = {
   expiresAt: string | null;
   customerWhatsapp: string | null;
   customerName: string | null;
-  metadata: Record<string, unknown> | null;
+  metadata: PaymentChargeMetadata | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type PaymentChargeMetadata = {
+  adminNote?: string;
+  [key: string]: unknown;
 };
 
 export type MercadoPagoPixCharge = PaymentCharge & {
