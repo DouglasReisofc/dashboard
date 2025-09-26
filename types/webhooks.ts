@@ -18,3 +18,20 @@ export type WebhookEventSummary = {
   receivedAt: string;
   payload: string;
 };
+
+export type WebhookTestProfile = {
+  about: string | null;
+  email: string | null;
+  website: string | null;
+  vertical: string | null;
+  profilePictureUrl: string | null;
+};
+
+export type WebhookTestResult = {
+  message: string;
+  phoneNumberId: string;
+  businessAccountId: string;
+  displayPhoneNumber?: string | null;
+  verifiedName?: string | null;
+  profile?: WebhookTestProfile | null;
+};

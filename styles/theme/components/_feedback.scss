@@ -1,12 +1,24 @@
 .action-feedback-overlay {
   position: fixed;
-  top: 1.5rem;
+  top: 1.25rem;
   z-index: 1080;
   width: min(90vw, 28rem);
   pointer-events: none;
 
-  &__card {
+  &__alert {
     pointer-events: auto;
+    border-width: 0;
+    border-radius: 0.75rem;
+  }
+
+  &__close {
+    opacity: 0.6;
+    transition: opacity 0.2s ease-in-out;
+
+    &:hover,
+    &:focus {
+      opacity: 1;
+    }
   }
 
   &--desktop {

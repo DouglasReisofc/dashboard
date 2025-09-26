@@ -159,10 +159,92 @@ export async function POST(request: NextRequest) {
         messageParts.push(`Nome verificado: ${verifiedName}.`);
       }
 
+      let profilePictureUrl: string | null = null;
+      let profileAbout: string | null = null;
+      let profileEmail: string | null = null;
+      let profileWebsite: string | null = null;
+      let profileVertical: string | null = null;
+
+      try {
+        const profileUrl = new URL(
+          `https://graph.facebook.com/${version}/${phoneNumberId}/profile`,
+        );
+        profileUrl.searchParams.set(
+          "fields",
+          "about,description,email,profile_picture_url,websites,vertical",
+        );
+
+        const profileResponse = await fetch(profileUrl, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        if (profileResponse.ok) {
+          const profilePayload = await profileResponse.json().catch(() => null);
+
+          const profileData = (() => {
+            if (!profilePayload || typeof profilePayload !== "object") {
+              return null;
+            }
+
+            if (Array.isArray((profilePayload as { data?: unknown }).data)) {
+              const [first] = (profilePayload as { data?: unknown[] }).data ?? [];
+              return typeof first === "object" && first ? first : null;
+            }
+
+            return profilePayload;
+          })();
+
+          if (profileData && typeof profileData === "object") {
+            profilePictureUrl =
+              "profile_picture_url" in profileData
+                ? ((profileData as { profile_picture_url?: string | null }).profile_picture_url ?? null)
+                : null;
+            profileAbout =
+              "about" in profileData
+                ? ((profileData as { about?: string | null }).about ?? null)
+                : "description" in profileData
+                  ? ((profileData as { description?: string | null }).description ?? null)
+                  : null;
+            profileEmail =
+              "email" in profileData
+                ? ((profileData as { email?: string | null }).email ?? null)
+                : null;
+
+            if (
+              "websites" in profileData &&
+              Array.isArray((profileData as { websites?: unknown }).websites)
+            ) {
+              const [firstWebsite] = ((profileData as { websites?: unknown[] }).websites ?? []).filter(
+                (value): value is string => typeof value === "string" && value.trim().length > 0,
+              );
+              profileWebsite = firstWebsite ?? null;
+            }
+
+            profileVertical =
+              "vertical" in profileData
+                ? ((profileData as { vertical?: string | null }).vertical ?? null)
+                : null;
+          }
+        }
+      } catch (profileError) {
+        console.warn("Failed to fetch WhatsApp profile details during webhook test", profileError);
+      }
+
       return NextResponse.json({
         message: messageParts.join(" "),
         phoneNumberId,
         businessAccountId,
+        displayPhoneNumber: displayNumber,
+        verifiedName,
+        profile: {
+          about: profileAbout,
+          email: profileEmail,
+          website: profileWebsite,
+          vertical: profileVertical,
+          profilePictureUrl,
+        },
       });
     } catch (error) {
       console.error("Failed to validate webhook configuration", error);

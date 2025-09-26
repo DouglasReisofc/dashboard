@@ -6,11 +6,15 @@ import ActionFeedbackOverlay, {
   type ActionFeedback,
   type ActionFeedbackDetails,
 } from "components/common/ActionFeedbackOverlay";
-import { IconQuestionMark } from "@tabler/icons-react";
+import { IconQuestionMark, IconUserCircle } from "@tabler/icons-react";
 
 import { formatDate, formatDateTime } from "lib/format";
 import type { FieldTutorial, WebhookTutorialFieldKey } from "types/tutorials";
-import type { UserWebhookDetails, WebhookEventSummary } from "types/webhooks";
+import type {
+  UserWebhookDetails,
+  WebhookEventSummary,
+  WebhookTestResult,
+} from "types/webhooks";
 
 type TutorialMap = Partial<Record<WebhookTutorialFieldKey, FieldTutorial>>;
 
@@ -160,6 +164,8 @@ const UserWebhookDetails = ({ webhook, events, tutorials }: Props) => {
   const [isTesting, setIsTesting] = useState(false);
   const [currentWebhook, setCurrentWebhook] = useState<UserWebhookDetails>(webhook);
   const [formState, setFormState] = useState<FormState>(mapWebhookToFormState(webhook));
+  const [testResult, setTestResult] = useState<WebhookTestResult | null>(null);
+  const [isTestModalOpen, setIsTestModalOpen] = useState(false);
 
   useEffect(() => {
     setCurrentWebhook(webhook);
@@ -170,6 +176,50 @@ const UserWebhookDetails = ({ webhook, events, tutorials }: Props) => {
     setFeedback(null);
   }, []);
 
+  const handleCloseTestModal = useCallback(() => {
+    setIsTestModalOpen(false);
+  }, []);
+
+  const testResultEntries = useMemo(() => {
+    if (!testResult) {
+      return [] as Array<{ label: string; value: string }>;
+    }
+
+    const entries: Array<{ label: string; value: string }> = [];
+
+    if (testResult.displayPhoneNumber) {
+      entries.push({ label: "Número exibido", value: testResult.displayPhoneNumber });
+    }
+
+    if (testResult.verifiedName) {
+      entries.push({ label: "Nome verificado", value: testResult.verifiedName });
+    }
+
+    entries.push({ label: "Phone Number ID", value: testResult.phoneNumberId });
+    entries.push({ label: "Business Account ID", value: testResult.businessAccountId });
+
+    if (testResult.profile?.email) {
+      entries.push({ label: "E-mail cadastrado", value: testResult.profile.email });
+    }
+
+    if (testResult.profile?.website) {
+      entries.push({ label: "Site", value: testResult.profile.website });
+    }
+
+    if (testResult.profile?.vertical) {
+      entries.push({ label: "Segmento", value: testResult.profile.vertical });
+    }
+
+    if (testResult.profile?.about) {
+      entries.push({ label: "Descrição", value: testResult.profile.about });
+    }
+
+    return entries;
+  }, [testResult]);
+
+  const profilePictureUrl = testResult?.profile?.profilePictureUrl ?? null;
+  const profileAbout = testResult?.profile?.about ?? null;
+
   const captureDetails = useCallback(
     (overrides?: Partial<ActionFeedbackDetails>): ActionFeedbackDetails => ({
       Endpoint: (overrides?.Endpoint as string) ?? currentWebhook.endpoint,
@@ -179,6 +229,7 @@ const UserWebhookDetails = ({ webhook, events, tutorials }: Props) => {
         (overrides?.["WhatsApp Business Account ID"] as string) ?? formState.businessAccountId,
       "Phone Number ID": (overrides?.["Phone Number ID"] as string) ?? formState.phoneNumberId,
       "Access Token": (overrides?.["Access Token"] as string) ?? formState.accessToken,
+      ...(overrides ?? {}),
     }),
     [
       currentWebhook.endpoint,
@@ -285,6 +336,8 @@ const UserWebhookDetails = ({ webhook, events, tutorials }: Props) => {
   const handleTest = async () => {
     setFeedback(null);
     setIsTesting(true);
+    setTestResult(null);
+    setIsTestModalOpen(false);
 
     try {
       const response = await fetch("/api/webhooks/meta/test", {
@@ -301,7 +354,7 @@ const UserWebhookDetails = ({ webhook, events, tutorials }: Props) => {
         }),
       });
 
-      const payload = await response.json().catch(() => null);
+      const payload = (await response.json().catch(() => null)) as WebhookTestResult | null;
 
       if (!response.ok) {
         const message =
@@ -309,12 +362,39 @@ const UserWebhookDetails = ({ webhook, events, tutorials }: Props) => {
         throw new Error(message);
       }
 
-      setFeedback({
-        type: "success",
+      const normalizedResult: WebhookTestResult = {
         message:
           payload?.message ?? "Webhook configurado e comunicação validada com sucesso.",
-        details: captureDetails(),
+        phoneNumberId:
+          payload?.phoneNumberId ?? formState.phoneNumberId ?? currentWebhook.phoneNumberId ?? "",
+        businessAccountId:
+          payload?.businessAccountId ??
+          formState.businessAccountId ??
+          currentWebhook.businessAccountId ??
+          "",
+        displayPhoneNumber: payload?.displayPhoneNumber ?? null,
+        verifiedName: payload?.verifiedName ?? null,
+        profile: payload?.profile ?? null,
+      };
+
+      const successDetails = captureDetails();
+
+      if (normalizedResult.displayPhoneNumber) {
+        successDetails["Número exibido"] = normalizedResult.displayPhoneNumber;
+      }
+
+      if (normalizedResult.verifiedName) {
+        successDetails["Nome verificado"] = normalizedResult.verifiedName;
+      }
+
+      setFeedback({
+        type: "success",
+        message: normalizedResult.message,
+        details: successDetails,
       });
+
+      setTestResult(normalizedResult);
+      setIsTestModalOpen(true);
     } catch (error) {
       console.error("Erro ao testar webhook", error);
       setFeedback({
@@ -332,6 +412,85 @@ const UserWebhookDetails = ({ webhook, events, tutorials }: Props) => {
   return (
     <>
       <ActionFeedbackOverlay feedback={feedback} onClose={handleDismissFeedback} />
+
+      <Modal show={isTestModalOpen && !!testResult} onHide={handleCloseTestModal} centered size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>Teste da comunicação com a Meta</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {testResult ? (
+            <div className="d-flex flex-column gap-4">
+              <div className="d-flex flex-column flex-lg-row gap-4 align-items-start">
+                <div className="ratio ratio-1x1" style={{ maxWidth: "160px", minWidth: "140px" }}>
+                  {profilePictureUrl ? (
+                    <img
+                      src={profilePictureUrl}
+                      alt="Foto do perfil conectada ao número testado"
+                      className="w-100 h-100 rounded border object-fit-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="d-flex flex-column align-items-center justify-content-center bg-light border rounded w-100 h-100">
+                      <IconUserCircle size={64} strokeWidth={1.5} className="text-secondary" />
+                      <small className="mt-2 text-secondary">Sem foto disponível</small>
+                    </div>
+                  )}
+                </div>
+
+                <div className="d-flex flex-column gap-2 flex-grow-1">
+                  <p className="mb-0 text-secondary">{testResult.message}</p>
+
+                  {testResult.profile?.email || testResult.profile?.website ? (
+                    <div className="d-flex flex-wrap gap-2">
+                      {testResult.profile?.email ? (
+                        <Badge bg="primary" className="text-uppercase fw-semibold">
+                          {testResult.profile.email}
+                        </Badge>
+                      ) : null}
+                      {testResult.profile?.website ? (
+                        <Badge bg="info" text="dark" className="fw-semibold">
+                          {testResult.profile.website}
+                        </Badge>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {profileAbout ? (
+                    <Card className="border-0 bg-light">
+                      <Card.Body>
+                        <h6 className="fw-semibold mb-2">Descrição do perfil</h6>
+                        <p className="mb-0 text-secondary">{profileAbout}</p>
+                      </Card.Body>
+                    </Card>
+                  ) : null}
+                </div>
+              </div>
+
+              {testResultEntries.length > 0 ? (
+                <Table bordered hover responsive className="mb-0">
+                  <tbody>
+                    {testResultEntries.map(({ label, value }) => (
+                      <tr key={label}>
+                        <th scope="row" className="w-50 align-top text-nowrap">{label}</th>
+                        <td className="text-break">{value}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              ) : null}
+            </div>
+          ) : (
+            <p className="mb-0 text-secondary">
+              Execute um teste de comunicação para visualizar os dados retornados pela Meta.
+            </p>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={handleCloseTestModal}>
+            Fechar
+          </Button>
+        </Modal.Footer>
+      </Modal>
 
       <div className="d-flex flex-column gap-4">
         <Card>

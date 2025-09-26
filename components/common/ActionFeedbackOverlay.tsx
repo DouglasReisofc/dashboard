@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Button, Card, Table } from "react-bootstrap";
+import { Table } from "react-bootstrap";
 
 export type ActionFeedbackDetails = Record<string, string | null | undefined>;
 
@@ -18,7 +18,7 @@ type Props = {
   autoHideMs?: number;
 };
 
-const DEFAULT_TIMEOUT = 6000;
+const DEFAULT_TIMEOUT = 5000;
 
 const ActionFeedbackOverlay = ({ feedback, onClose, autoHideMs = DEFAULT_TIMEOUT }: Props) => {
   const [remainingMs, setRemainingMs] = useState(autoHideMs);
@@ -83,9 +83,9 @@ const ActionFeedbackOverlay = ({ feedback, onClose, autoHideMs = DEFAULT_TIMEOUT
     return null;
   }
 
-  const variantClass = feedback.type === "success" ? "bg-success" : "bg-danger";
-
   const detailsEntries = Object.entries(feedback.details ?? {}).filter(([, value]) => value !== undefined);
+
+  const variant = feedback.type === "success" ? "success" : "danger";
 
   return createPortal(
     <div
@@ -96,57 +96,48 @@ const ActionFeedbackOverlay = ({ feedback, onClose, autoHideMs = DEFAULT_TIMEOUT
       aria-live="assertive"
       aria-atomic="true"
     >
-      <Card
-        className="shadow-lg action-feedback-overlay__card"
-        border={feedback.type === "success" ? "success" : "danger"}
-      >
-        <Card.Header
-          className={`d-flex justify-content-between align-items-start gap-3 text-white ${variantClass}`}
-        >
+      <div className={`alert alert-${variant} shadow-lg action-feedback-overlay__alert`}>
+        <div className="d-flex justify-content-between align-items-start gap-3">
           <div className="d-flex flex-column gap-1">
             <span className="fw-semibold">
               {feedback.type === "success" ? "Ação concluída" : "Atenção"}
             </span>
-            <small className="text-white-50">Fechando em {remainingSeconds}s</small>
+            <small className="text-muted">Fechando em {remainingSeconds}s</small>
           </div>
-          <Button
+          <button
             type="button"
-            variant="outline-light"
-            size="sm"
+            className="btn-close action-feedback-overlay__close"
             onClick={onClose}
             aria-label="Fechar mensagem de confirmação"
-          >
-            &times;
-          </Button>
-        </Card.Header>
-        <Card.Body className="d-flex flex-column gap-3">
-          <p className="mb-0 text-secondary">{feedback.message}</p>
+          />
+        </div>
 
-          {detailsEntries.length > 0 ? (
-            <div className="action-feedback-overlay__details">
-              <h6 className="fw-semibold mb-2">Informações registradas</h6>
-              <Table bordered size="sm" className="mb-0">
-                <tbody>
-                  {detailsEntries.map(([label, value]) => (
-                    <tr key={label}>
-                      <th scope="row" className="w-50 text-nowrap align-top">
-                        {label}
-                      </th>
-                      <td className="text-break">
-                        {value && String(value).trim().length > 0 ? (
-                          value
-                        ) : (
-                          <span className="text-secondary">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
-            </div>
-          ) : null}
-        </Card.Body>
-      </Card>
+        <p className="mb-0 mt-3">{feedback.message}</p>
+
+        {detailsEntries.length > 0 ? (
+          <div className="action-feedback-overlay__details mt-3">
+            <h6 className="fw-semibold mb-2">Informações registradas</h6>
+            <Table bordered size="sm" responsive className="mb-0">
+              <tbody>
+                {detailsEntries.map(([label, value]) => (
+                  <tr key={label}>
+                    <th scope="row" className="w-50 text-nowrap align-top">
+                      {label}
+                    </th>
+                    <td className="text-break">
+                      {value && String(value).trim().length > 0 ? (
+                        value
+                      ) : (
+                        <span className="text-secondary">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+        ) : null}
+      </div>
     </div>,
     document.body
   );
