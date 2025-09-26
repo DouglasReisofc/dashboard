@@ -1,0 +1,22 @@
+.action-feedback-overlay {
+  position: fixed;
+  top: 1.5rem;
+  z-index: 1080;
+  width: min(90vw, 28rem);
+  pointer-events: none;
+
+  &__card {
+    pointer-events: auto;
+  }
+
+  &--desktop {
+    right: 1.5rem;
+  }
+
+  &--mobile {
+    left: 50%;
+    transform: translateX(-50%);
+    top: 1rem;
+    width: min(92vw, 24rem);
+  }
+}

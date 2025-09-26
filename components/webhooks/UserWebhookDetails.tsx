@@ -1,7 +1,11 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Alert, Badge, Button, Card, Form, Modal, Table } from "react-bootstrap";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { Badge, Button, Card, Form, Modal, Table } from "react-bootstrap";
+import ActionFeedbackOverlay, {
+  type ActionFeedback,
+  type ActionFeedbackDetails,
+} from "components/common/ActionFeedbackOverlay";
 import { IconQuestionMark } from "@tabler/icons-react";
 
 import { formatDate, formatDateTime } from "lib/format";
@@ -123,7 +127,7 @@ type Props = {
   tutorials: TutorialMap;
 };
 
-type Feedback = { type: "success" | "danger"; message: string } | null;
+type Feedback = ActionFeedback | null;
 
 type FormState = {
   verifyToken: string;
@@ -161,6 +165,30 @@ const UserWebhookDetails = ({ webhook, events, tutorials }: Props) => {
     setCurrentWebhook(webhook);
     setFormState(mapWebhookToFormState(webhook));
   }, [webhook]);
+
+  const handleDismissFeedback = useCallback(() => {
+    setFeedback(null);
+  }, []);
+
+  const captureDetails = useCallback(
+    (overrides?: Partial<ActionFeedbackDetails>): ActionFeedbackDetails => ({
+      Endpoint: (overrides?.Endpoint as string) ?? currentWebhook.endpoint,
+      "Verify Token": (overrides?.["Verify Token"] as string) ?? formState.verifyToken,
+      "App ID": (overrides?.["App ID"] as string) ?? formState.appId,
+      "WhatsApp Business Account ID":
+        (overrides?.["WhatsApp Business Account ID"] as string) ?? formState.businessAccountId,
+      "Phone Number ID": (overrides?.["Phone Number ID"] as string) ?? formState.phoneNumberId,
+      "Access Token": (overrides?.["Access Token"] as string) ?? formState.accessToken,
+    }),
+    [
+      currentWebhook.endpoint,
+      formState.accessToken,
+      formState.appId,
+      formState.businessAccountId,
+      formState.phoneNumberId,
+      formState.verifyToken,
+    ]
+  );
 
   const handleCopy = async (label: string, value: string) => {
     setIsCopying(true);
@@ -219,9 +247,26 @@ const UserWebhookDetails = ({ webhook, events, tutorials }: Props) => {
         setFormState(mapWebhookToFormState(payload.webhook));
       }
 
+      const latestWebhook = payload?.webhook ?? {
+        endpoint: currentWebhook.endpoint,
+        verifyToken: formState.verifyToken,
+        appId: formState.appId,
+        businessAccountId: formState.businessAccountId,
+        phoneNumberId: formState.phoneNumberId,
+        accessToken: formState.accessToken,
+      };
+
       setFeedback({
         type: "success",
         message: payload?.message ?? "Configurações atualizadas com sucesso.",
+        details: captureDetails({
+          Endpoint: latestWebhook.endpoint,
+          "Verify Token": latestWebhook.verifyToken,
+          "App ID": latestWebhook.appId ?? "",
+          "WhatsApp Business Account ID": latestWebhook.businessAccountId ?? "",
+          "Phone Number ID": latestWebhook.phoneNumberId ?? "",
+          "Access Token": latestWebhook.accessToken ?? "",
+        }),
       });
     } catch (error) {
       console.error("Erro ao atualizar webhook", error);
@@ -268,6 +313,7 @@ const UserWebhookDetails = ({ webhook, events, tutorials }: Props) => {
         type: "success",
         message:
           payload?.message ?? "Webhook configurado e comunicação validada com sucesso.",
+        details: captureDetails(),
       });
     } catch (error) {
       console.error("Erro ao testar webhook", error);
@@ -284,8 +330,11 @@ const UserWebhookDetails = ({ webhook, events, tutorials }: Props) => {
   };
 
   return (
-    <div className="d-flex flex-column gap-4">
-      <Card>
+    <>
+      <ActionFeedbackOverlay feedback={feedback} onClose={handleDismissFeedback} />
+
+      <div className="d-flex flex-column gap-4">
+        <Card>
         <Card.Header>
           <Card.Title as="h2" className="h5 mb-0">
             Configuração do webhook
@@ -299,17 +348,6 @@ const UserWebhookDetails = ({ webhook, events, tutorials }: Props) => {
               aplicativo, as contas vinculadas e o token de acesso permanente fornecido pelo Business
               Manager.
             </p>
-
-            {feedback && (
-              <Alert
-                variant={feedback.type === "success" ? "success" : "danger"}
-                onClose={() => setFeedback(null)}
-                dismissible
-                className="mb-0"
-              >
-                {feedback.message}
-              </Alert>
-            )}
 
             <Form.Group controlId="webhook-endpoint">
               <Form.Label className="d-flex align-items-center gap-2">
@@ -523,6 +561,7 @@ const UserWebhookDetails = ({ webhook, events, tutorials }: Props) => {
         </Card.Body>
       </Card>
     </div>
+    </>
   );
 };
 
