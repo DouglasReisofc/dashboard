@@ -153,6 +153,7 @@ const UserWebhookDetails = ({ webhook, events, tutorials }: Props) => {
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [isCopying, setIsCopying] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
   const [currentWebhook, setCurrentWebhook] = useState<UserWebhookDetails>(webhook);
   const [formState, setFormState] = useState<FormState>(mapWebhookToFormState(webhook));
 
@@ -233,6 +234,52 @@ const UserWebhookDetails = ({ webhook, events, tutorials }: Props) => {
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleTest = async () => {
+    setFeedback(null);
+    setIsTesting(true);
+
+    try {
+      const response = await fetch("/api/webhooks/meta/test", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          verifyToken: formState.verifyToken,
+          appId: formState.appId || null,
+          businessAccountId: formState.businessAccountId || null,
+          phoneNumberId: formState.phoneNumberId || null,
+          accessToken: formState.accessToken || null,
+        }),
+      });
+
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const message =
+          payload?.message ?? "Não foi possível testar a configuração do webhook.";
+        throw new Error(message);
+      }
+
+      setFeedback({
+        type: "success",
+        message:
+          payload?.message ?? "Webhook configurado e comunicação validada com sucesso.",
+      });
+    } catch (error) {
+      console.error("Erro ao testar webhook", error);
+      setFeedback({
+        type: "danger",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível testar a configuração do webhook.",
+      });
+    } finally {
+      setIsTesting(false);
     }
   };
 
@@ -376,8 +423,16 @@ const UserWebhookDetails = ({ webhook, events, tutorials }: Props) => {
               </Form.Text>
             </Form.Group>
 
-            <div className="d-flex justify-content-end">
-              <Button type="submit" disabled={isSubmitting}>
+            <div className="d-flex justify-content-end gap-2">
+              <Button
+                type="button"
+                variant="outline-secondary"
+                disabled={isSubmitting || isTesting}
+                onClick={handleTest}
+              >
+                {isTesting ? "Testando..." : "Testar comunicação"}
+              </Button>
+              <Button type="submit" disabled={isSubmitting || isTesting}>
                 {isSubmitting ? "Salvando..." : "Salvar configurações"}
               </Button>
             </div>
