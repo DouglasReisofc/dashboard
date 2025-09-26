@@ -1,14 +1,126 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
-import { Alert, Badge, Button, Card, Form, Table } from "react-bootstrap";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Alert, Badge, Button, Card, Form, Modal, Table } from "react-bootstrap";
+import { IconQuestionMark } from "@tabler/icons-react";
 
-import { formatDate } from "lib/format";
+import { formatDate, formatDateTime } from "lib/format";
+import type { FieldTutorial, WebhookTutorialFieldKey } from "types/tutorials";
 import type { UserWebhookDetails, WebhookEventSummary } from "types/webhooks";
+
+type TutorialMap = Partial<Record<WebhookTutorialFieldKey, FieldTutorial>>;
+
+type TutorialHintProps = {
+  label: string;
+  tutorial?: FieldTutorial;
+};
+
+const renderDescriptionParagraphs = (description?: string) => {
+  if (!description || !description.trim()) {
+    return (
+      <p className="mb-0 text-secondary">Nenhum tutorial foi configurado para este campo.</p>
+    );
+  }
+
+  const paragraphs = description
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+
+  return paragraphs.map((paragraph, paragraphIndex) => {
+    const lines = paragraph.split(/\n/);
+    return (
+      <p
+        key={`${paragraphIndex}-${lines.length}`}
+        className={paragraphIndex === paragraphs.length - 1 ? "mb-0" : "mb-2"}
+      >
+        {lines.map((line, lineIndex) => (
+          <span key={`${paragraphIndex}-${lineIndex}`}>
+            {line}
+            {lineIndex < lines.length - 1 ? <br /> : null}
+          </span>
+        ))}
+      </p>
+    );
+  });
+};
+
+const TutorialHint = ({ label, tutorial }: TutorialHintProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const handleOpen = () => setIsOpen(true);
+  const handleClose = () => setIsOpen(false);
+
+  const mediaContent = useMemo(() => {
+    if (!tutorial?.mediaUrl) {
+      return (
+        <div className="bg-light border rounded p-4 text-center text-secondary">
+          Nenhuma mídia cadastrada para este tutorial.
+        </div>
+      );
+    }
+
+    if (tutorial.mediaType === "video") {
+      return (
+        <div className="ratio ratio-16x9">
+          <video
+            src={tutorial.mediaUrl}
+            controls
+            className="w-100 h-100 rounded"
+            aria-label={`Vídeo tutorial sobre ${label}`}
+          />
+        </div>
+      );
+    }
+
+    return (
+      <img
+        src={tutorial.mediaUrl}
+        alt={`Instruções visuais para ${label}`}
+        className="img-fluid rounded border"
+        loading="lazy"
+      />
+    );
+  }, [label, tutorial?.mediaType, tutorial?.mediaUrl]);
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="link"
+        size="sm"
+        className="p-0 align-baseline d-inline-flex align-items-center gap-1 text-decoration-none"
+        onClick={handleOpen}
+        aria-label={`Abrir tutorial sobre ${label}`}
+      >
+        <IconQuestionMark size={16} strokeWidth={1.75} />
+        <span className="fw-semibold">Tutorial</span>
+      </Button>
+
+      <Modal show={isOpen} onHide={handleClose} size="lg" centered>
+        <Modal.Header closeButton>
+          <Modal.Title>{tutorial?.title ?? `Tutorial - ${label}`}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="d-flex flex-column gap-3">
+          {mediaContent}
+          <div className="text-secondary">{renderDescriptionParagraphs(tutorial?.description)}</div>
+        </Modal.Body>
+        <Modal.Footer className="d-flex justify-content-between align-items-center">
+          <span className="text-secondary small">
+            Última atualização em {tutorial?.updatedAt ? formatDateTime(tutorial.updatedAt) : "-"}
+          </span>
+          <Button type="button" variant="secondary" onClick={handleClose}>
+            Fechar
+          </Button>
+        </Modal.Footer>
+      </Modal>
+    </>
+  );
+};
 
 type Props = {
   webhook: UserWebhookDetails;
   events: WebhookEventSummary[];
+  tutorials: TutorialMap;
 };
 
 type Feedback = { type: "success" | "danger"; message: string } | null;
@@ -37,7 +149,7 @@ const mapWebhookToFormState = (webhook: UserWebhookDetails): FormState => ({
   accessToken: webhook.accessToken ?? "",
 });
 
-const UserWebhookDetails = ({ webhook, events }: Props) => {
+const UserWebhookDetails = ({ webhook, events, tutorials }: Props) => {
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [isCopying, setIsCopying] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -153,7 +265,10 @@ const UserWebhookDetails = ({ webhook, events }: Props) => {
             )}
 
             <Form.Group controlId="webhook-endpoint">
-              <Form.Label>Endpoint</Form.Label>
+              <Form.Label className="d-flex align-items-center gap-2">
+                <span>Endpoint</span>
+                <TutorialHint label="Endpoint" tutorial={tutorials.endpoint} />
+              </Form.Label>
               <div className="d-flex gap-2 flex-column flex-lg-row">
                 <Form.Control value={currentWebhook.endpoint} readOnly />
                 <Button
@@ -170,7 +285,10 @@ const UserWebhookDetails = ({ webhook, events }: Props) => {
             </Form.Group>
 
             <Form.Group controlId="webhook-verify-token">
-              <Form.Label>Verify Token</Form.Label>
+              <Form.Label className="d-flex align-items-center gap-2">
+                <span>Verify Token</span>
+                <TutorialHint label="Verify Token" tutorial={tutorials.verifyToken} />
+              </Form.Label>
               <div className="d-flex gap-2 flex-column flex-lg-row">
                 <Form.Control
                   value={formState.verifyToken}
@@ -194,7 +312,10 @@ const UserWebhookDetails = ({ webhook, events }: Props) => {
             </Form.Group>
 
             <Form.Group controlId="webhook-app-id">
-              <Form.Label>ID do aplicativo (App ID)</Form.Label>
+              <Form.Label className="d-flex align-items-center gap-2">
+                <span>ID do aplicativo (App ID)</span>
+                <TutorialHint label="App ID" tutorial={tutorials.appId} />
+              </Form.Label>
               <Form.Control
                 value={formState.appId}
                 onChange={handleFieldChange("appId")}
@@ -206,7 +327,13 @@ const UserWebhookDetails = ({ webhook, events }: Props) => {
             <div className="row g-3">
               <div className="col-md-6">
                 <Form.Group controlId="webhook-business-account">
-                  <Form.Label>WhatsApp Business Account ID</Form.Label>
+                  <Form.Label className="d-flex align-items-center gap-2">
+                    <span>WhatsApp Business Account ID</span>
+                    <TutorialHint
+                      label="Business Account ID"
+                      tutorial={tutorials.businessAccountId}
+                    />
+                  </Form.Label>
                   <Form.Control
                     value={formState.businessAccountId}
                     onChange={handleFieldChange("businessAccountId")}
@@ -217,7 +344,10 @@ const UserWebhookDetails = ({ webhook, events }: Props) => {
               </div>
               <div className="col-md-6">
                 <Form.Group controlId="webhook-phone-number-id">
-                  <Form.Label>Phone Number ID</Form.Label>
+                  <Form.Label className="d-flex align-items-center gap-2">
+                    <span>Phone Number ID</span>
+                    <TutorialHint label="Phone Number ID" tutorial={tutorials.phoneNumberId} />
+                  </Form.Label>
                   <Form.Control
                     value={formState.phoneNumberId}
                     onChange={handleFieldChange("phoneNumberId")}
@@ -229,7 +359,10 @@ const UserWebhookDetails = ({ webhook, events }: Props) => {
             </div>
 
             <Form.Group controlId="webhook-access-token">
-              <Form.Label>Access Token</Form.Label>
+              <Form.Label className="d-flex align-items-center gap-2">
+                <span>Access Token</span>
+                <TutorialHint label="Access Token" tutorial={tutorials.accessToken} />
+              </Form.Label>
               <Form.Control
                 as="textarea"
                 rows={3}

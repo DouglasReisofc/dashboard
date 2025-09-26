@@ -109,6 +109,7 @@ export const ensureUserTable = async () => {
   await ensureUserPlanPaymentTable();
   await ensureUserBalancePaymentTable();
   await ensureUserPurchaseHistoryTable();
+  await ensureFieldTutorialTable();
 
   const normalizedEmail = DEFAULT_ADMIN_EMAIL.toLowerCase().trim();
   const hashedPassword = await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, 10);
@@ -789,6 +790,22 @@ export const ensureUserPurchaseHistoryTable = async () => {
   `);
 };
 
+export const ensureFieldTutorialTable = async () => {
+  const db = getDb();
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS field_tutorials (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      slug VARCHAR(80) NOT NULL UNIQUE,
+      title VARCHAR(255) NOT NULL,
+      description TEXT NOT NULL,
+      media_path VARCHAR(255) NULL,
+      media_type ENUM('image', 'video') NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB;
+  `);
+};
+
 export const ensureWebhookTable = async () => {
   const db = getDb();
   await db.query(`
@@ -1080,6 +1097,17 @@ export type UserPurchaseHistoryRow = {
   metadata: string | null;
   purchased_at: Date;
   created_at: Date;
+};
+
+export type FieldTutorialRow = {
+  id: number;
+  slug: string;
+  title: string;
+  description: string;
+  media_path: string | null;
+  media_type: "image" | "video" | null;
+  created_at: Date;
+  updated_at: Date;
 };
 
 export type UserSiteSettingsRow = {

@@ -6,6 +6,7 @@ import {
   IconPlugConnected,
   IconPackage,
   IconRobot,
+  IconHelpCircle,
   IconWorld,
   IconTags,
   IconUsers,
@@ -36,6 +37,12 @@ const adminMenu: MenuItemType[] = [
     title: "Bot administrativo",
     link: "/dashboard/admin/bot",
     icon: <IconRobot size={20} strokeWidth={1.5} />,
+  },
+  {
+    id: "admin-tutorials",
+    title: "Tutoriais",
+    link: "/dashboard/admin/tutoriais",
+    icon: <IconHelpCircle size={20} strokeWidth={1.5} />,
   },
   {
     id: "admin-plans",
