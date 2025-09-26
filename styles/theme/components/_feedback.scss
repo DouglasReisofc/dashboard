@@ -1,8 +1,10 @@
 .action-feedback-overlay {
   position: fixed;
-  top: 1.25rem;
+  top: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 1080;
-  width: min(90vw, 28rem);
+  width: min(96vw, 34rem);
   pointer-events: none;
 
   &__alert {
@@ -22,13 +24,12 @@
   }
 
   &--desktop {
-    right: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
   }
 
   &--mobile {
-    left: 50%;
-    transform: translateX(-50%);
-    top: 1rem;
-    width: min(92vw, 24rem);
+    top: 0.75rem;
+    width: min(94vw, 28rem);
   }
 }
