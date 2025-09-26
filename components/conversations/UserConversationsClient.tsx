@@ -91,6 +91,17 @@ const inferMediaTypeFromFile = (file: File): PendingMedia["mediaType"] => {
 
 const mediaUrlFromId = (mediaId: string) => `/api/support/media/${encodeURIComponent(mediaId)}`;
 
+const inferMimeTypeFromSource = (source?: string | null) => {
+  if (!source) return null;
+  const normalized = source.split("?")[0]?.toLowerCase() ?? "";
+  if (normalized.endsWith(".mp3")) return "audio/mpeg";
+  if (normalized.endsWith(".ogg")) return "audio/ogg";
+  if (normalized.endsWith(".m4a") || normalized.endsWith(".mp4")) return "audio/mp4";
+  if (normalized.endsWith(".wav")) return "audio/wav";
+  if (normalized.endsWith(".aac")) return "audio/aac";
+  return null;
+};
+
 const MediaPreview = ({
   media,
   direction,
@@ -140,9 +151,21 @@ const MediaPreview = ({
         </div>
       );
     case "audio":
+      if (!resolvedUrl) {
+        return <span className="text-secondary">Áudio indisponível.</span>;
+      }
+
+      const audioMime =
+        media.mimeType ||
+        inferMimeTypeFromSource(media.mediaUrl ?? undefined) ||
+        inferMimeTypeFromSource(media.filename ?? undefined) ||
+        inferMimeTypeFromSource(resolvedUrl) ||
+        undefined;
+
       return (
-        <audio controls src={resolvedUrl}>
-          Seu navegador não suporta áudio incorporado.
+        <audio controls preload="metadata" className="w-100">
+          <source src={resolvedUrl} type={audioMime} />
+          Seu navegador não suporta áudio incorporado. Acesse o arquivo <a href={resolvedUrl} target="_blank" rel="noopener noreferrer">clicando aqui</a>.
         </audio>
       );
     case "video":
@@ -758,7 +781,7 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
       (!isSending && (messageDraft.trim().length > 0 || pendingMedia.length > 0)),
   );
 
-  const renderThreadTile = (thread: ThreadSummary, options?: { active?: boolean }) => {
+  const renderThreadCard = (thread: ThreadSummary, options?: { active?: boolean }) => {
     const displayName = thread.customerName || thread.profileName;
     const title = displayName || thread.whatsappId;
     const identifier = thread.whatsappId;
@@ -767,50 +790,48 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
     const previewText = formatLastMessagePreview(thread.lastMessagePreview);
 
     return (
-      <div key={`grid-${thread.whatsappId}`} className="support-contacts-grid-item">
-        <Card
-          role="button"
-          onClick={() => handleSelect(thread)}
-          className={`support-thread-card shadow-sm h-100${
-            isActive ? " support-thread-card--active" : ""
-          }`}
-          aria-pressed={isActive}
-          style={{ cursor: "pointer" }}
-        >
-          <Card.Body className="support-thread-card__body d-flex flex-column gap-3 h-100">
-            <div className="support-thread-card__header d-flex justify-content-between align-items-start gap-2">
-              <div className="support-thread-card__title text-truncate">
-                <span className="fw-semibold d-block text-truncate" title={title}>
-                  {title}
+      <Card
+        role="button"
+        onClick={() => handleSelect(thread)}
+        className={`support-thread-card shadow-sm h-100${
+          isActive ? " support-thread-card--active" : ""
+        }`}
+        aria-pressed={isActive}
+        style={{ cursor: "pointer" }}
+      >
+        <Card.Body className="support-thread-card__body d-flex flex-column gap-3 h-100">
+          <div className="support-thread-card__header d-flex justify-content-between align-items-start gap-2">
+            <div className="support-thread-card__title text-truncate">
+              <span className="fw-semibold d-block text-truncate" title={title}>
+                {title}
+              </span>
+              {displayName ? (
+                <span className="support-thread-card__identifier text-secondary small text-truncate">
+                  {identifier}
                 </span>
-                {displayName ? (
-                  <span className="support-thread-card__identifier text-secondary small text-truncate">
-                    {identifier}
-                  </span>
-                ) : null}
-                  </div>
-              <div className="support-thread-card__meta d-flex align-items-center gap-2 flex-shrink-0">
-                {unread > 0 && <Badge bg="danger">{unread}</Badge>}
-                <Badge bg={thread.status === "open" ? "success" : "secondary"}>
-                  {thread.status === "open" ? "Aberto" : "Encerrado"}
-                </Badge>
-              </div>
+              ) : null}
             </div>
-            <div
-              className="support-thread-card__preview text-secondary small text-truncate d-none d-sm-block"
-              title={thread.lastMessagePreview ?? undefined}
-            >
-              {previewText}
+            <div className="support-thread-card__meta d-flex align-items-center gap-2 flex-shrink-0">
+              {unread > 0 && <Badge bg="danger">{unread}</Badge>}
+              <Badge bg={thread.status === "open" ? "success" : "secondary"}>
+                {thread.status === "open" ? "Aberto" : "Encerrado"}
+              </Badge>
             </div>
-            <div
-              className="support-thread-card__timestamp text-secondary small mt-auto d-none d-sm-block"
-              suppressHydrationWarning
-            >
-              {thread.lastMessageAt ? formatDateTime(thread.lastMessageAt) : "-"}
-            </div>
-              </Card.Body>
-            </Card>
-      </div>
+          </div>
+          <div
+            className="support-thread-card__preview text-secondary small text-truncate d-none d-sm-block"
+            title={thread.lastMessagePreview ?? undefined}
+          >
+            {previewText}
+          </div>
+          <div
+            className="support-thread-card__timestamp text-secondary small mt-auto d-none d-sm-block"
+            suppressHydrationWarning
+          >
+            {thread.lastMessageAt ? formatDateTime(thread.lastMessageAt) : "-"}
+          </div>
+        </Card.Body>
+      </Card>
     );
   };
 
@@ -937,15 +958,26 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
                 {loadingThreads ? (
                   <div className="d-flex align-items-center justify-content-center py-4">
                     <Spinner animation="border" size="sm" />
-                      </div>
+                  </div>
                 ) : threadsError ? (
                   <Alert variant="danger" className="m-3 mb-0">{threadsError}</Alert>
                 ) : threads.length === 0 ? (
                   <div className="text-secondary text-center py-4">Nenhum atendimento em andamento.</div>
                 ) : (
-                  <div className="support-contacts-grid">
-                    {threads.map((thread) => renderThreadTile(thread))}
-                  </div>
+                  <Row className="g-3 support-contacts-grid">
+                    {threads.map((thread) => (
+                      <Col
+                        key={`grid-${thread.whatsappId}`}
+                        xs={12}
+                        md={6}
+                        xl={4}
+                        xxl={3}
+                        className="d-flex"
+                      >
+                        {renderThreadCard(thread)}
+                      </Col>
+                    ))}
+                  </Row>
                 )}
               </Card.Body>
             </Card>
@@ -972,10 +1004,15 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
                   ) : threads.length === 0 ? (
                     <div className="text-secondary text-center py-4">Nenhum atendimento em andamento.</div>
                   ) : (
-                    <div className="support-contacts-grid support-contacts-grid--stacked">
-                      {threads.map((thread) =>
-                        renderThreadTile(thread, { active: selectedId === thread.whatsappId }),
-                      )}
+                    <div className="support-contacts-list">
+                      {threads.map((thread) => (
+                        <div
+                          key={`sidebar-${thread.whatsappId}`}
+                          className="support-contacts-list-item"
+                        >
+                          {renderThreadCard(thread, { active: selectedId === thread.whatsappId })}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </Card.Body>
@@ -1012,10 +1049,15 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
                 ) : threads.length === 0 ? (
                   <div className="text-secondary text-center py-4 mb-0">Nenhum atendimento em andamento.</div>
                 ) : (
-                  <div className="support-contacts-grid support-contacts-grid--stacked">
-                    {threads.map((thread) =>
-                      renderThreadTile(thread, { active: selectedId === thread.whatsappId }),
-                    )}
+                  <div className="support-contacts-list">
+                    {threads.map((thread) => (
+                      <div
+                        key={`offcanvas-${thread.whatsappId}`}
+                        className="support-contacts-list-item"
+                      >
+                        {renderThreadCard(thread, { active: selectedId === thread.whatsappId })}
+                      </div>
+                    ))}
                   </div>
                 )}
               </Offcanvas.Body>
@@ -1077,7 +1119,7 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
                   </Alert>
                 )}
     
-                {(!selectedThread && !loadingConversation) ? (
+                {!selectedThread && !loadingConversation ? (
                   <div className="flex-grow-1 d-flex align-items-center justify-content-center">
                     <div style={{ maxWidth: 520 }} className="w-100">
                       <Card className="shadow-sm">
@@ -1088,67 +1130,79 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
                           {threads.length === 0 ? (
                             <div className="text-secondary text-center py-4">Nenhum atendimento em andamento.</div>
                           ) : (
-                            <div className="support-contacts-grid support-contacts-grid--stacked">
-                              {threads.map((thread) => renderThreadTile(thread))}
+                            <div className="support-contacts-list">
+                              {threads.map((thread) => (
+                                <div
+                                  key={`empty-state-${thread.whatsappId}`}
+                                  className="support-contacts-list-item"
+                                >
+                                  {renderThreadCard(thread)}
+                                </div>
+                              ))}
                             </div>
                           )}
                         </Card.Body>
                       </Card>
                     </div>
                   </div>
-              ) : loadingConversation ? (
-              <div className="flex-grow-1 d-flex align-items-center justify-content-center">
-                <Spinner animation="border" />
-              </div>
-            ) : conversationError ? (
-              <Alert variant="danger" className="mb-0">
-                {conversationError}
-              </Alert>
-            ) : conversation ? (
-              <div
-                ref={conversationRef}
-                onScroll={handleConversationScroll}
-                className="flex-grow-1 overflow-auto border rounded p-3 bg-light"
-                style={{ minHeight: 0 }}
-              >
-                {conversation.messages.length === 0 ? (
-                  <div className="text-secondary text-center">
-                    Nenhuma mensagem nesta conversa ainda.
+                ) : loadingConversation ? (
+                  <div className="flex-grow-1 d-flex align-items-center justify-content-center">
+                    <Spinner animation="border" />
                   </div>
-                ) : (
-                  conversation.messages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`d-flex mb-3 ${
-                        message.direction === "outbound" ? "justify-content-end" : "justify-content-start"
-                      }`}
-                    >
-                      <div
-                        className={`rounded px-3 py-2 shadow-sm ${
-                          message.direction === "outbound"
-                            ? "bg-primary text-white"
-                            : "bg-white"
-                        }`}
-                        style={{ maxWidth: "75%" }}
-                      >
-                        <div className="small d-flex flex-column gap-2">
-                          {message.media ? (
-                            <MediaPreview media={message.media} direction={message.direction} />
-                          ) : null}
-                          {message.text && <span>{message.text}</span>}
-                          {!message.text && !message.media && (
-                            <em>({message.messageType})</em>
-                          )}
-                        </div>
-                        <div className={`text-end small mt-2 ${message.direction === "outbound" ? "text-white-50" : "text-secondary"}`} suppressHydrationWarning>
-                          {formatDateTime(message.timestamp)}
-                        </div>
+                ) : conversationError ? (
+                  <Alert variant="danger" className="mb-0">
+                    {conversationError}
+                  </Alert>
+                ) : conversation ? (
+                  <div
+                    ref={conversationRef}
+                    onScroll={handleConversationScroll}
+                    className="flex-grow-1 overflow-auto border rounded p-3 bg-light"
+                    style={{ minHeight: 0 }}
+                  >
+                    {conversation.messages.length === 0 ? (
+                      <div className="text-secondary text-center">
+                        Nenhuma mensagem nesta conversa ainda.
                       </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            ) : null}
+                    ) : (
+                      conversation.messages.map((message) => (
+                        <div
+                          key={message.id}
+                          className={`d-flex mb-3 ${
+                            message.direction === "outbound" ? "justify-content-end" : "justify-content-start"
+                          }`}
+                        >
+                          <div
+                            className={`rounded px-3 py-2 shadow-sm ${
+                              message.direction === "outbound"
+                                ? "bg-primary text-white"
+                                : "bg-white"
+                            }`}
+                            style={{ maxWidth: "75%" }}
+                          >
+                            <div className="small d-flex flex-column gap-2">
+                              {message.media ? (
+                                <MediaPreview media={message.media} direction={message.direction} />
+                              ) : null}
+                              {message.text && <span>{message.text}</span>}
+                              {!message.text && !message.media && (
+                                <em>({message.messageType})</em>
+                              )}
+                            </div>
+                            <div
+                              className={`text-end small mt-2 ${
+                                message.direction === "outbound" ? "text-white-50" : "text-secondary"
+                              }`}
+                              suppressHydrationWarning
+                            >
+                              {formatDateTime(message.timestamp)}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                ) : null}
 
             {selectedThread && (
             <div className="border-top pt-3">

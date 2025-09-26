@@ -4,33 +4,30 @@
 
 .support-contacts-grid {
   --support-contacts-card-min-height: 160px;
-  display: grid;
-  grid-template-columns: 1fr;
+}
+
+.support-contacts-grid > .col,
+.support-contacts-grid > [class*="col-"] {
+  display: flex;
+}
+
+.support-contacts-list {
+  display: flex;
+  flex-direction: column;
   gap: 1rem;
-  align-content: start;
 }
 
-@media (min-width: 768px) {
-  .support-contacts-grid {
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  }
-}
-
-.support-contacts-grid-item {
+.support-contacts-list-item {
   display: flex;
 }
 
-.support-contacts-grid--stacked {
-  grid-template-columns: 1fr;
-}
-
-.support-contacts-grid .card {
+.support-thread-card {
   flex: 1 1 auto;
-  min-height: var(--support-contacts-card-min-height);
+  min-height: var(--support-contacts-card-min-height, 160px);
   display: flex;
 }
 
-.support-contacts-grid .card-body {
+.support-thread-card .card-body {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;

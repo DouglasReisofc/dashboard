@@ -61,39 +61,62 @@ const SupportNotificationListener = () => {
 
   useEffect(() => {
     const createAudioWithFallback = (candidates: Array<{ path: string; mime?: string }>) => {
-      const probe = document.createElement("audio");
+      const audio = document.createElement("audio");
+      audio.preload = "auto";
+
+      let selectedSource: string | null = null;
 
       for (const candidate of candidates) {
         if (!candidate?.path) {
           continue;
         }
 
-        if (!candidate.mime || !probe.canPlayType || probe.canPlayType(candidate.mime)) {
-          const audio = new Audio(getAssetPath(candidate.path));
-          audio.preload = "auto";
-          return audio;
+        const assetPath = getAssetPath(candidate.path);
+        const sourceEl = document.createElement("source");
+        sourceEl.src = assetPath;
+        if (candidate.mime) {
+          sourceEl.type = candidate.mime;
+        }
+        audio.appendChild(sourceEl);
+
+        if (!selectedSource) {
+          const mime = candidate.mime ?? "";
+          if (!mime || !audio.canPlayType || audio.canPlayType(mime)) {
+            selectedSource = assetPath;
+          }
         }
       }
 
-      const fallback = new Audio(getAssetPath(candidates[0]?.path ?? ""));
-      fallback.preload = "auto";
-      return fallback;
+      if (!selectedSource && candidates[0]?.path) {
+        selectedSource = getAssetPath(candidates[0].path);
+      }
+
+      if (selectedSource) {
+        audio.src = selectedSource;
+      }
+
+      audio.load();
+      return audio;
     };
 
     const supportAudio = createAudioWithFallback([
       { path: "/sounds/notificacao.mp3", mime: "audio/mpeg" },
+      { path: "/sounds/jh1.ogg", mime: "audio/ogg" },
+      { path: "/sounds/jh4.m4a", mime: "audio/mp4" },
     ]);
     supportAudioRef.current = supportAudio;
 
     const purchaseAudio = createAudioWithFallback([
       { path: "/sounds/jh1.ogg", mime: "audio/ogg" },
       { path: "/sounds/coin.mp3", mime: "audio/mpeg" },
+      { path: "/sounds/jh4.m4a", mime: "audio/mp4" },
     ]);
     purchaseAudioRef.current = purchaseAudio;
 
     const balanceAudio = createAudioWithFallback([
       { path: "/sounds/coin.mp3", mime: "audio/mpeg" },
       { path: "/sounds/jh1.ogg", mime: "audio/ogg" },
+      { path: "/sounds/jh4.m4a", mime: "audio/mp4" },
     ]);
     balanceAudioRef.current = balanceAudio;
 
