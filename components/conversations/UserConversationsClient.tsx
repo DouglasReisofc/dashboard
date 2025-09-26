@@ -11,6 +11,7 @@ import {
   Form,
   Image,
   Modal,
+  Offcanvas,
   Row,
   Spinner,
 } from "react-bootstrap";
@@ -212,6 +213,14 @@ const sortThreads = (threads: ThreadSummary[]) => {
   });
 };
 
+const formatLastMessagePreview = (preview?: string | null, maxLength = 80) => {
+  if (!preview) return "Sem mensagens";
+  const normalized = preview.replace(/\s+/g, " ").trim();
+  if (!normalized) return "Sem mensagens";
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
+};
+
 const UserConversationsClient = () => {
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
   const [loadingThreads, setLoadingThreads] = useState(true);
@@ -224,6 +233,8 @@ const UserConversationsClient = () => {
 
   const [messageDraft, setMessageDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [mobileContactsOpen, setMobileContactsOpen] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "danger"; message: string } | null>(null);
   const [pendingMedia, setPendingMedia] = useState<PendingMedia[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -249,6 +260,36 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
   const [interactiveUrl, setInteractiveUrl] = useState("https://");
   const [interactiveButtonText, setInteractiveButtonText] = useState("Abrir link");
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mediaQuery = window.matchMedia("(max-width: 991.98px)");
+    const handleChange = (event: MediaQueryListEvent) => {
+      setIsMobileViewport(event.matches);
+    };
+
+    setIsMobileViewport(mediaQuery.matches);
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", handleChange);
+      return () => mediaQuery.removeEventListener("change", handleChange);
+    }
+
+    mediaQuery.addListener(handleChange);
+    return () => mediaQuery.removeListener(handleChange);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobileViewport) {
+      setMobileContactsOpen(false);
+    }
+  }, [isMobileViewport]);
+
+  useEffect(() => {
+    if (!selectedId) {
+      setMobileContactsOpen(false);
+    }
+  }, [selectedId]);
   const loadThreads = useCallback(async () => {
     try {
       setThreadsError(null);
@@ -612,6 +653,9 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
     setPendingMedia([]);
     setAutoScroll(true);
     setConversation(null);
+    if (isMobileViewport) {
+      setMobileContactsOpen(false);
+    }
     setUnreadCounts((prev) => {
       if (!prev[thread.whatsappId]) {
         return prev;
@@ -720,6 +764,7 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
     const identifier = thread.whatsappId;
     const unread = unreadCounts[thread.whatsappId] ?? 0;
     const isActive = options?.active ?? false;
+    const previewText = formatLastMessagePreview(thread.lastMessagePreview);
 
     return (
       <div key={`grid-${thread.whatsappId}`} className="support-contacts-grid-item">
@@ -743,7 +788,7 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
                     {identifier}
                   </span>
                 ) : null}
-              </div>
+                  </div>
               <div className="support-thread-card__meta d-flex align-items-center gap-2 flex-shrink-0">
                 {unread > 0 && <Badge bg="danger">{unread}</Badge>}
                 <Badge bg={thread.status === "open" ? "success" : "secondary"}>
@@ -755,7 +800,7 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
               className="support-thread-card__preview text-secondary small text-truncate d-none d-sm-block"
               title={thread.lastMessagePreview ?? undefined}
             >
-              {thread.lastMessagePreview ?? "Sem mensagens"}
+              {previewText}
             </div>
             <div
               className="support-thread-card__timestamp text-secondary small mt-auto d-none d-sm-block"
@@ -763,8 +808,8 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
             >
               {thread.lastMessageAt ? formatDateTime(thread.lastMessageAt) : "-"}
             </div>
-          </Card.Body>
-        </Card>
+              </Card.Body>
+            </Card>
       </div>
     );
   };
@@ -892,7 +937,7 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
                 {loadingThreads ? (
                   <div className="d-flex align-items-center justify-content-center py-4">
                     <Spinner animation="border" size="sm" />
-                  </div>
+                      </div>
                 ) : threadsError ? (
                   <Alert variant="danger" className="m-3 mb-0">{threadsError}</Alert>
                 ) : threads.length === 0 ? (
@@ -908,23 +953,64 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
         </Row>
       ) : (
         <Row className="g-4 align-items-stretch">
-          <Col lg={4}>
-            <Card className="h-100 d-flex flex-column">
-              <Card.Header>
-                <Card.Title as="h2" className="h6 mb-0">Contatos em suporte</Card.Title>
-              </Card.Header>
-              <Card.Body
-                className="p-3"
-                style={{ maxHeight: "calc(100vh - 260px)", overflowY: "auto" }}
-              >
+          {!isMobileViewport && (
+            <Col lg={4}>
+              <Card className="h-100 d-flex flex-column">
+                <Card.Header>
+                  <Card.Title as="h2" className="h6 mb-0">Contatos em suporte</Card.Title>
+                </Card.Header>
+                <Card.Body
+                  className="p-3"
+                  style={{ maxHeight: "calc(100vh - 260px)", overflowY: "auto" }}
+                >
+                  {loadingThreads ? (
+                    <div className="d-flex align-items-center justify-content-center py-4">
+                      <Spinner animation="border" size="sm" />
+                    </div>
+                  ) : threadsError ? (
+                    <Alert variant="danger" className="m-3 mb-0">{threadsError}</Alert>
+                  ) : threads.length === 0 ? (
+                    <div className="text-secondary text-center py-4">Nenhum atendimento em andamento.</div>
+                  ) : (
+                    <div className="support-contacts-grid support-contacts-grid--stacked">
+                      {threads.map((thread) =>
+                        renderThreadTile(thread, { active: selectedId === thread.whatsappId }),
+                      )}
+                    </div>
+                  )}
+                </Card.Body>
+              </Card>
+            </Col>
+          )}
+
+          <Col lg={8}>
+            <Offcanvas
+              show={isMobileViewport && mobileContactsOpen}
+              onHide={() => setMobileContactsOpen(false)}
+              placement="start"
+              className="support-mobile-contacts"
+            >
+              <Offcanvas.Header closeButton>
+                <Offcanvas.Title>Contatos em suporte</Offcanvas.Title>
+              </Offcanvas.Header>
+              <Offcanvas.Body className="d-flex flex-column gap-3">
+                <Button
+                  variant="outline-primary"
+                  size="sm"
+                  onClick={loadThreads}
+                  disabled={loadingThreads}
+                  className="align-self-start"
+                >
+                  {loadingThreads ? "Atualizando..." : "Atualizar"}
+                </Button>
                 {loadingThreads ? (
                   <div className="d-flex align-items-center justify-content-center py-4">
                     <Spinner animation="border" size="sm" />
                   </div>
                 ) : threadsError ? (
-                  <Alert variant="danger" className="m-3 mb-0">{threadsError}</Alert>
+                  <Alert variant="danger" className="mb-0">{threadsError}</Alert>
                 ) : threads.length === 0 ? (
-                  <div className="text-secondary text-center py-4">Nenhum atendimento em andamento.</div>
+                  <div className="text-secondary text-center py-4 mb-0">Nenhum atendimento em andamento.</div>
                 ) : (
                   <div className="support-contacts-grid support-contacts-grid--stacked">
                     {threads.map((thread) =>
@@ -932,78 +1018,85 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
                     )}
                   </div>
                 )}
-              </Card.Body>
-            </Card>
-          </Col>
-
-          <Col lg={8}>
+              </Offcanvas.Body>
+            </Offcanvas>
             <Card className="h-100 d-flex flex-column">
-          <Card.Header className="d-flex justify-content-between align-items-center">
-            <div>
-              <Card.Title as="h2" className="h6 mb-1">
-                {selectedThread
-                  ? selectedThread.customerName || selectedThread.profileName || selectedThread.whatsappId
-                  : "Selecione uma conversa"}
-              </Card.Title>
-              {conversation && (
-                <div className="text-secondary small" suppressHydrationWarning>
-                  {conversation.within24h
-                    ? `Dentro da janela de 24h (${conversation.minutesLeft24h} min restantes)`
-                    : "Fora da janela de 24h"}
+              <Card.Header className="d-flex justify-content-between align-items-center">
+                <div>
+                  <Card.Title as="h2" className="h6 mb-1">
+                    {selectedThread
+                      ? selectedThread.customerName || selectedThread.profileName || selectedThread.whatsappId
+                      : "Selecione uma conversa"}
+                  </Card.Title>
+                  {conversation && (
+                    <div className="text-secondary small" suppressHydrationWarning>
+                      {conversation.within24h
+                        ? `Dentro da janela de 24h (${conversation.minutesLeft24h} min restantes)`
+                        : "Fora da janela de 24h"}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-            {selectedThread && (
-              <div className="d-flex gap-2 align-items-center">
-                <Badge bg={selectedThread.status === "open" ? "success" : "secondary"}>
-                  {selectedThread.status === "open" ? "Aberto" : "Encerrado"}
-                </Badge>
-                <Button
-                  variant="outline-secondary"
-                  size="sm"
-                  onClick={handleCloseThread}
-                  disabled={selectedThread.status === "closed"}
-                >
-                  Encerrar atendimento
-                </Button>
-              </div>
-            )}
-          </Card.Header>
+                {selectedThread && (
+                  <div className="d-flex gap-2 align-items-center">
+                    {isMobileViewport && (
+                      <Button
+                        variant="outline-secondary"
+                        size="sm"
+                        onClick={() => setMobileContactsOpen(true)}
+                        aria-label="Exibir lista de conversas"
+                      >
+                        Conversas
+                      </Button>
+                    )}
+                    <Badge bg={selectedThread.status === "open" ? "success" : "secondary"}>
+                      {selectedThread.status === "open" ? "Aberto" : "Encerrado"}
+                    </Badge>
+                    <Button
+                      variant="outline-secondary"
+                      size="sm"
+                      onClick={handleCloseThread}
+                      disabled={selectedThread.status === "closed"}
+                    >
+                      Encerrar atendimento
+                    </Button>
+                  </div>
+                )}
+              </Card.Header>
 
-          <Card.Body
-            className="flex-grow-1 d-flex flex-column gap-3 overflow-hidden"
-            style={{ minHeight: "480px", height: "calc(100vh - 260px)" }}
-          >
-            {feedback && (
-              <Alert
-                variant={feedback.type === "success" ? "success" : "danger"}
-                onClose={() => setFeedback(null)}
-                dismissible
+              <Card.Body
+                className="flex-grow-1 d-flex flex-column gap-3 overflow-hidden"
+                style={{ minHeight: "480px", height: "calc(100vh - 260px)" }}
               >
-                {feedback.message}
-              </Alert>
-            )}
-
-            {(!selectedThread && !loadingConversation) ? (
-              <div className="flex-grow-1 d-flex align-items-center justify-content-center">
-                <div style={{ maxWidth: 520 }} className="w-100">
-                  <Card className="shadow-sm">
-                    <Card.Header>
-                      <Card.Title as="h3" className="h6 mb-0">Escolha uma conversa</Card.Title>
-                    </Card.Header>
-                    <Card.Body style={{ maxHeight: 420, overflowY: "auto" }} className="p-3">
-                      {threads.length === 0 ? (
-                        <div className="text-secondary text-center py-4">Nenhum atendimento em andamento.</div>
-                      ) : (
-                        <div className="support-contacts-grid support-contacts-grid--stacked">
-                          {threads.map((thread) => renderThreadTile(thread))}
-                        </div>
-                      )}
-                    </Card.Body>
-                  </Card>
-                </div>
-              </div>
-            ) : loadingConversation ? (
+                {feedback && (
+                  <Alert
+                    variant={feedback.type === "success" ? "success" : "danger"}
+                    onClose={() => setFeedback(null)}
+                    dismissible
+                  >
+                    {feedback.message}
+                  </Alert>
+                )}
+    
+                {(!selectedThread && !loadingConversation) ? (
+                  <div className="flex-grow-1 d-flex align-items-center justify-content-center">
+                    <div style={{ maxWidth: 520 }} className="w-100">
+                      <Card className="shadow-sm">
+                        <Card.Header>
+                          <Card.Title as="h3" className="h6 mb-0">Escolha uma conversa</Card.Title>
+                        </Card.Header>
+                        <Card.Body style={{ maxHeight: 420, overflowY: "auto" }} className="p-3">
+                          {threads.length === 0 ? (
+                            <div className="text-secondary text-center py-4">Nenhum atendimento em andamento.</div>
+                          ) : (
+                            <div className="support-contacts-grid support-contacts-grid--stacked">
+                              {threads.map((thread) => renderThreadTile(thread))}
+                            </div>
+                          )}
+                        </Card.Body>
+                      </Card>
+                    </div>
+                  </div>
+              ) : loadingConversation ? (
               <div className="flex-grow-1 d-flex align-items-center justify-content-center">
                 <Spinner animation="border" />
               </div>
@@ -1130,8 +1223,8 @@ const [interactiveFooter, setInteractiveFooter] = useState("");
               </Form>
             </div>
             )}
-          </Card.Body>
-        </Card>
+              </Card.Body>
+            </Card>
           </Col>
         </Row>
       )}
