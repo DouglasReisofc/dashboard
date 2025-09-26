@@ -80,19 +80,20 @@ const SupportNotificationListener = () => {
         audio.appendChild(sourceEl);
 
         if (!selectedSource) {
-          const mime = candidate.mime ?? "";
-          if (!mime || !audio.canPlayType || audio.canPlayType(mime)) {
+          const supportLevel = candidate.mime
+            ? audio.canPlayType?.(candidate.mime) ?? ""
+            : "maybe";
+
+          if (supportLevel && supportLevel !== "no") {
             selectedSource = assetPath;
           }
         }
       }
 
-      if (!selectedSource && candidates[0]?.path) {
-        selectedSource = getAssetPath(candidates[0].path);
-      }
-
       if (selectedSource) {
         audio.src = selectedSource;
+      } else if (candidates[0]?.path) {
+        audio.src = getAssetPath(candidates[0].path);
       }
 
       audio.load();
@@ -107,8 +108,8 @@ const SupportNotificationListener = () => {
     supportAudioRef.current = supportAudio;
 
     const purchaseAudio = createAudioWithFallback([
-      { path: "/sounds/jh1.ogg", mime: "audio/ogg" },
       { path: "/sounds/coin.mp3", mime: "audio/mpeg" },
+      { path: "/sounds/jh1.ogg", mime: "audio/ogg" },
       { path: "/sounds/jh4.m4a", mime: "audio/mp4" },
     ]);
     purchaseAudioRef.current = purchaseAudio;
@@ -342,26 +343,30 @@ const SupportNotificationListener = () => {
     };
 
     const playBalanceSpeech = (payload: NotificationCreatedEvent) => {
-      if (!payload?.metadata || typeof (payload.metadata as Record<string, unknown>).amount === "undefined") {
-        return;
-      }
-
-      const rawMetadata = payload.metadata as Record<string, unknown>;
+      const rawMetadata = (payload?.metadata as Record<string, unknown>) ?? {};
       const amountValue = Number(rawMetadata.amount);
-      if (!Number.isFinite(amountValue)) {
-        return;
-      }
+      const hasValidAmount = Number.isFinite(amountValue);
 
       const customerName = extractString(rawMetadata.customerName);
       const customerWhatsapp = extractString(rawMetadata.customerWhatsapp);
-
       const speakerLabel = customerName || customerWhatsapp || "Seu cliente";
-      const formattedAmount = formatCurrency(amountValue);
-      const text = `${speakerLabel} adicionou ${formattedAmount} no robô.`;
+
+      const formattedAmount = hasValidAmount ? formatCurrency(amountValue) : null;
+      const fallbackText =
+        extractString(payload.message)
+        || extractString(payload.title);
+
+      const text = formattedAmount
+        ? `${speakerLabel} adicionou ${formattedAmount} no robô.`
+        : fallbackText;
+
+      if (!text) {
+        return;
+      }
 
       try {
         const dedupeKey = `balance:${payload.id}`;
-        enqueueSpeech(text, dedupeKey, 120);
+        enqueueSpeech(text, dedupeKey, formattedAmount ? 120 : 240);
       } catch (error) {
         console.error("Falha ao enfileirar áudio de crédito", error);
       }
