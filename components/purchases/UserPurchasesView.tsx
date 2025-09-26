@@ -33,6 +33,7 @@ const viewOptions: { value: ViewOption; label: string }[] = [
 ];
 
 const NOTE_CHARACTER_LIMIT = 2000;
+const PRODUCT_DETAILS_CHARACTER_LIMIT = 4000;
 
 const truncate = (value: string, length = 140) => {
   if (value.length <= length) {
@@ -168,6 +169,15 @@ const UserPurchasesView = ({ userName, purchases, charges }: UserPurchasesViewPr
   const [chargeNoteError, setChargeNoteError] = useState<string | null>(null);
   const [purchaseNoteSuccess, setPurchaseNoteSuccess] = useState(false);
   const [chargeNoteSuccess, setChargeNoteSuccess] = useState(false);
+  const [productDetailsDraft, setProductDetailsDraft] = useState("");
+  const [productFilePathDraft, setProductFilePathDraft] = useState("");
+  const [productIdDraft, setProductIdDraft] = useState("");
+  const [applyProductUpdateToAll, setApplyProductUpdateToAll] = useState(false);
+  const [isUpdatingProduct, setIsUpdatingProduct] = useState(false);
+  const [productUpdateError, setProductUpdateError] = useState<string | null>(null);
+  const [productUpdateSuccess, setProductUpdateSuccess] = useState(false);
+  const [productUpdateMessage, setProductUpdateMessage] = useState<string | null>(null);
+  const [activePurchaseId, setActivePurchaseId] = useState<number | null>(null);
 
   useEffect(() => {
     setPurchaseList(purchases);
@@ -178,14 +188,41 @@ const UserPurchasesView = ({ userName, purchases, charges }: UserPurchasesViewPr
   }, [charges]);
 
   useEffect(() => {
-    if (selectedPurchase) {
-      setPurchaseNoteDraft(getAdminNote(selectedPurchase.metadata));
+    if (!selectedPurchase) {
+      setPurchaseNoteDraft("");
       setPurchaseNoteError(null);
       setPurchaseNoteSuccess(false);
-    } else {
-      setPurchaseNoteDraft("");
+      setProductDetailsDraft("");
+      setProductFilePathDraft("");
+      setProductIdDraft("");
+      setApplyProductUpdateToAll(false);
+      setProductUpdateError(null);
+      setProductUpdateSuccess(false);
+      setProductUpdateMessage(null);
+      setActivePurchaseId(null);
+      return;
     }
-  }, [selectedPurchase]);
+
+    setPurchaseNoteDraft(getAdminNote(selectedPurchase.metadata));
+    setPurchaseNoteError(null);
+
+    setProductDetailsDraft(selectedPurchase.productDetails);
+    setProductFilePathDraft(selectedPurchase.productFilePath ?? "");
+    setProductIdDraft(
+      typeof selectedPurchase.productId === "number" && Number.isFinite(selectedPurchase.productId)
+        ? String(selectedPurchase.productId)
+        : "",
+    );
+    setProductUpdateError(null);
+
+    if (selectedPurchase.id !== activePurchaseId) {
+      setPurchaseNoteSuccess(false);
+      setProductUpdateSuccess(false);
+      setProductUpdateMessage(null);
+      setApplyProductUpdateToAll(false);
+      setActivePurchaseId(selectedPurchase.id);
+    }
+  }, [selectedPurchase, activePurchaseId]);
 
   useEffect(() => {
     if (selectedCharge) {
@@ -343,6 +380,141 @@ const UserPurchasesView = ({ userName, purchases, charges }: UserPurchasesViewPr
     }
   };
 
+  const handleUpdateProductDetails = async () => {
+    if (!selectedPurchase) {
+      return;
+    }
+
+    setIsUpdatingProduct(true);
+    setProductUpdateError(null);
+    setProductUpdateSuccess(false);
+    setProductUpdateMessage(null);
+
+    const originalDetails = selectedPurchase.productDetails;
+    const originalFilePath = selectedPurchase.productFilePath ?? "";
+    const originalProductId =
+      typeof selectedPurchase.productId === "number" && Number.isFinite(selectedPurchase.productId)
+        ? String(selectedPurchase.productId)
+        : "";
+
+    const normalizedDetails = productDetailsDraft.trim();
+    const normalizedFilePath = productFilePathDraft.trim();
+    const normalizedOriginalFilePath = originalFilePath.trim();
+    const normalizedProductIdInput = productIdDraft.trim();
+    const normalizedOriginalProductId = originalProductId.trim();
+
+    const payload: Record<string, unknown> = {};
+
+    if (productDetailsDraft !== originalDetails) {
+      payload.productDetails = normalizedDetails;
+    }
+
+    if (normalizedFilePath !== normalizedOriginalFilePath) {
+      payload.productFilePath = normalizedFilePath.length > 0 ? normalizedFilePath : null;
+    }
+
+    if (normalizedProductIdInput !== normalizedOriginalProductId) {
+      if (normalizedProductIdInput.length === 0) {
+        payload.productId = null;
+      } else {
+        const parsedProductId = Number.parseInt(normalizedProductIdInput, 10);
+
+        if (!Number.isFinite(parsedProductId) || parsedProductId <= 0) {
+          setProductUpdateError("Informe um ID de produto numérico válido.");
+          setIsUpdatingProduct(false);
+          return;
+        }
+
+        payload.productId = parsedProductId;
+      }
+    }
+
+    if (Object.keys(payload).length === 0) {
+      setProductUpdateError("Nenhuma alteração foi detectada para atualizar o produto.");
+      setIsUpdatingProduct(false);
+      return;
+    }
+
+    payload.applyToAll = Boolean(applyProductUpdateToAll && selectedPurchase.productId);
+
+    try {
+      const response = await fetch(`/api/user/purchases/${selectedPurchase.id}/product`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok || !data || typeof data !== "object" || !("purchase" in data)) {
+        throw new Error(
+          data && typeof data === "object" && "message" in data && typeof data.message === "string"
+            ? data.message
+            : "Não foi possível atualizar o produto.",
+        );
+      }
+
+      const updatedPurchase = data.purchase as PurchaseHistoryEntry;
+      const affectedPurchaseIdsRaw = (data as { affectedPurchaseIds?: unknown }).affectedPurchaseIds;
+      const affectedPurchaseIds = Array.isArray(affectedPurchaseIdsRaw)
+        ? (affectedPurchaseIdsRaw as number[])
+        : [updatedPurchase.id];
+      const updatedFields = ((data as { updatedFields?: unknown }).updatedFields ?? {}) as {
+        productDetails?: string;
+        productFilePath?: string | null;
+        productId?: number | null;
+      };
+
+      const affectedSet = new Set<number>(affectedPurchaseIds);
+
+      setPurchaseList((previous) =>
+        previous.map((entry) => {
+          if (!affectedSet.has(entry.id)) {
+            return entry;
+          }
+
+          const nextEntry: PurchaseHistoryEntry = { ...entry };
+
+          if (Object.prototype.hasOwnProperty.call(updatedFields, "productDetails")) {
+            nextEntry.productDetails = updatedFields.productDetails ?? "";
+          }
+
+          if (Object.prototype.hasOwnProperty.call(updatedFields, "productFilePath")) {
+            nextEntry.productFilePath = updatedFields.productFilePath ?? null;
+          }
+
+          if (Object.prototype.hasOwnProperty.call(updatedFields, "productId")) {
+            nextEntry.productId =
+              typeof updatedFields.productId === "number" && Number.isFinite(updatedFields.productId)
+                ? updatedFields.productId
+                : null;
+          }
+
+          return nextEntry;
+        }),
+      );
+
+      setSelectedPurchase(updatedPurchase);
+      setProductUpdateSuccess(true);
+      const messageFromServer = (data as { message?: unknown }).message;
+      setProductUpdateMessage(
+        typeof messageFromServer === "string" && messageFromServer.trim().length > 0
+          ? messageFromServer
+          : "Produto atualizado com sucesso.",
+      );
+      setApplyProductUpdateToAll(false);
+    } catch (error) {
+      console.error("Failed to update purchase product", error);
+      setProductUpdateError(
+        error instanceof Error ? error.message : "Não foi possível atualizar o produto.",
+      );
+    } finally {
+      setIsUpdatingProduct(false);
+    }
+  };
+
   const handleSaveChargeNote = async () => {
     if (!selectedCharge) {
       return;
@@ -390,10 +562,27 @@ const UserPurchasesView = ({ userName, purchases, charges }: UserPurchasesViewPr
 
   const purchaseNoteOriginal = selectedPurchase ? getAdminNote(selectedPurchase.metadata) : "";
   const chargeNoteOriginal = selectedCharge ? getAdminNote(selectedCharge.metadata) : "";
+  const productDetailsOriginal = selectedPurchase?.productDetails ?? "";
+  const productFilePathOriginal = selectedPurchase?.productFilePath ?? "";
+  const productIdOriginal =
+    selectedPurchase && typeof selectedPurchase.productId === "number" && Number.isFinite(selectedPurchase.productId)
+      ? String(selectedPurchase.productId)
+      : "";
+  const normalizedProductFilePathDraft = productFilePathDraft.trim();
+  const normalizedProductFilePathOriginal = productFilePathOriginal.trim();
+  const normalizedProductIdDraft = productIdDraft.trim();
+  const normalizedProductIdOriginal = productIdOriginal.trim();
+  const hasProductChanges = Boolean(selectedPurchase)
+    && (productDetailsDraft !== productDetailsOriginal
+      || normalizedProductFilePathDraft !== normalizedProductFilePathOriginal
+      || normalizedProductIdDraft !== normalizedProductIdOriginal);
+  const canBulkUpdateProduct = Boolean(selectedPurchase && selectedPurchase.productId);
   const isPurchaseNoteDirty = purchaseNoteDraft !== purchaseNoteOriginal;
   const isChargeNoteDirty = chargeNoteDraft !== chargeNoteOriginal;
+  const isProductUpdateDisabled = !hasProductChanges || isUpdatingProduct;
   const purchaseNoteCharacterCount = purchaseNoteDraft.length;
   const chargeNoteCharacterCount = chargeNoteDraft.length;
+  const productDetailsCharacterCount = productDetailsDraft.length;
 
   const openPurchaseDetails = (purchase: PurchaseHistoryEntry) => {
     setSelectedCharge(null);
@@ -748,6 +937,75 @@ const UserPurchasesView = ({ userName, purchases, charges }: UserPurchasesViewPr
                 </dl>
               </div>
 
+              <div>
+                <h3 className="h6 text-uppercase text-secondary mb-2">Atualizar produto entregue</h3>
+                {productUpdateSuccess && productUpdateMessage && (
+                  <Alert variant="success" onClose={() => setProductUpdateSuccess(false)} dismissible>
+                    {productUpdateMessage}
+                  </Alert>
+                )}
+                {productUpdateError && (
+                  <Alert variant="danger" onClose={() => setProductUpdateError(null)} dismissible>
+                    {productUpdateError}
+                  </Alert>
+                )}
+                <Form.Group controlId="purchase-product-details" className="mb-3">
+                  <Form.Label className="fw-semibold">Detalhes do produto</Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={3}
+                    value={productDetailsDraft}
+                    onChange={(event) => setProductDetailsDraft(event.target.value)}
+                    maxLength={PRODUCT_DETAILS_CHARACTER_LIMIT}
+                    placeholder="Atualize o conteúdo que foi entregue ao cliente."
+                    disabled={isUpdatingProduct}
+                  />
+                  <Form.Text className="text-secondary">
+                    {productDetailsCharacterCount}/{PRODUCT_DETAILS_CHARACTER_LIMIT} caracteres disponíveis.
+                  </Form.Text>
+                </Form.Group>
+                <Form.Group controlId="purchase-product-file" className="mb-3">
+                  <Form.Label className="fw-semibold">Anexo ou link</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={productFilePathDraft}
+                    onChange={(event) => setProductFilePathDraft(event.target.value)}
+                    placeholder="Cole a nova URL ou deixe em branco para remover o anexo."
+                    disabled={isUpdatingProduct}
+                  />
+                  <Form.Text className="text-secondary">
+                    Aceite links diretos ou caminhos internos configurados pela sua equipe.
+                  </Form.Text>
+                </Form.Group>
+                <Form.Group controlId="purchase-product-id" className="mb-3">
+                  <Form.Label className="fw-semibold">ID do produto (opcional)</Form.Label>
+                  <Form.Control
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={productIdDraft}
+                    onChange={(event) => setProductIdDraft(event.target.value)}
+                    placeholder="Informe o novo identificador numérico do produto, se necessário."
+                    disabled={isUpdatingProduct}
+                  />
+                  <Form.Text className="text-secondary">Use apenas números.</Form.Text>
+                </Form.Group>
+                <Form.Check
+                  type="switch"
+                  id="purchase-product-apply-to-all"
+                  className="mb-1"
+                  label="Aplicar atualização para todas as compras com este produto"
+                  checked={applyProductUpdateToAll && canBulkUpdateProduct}
+                  onChange={(event) => setApplyProductUpdateToAll(event.target.checked)}
+                  disabled={!canBulkUpdateProduct || isUpdatingProduct}
+                />
+                <Form.Text className="text-secondary">
+                  {canBulkUpdateProduct
+                    ? "Os dados serão sincronizados em todas as vendas deste produto."
+                    : "Disponível apenas para registros vinculados a um produto cadastrado."}
+                </Form.Text>
+              </div>
+
               {(() => {
                 const metadataWithoutNote = stripAdminNote(selectedPurchase.metadata);
                 if (!metadataWithoutNote) {
@@ -794,17 +1052,33 @@ const UserPurchasesView = ({ userName, purchases, charges }: UserPurchasesViewPr
                 </div>
               </div>
             </Modal.Body>
-            <Modal.Footer className="d-flex justify-content-between align-items-center">
-              <Button variant="outline-secondary" onClick={closePurchaseModal} disabled={isSavingPurchaseNote}>
+            <Modal.Footer className="d-flex flex-column flex-lg-row align-items-stretch align-items-lg-center justify-content-lg-between gap-2">
+              <Button
+                variant="outline-secondary"
+                onClick={closePurchaseModal}
+                disabled={isSavingPurchaseNote || isUpdatingProduct}
+                className="w-100 w-lg-auto"
+              >
                 Fechar
               </Button>
-              <Button
-                variant="primary"
-                onClick={handleSavePurchaseNote}
-                disabled={!isPurchaseNoteDirty || isSavingPurchaseNote}
-              >
-                {isSavingPurchaseNote && <Spinner animation="border" size="sm" className="me-2" />}Salvar nota
-              </Button>
+              <div className="d-flex flex-column flex-lg-row gap-2 w-100 w-lg-auto">
+                <Button
+                  variant="success"
+                  onClick={handleUpdateProductDetails}
+                  disabled={isProductUpdateDisabled}
+                  className="w-100 w-lg-auto"
+                >
+                  {isUpdatingProduct && <Spinner animation="border" size="sm" className="me-2" />}Atualizar produto
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={handleSavePurchaseNote}
+                  disabled={!isPurchaseNoteDirty || isSavingPurchaseNote}
+                  className="w-100 w-lg-auto"
+                >
+                  {isSavingPurchaseNote && <Spinner animation="border" size="sm" className="me-2" />}Salvar nota
+                </Button>
+              </div>
             </Modal.Footer>
           </>
         )}
