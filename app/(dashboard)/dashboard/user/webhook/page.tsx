@@ -3,6 +3,9 @@ import { Metadata } from "next";
 
 import { getCurrentUser } from "lib/auth";
 import { getRecentWebhookEvents, getWebhookForUser } from "lib/webhooks";
+import { getWebhookTutorials } from "lib/tutorials";
+import { WEBHOOK_TUTORIAL_FIELDS } from "types/tutorials";
+import type { FieldTutorial, WebhookTutorialFieldKey } from "types/tutorials";
 import UserWebhookDetails from "components/webhooks/UserWebhookDetails";
 
 export const metadata: Metadata = {
@@ -18,10 +21,21 @@ const UserWebhookPage = async () => {
     return null;
   }
 
-  const [webhook, events] = await Promise.all([
+  const [webhook, events, tutorialMap] = await Promise.all([
     getWebhookForUser(user.id),
     getRecentWebhookEvents(user.id, 25),
+    getWebhookTutorials(),
   ]);
+
+  const tutorialsByKey = WEBHOOK_TUTORIAL_FIELDS.reduce<
+    Partial<Record<WebhookTutorialFieldKey, FieldTutorial>>
+  >((accumulator, field) => {
+    const tutorial = tutorialMap[field.slug];
+    if (tutorial) {
+      accumulator[field.key] = tutorial;
+    }
+    return accumulator;
+  }, {});
 
   return (
     <Fragment>
@@ -34,7 +48,7 @@ const UserWebhookPage = async () => {
       </div>
 
       {webhook ? (
-        <UserWebhookDetails webhook={webhook} events={events} />
+        <UserWebhookDetails webhook={webhook} events={events} tutorials={tutorialsByKey} />
       ) : (
         <p className="text-secondary">Não foi possível carregar as informações do webhook.</p>
       )}

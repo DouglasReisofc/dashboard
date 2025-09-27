@@ -61,39 +61,63 @@ const SupportNotificationListener = () => {
 
   useEffect(() => {
     const createAudioWithFallback = (candidates: Array<{ path: string; mime?: string }>) => {
-      const probe = document.createElement("audio");
+      const audio = document.createElement("audio");
+      audio.preload = "auto";
+
+      let selectedSource: string | null = null;
 
       for (const candidate of candidates) {
         if (!candidate?.path) {
           continue;
         }
 
-        if (!candidate.mime || !probe.canPlayType || probe.canPlayType(candidate.mime)) {
-          const audio = new Audio(getAssetPath(candidate.path));
-          audio.preload = "auto";
-          return audio;
+        const assetPath = getAssetPath(candidate.path);
+        const sourceEl = document.createElement("source");
+        sourceEl.src = assetPath;
+        if (candidate.mime) {
+          sourceEl.type = candidate.mime;
+        }
+        audio.appendChild(sourceEl);
+
+        if (!selectedSource) {
+          const supportLevel = candidate.mime
+            ? audio.canPlayType?.(candidate.mime) ?? ""
+            : "maybe";
+
+          if (supportLevel && supportLevel !== "no") {
+            selectedSource = assetPath;
+          }
         }
       }
 
-      const fallback = new Audio(getAssetPath(candidates[0]?.path ?? ""));
-      fallback.preload = "auto";
-      return fallback;
+      if (selectedSource) {
+        audio.src = selectedSource;
+      } else if (candidates[0]?.path) {
+        audio.src = getAssetPath(candidates[0].path);
+      }
+
+      audio.load();
+      return audio;
     };
 
     const supportAudio = createAudioWithFallback([
       { path: "/sounds/notificacao.mp3", mime: "audio/mpeg" },
+      { path: "/sounds/jh1.ogg", mime: "audio/ogg" },
+      { path: "/sounds/jh4.m4a", mime: "audio/mp4" },
     ]);
     supportAudioRef.current = supportAudio;
 
     const purchaseAudio = createAudioWithFallback([
-      { path: "/sounds/jh1.ogg", mime: "audio/ogg" },
       { path: "/sounds/coin.mp3", mime: "audio/mpeg" },
+      { path: "/sounds/jh1.ogg", mime: "audio/ogg" },
+      { path: "/sounds/jh4.m4a", mime: "audio/mp4" },
     ]);
     purchaseAudioRef.current = purchaseAudio;
 
     const balanceAudio = createAudioWithFallback([
       { path: "/sounds/coin.mp3", mime: "audio/mpeg" },
       { path: "/sounds/jh1.ogg", mime: "audio/ogg" },
+      { path: "/sounds/jh4.m4a", mime: "audio/mp4" },
     ]);
     balanceAudioRef.current = balanceAudio;
 
@@ -319,26 +343,30 @@ const SupportNotificationListener = () => {
     };
 
     const playBalanceSpeech = (payload: NotificationCreatedEvent) => {
-      if (!payload?.metadata || typeof (payload.metadata as Record<string, unknown>).amount === "undefined") {
-        return;
-      }
-
-      const rawMetadata = payload.metadata as Record<string, unknown>;
+      const rawMetadata = (payload?.metadata as Record<string, unknown>) ?? {};
       const amountValue = Number(rawMetadata.amount);
-      if (!Number.isFinite(amountValue)) {
-        return;
-      }
+      const hasValidAmount = Number.isFinite(amountValue);
 
       const customerName = extractString(rawMetadata.customerName);
       const customerWhatsapp = extractString(rawMetadata.customerWhatsapp);
-
       const speakerLabel = customerName || customerWhatsapp || "Seu cliente";
-      const formattedAmount = formatCurrency(amountValue);
-      const text = `${speakerLabel} adicionou ${formattedAmount} no robô.`;
+
+      const formattedAmount = hasValidAmount ? formatCurrency(amountValue) : null;
+      const fallbackText =
+        extractString(payload.message)
+        || extractString(payload.title);
+
+      const text = formattedAmount
+        ? `${speakerLabel} adicionou ${formattedAmount} no robô.`
+        : fallbackText;
+
+      if (!text) {
+        return;
+      }
 
       try {
         const dedupeKey = `balance:${payload.id}`;
-        enqueueSpeech(text, dedupeKey, 120);
+        enqueueSpeech(text, dedupeKey, formattedAmount ? 120 : 240);
       } catch (error) {
         console.error("Falha ao enfileirar áudio de crédito", error);
       }

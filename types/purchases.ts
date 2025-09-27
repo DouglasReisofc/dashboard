@@ -1,3 +1,8 @@
+export type PurchaseMetadata = {
+  adminNote?: string;
+  [key: string]: unknown;
+};
+
 export type PurchaseHistoryEntry = {
   id: number;
   userId: number;
@@ -12,6 +17,6 @@ export type PurchaseHistoryEntry = {
   productDetails: string;
   productFilePath: string | null;
   currency: string;
-  metadata: Record<string, unknown> | null;
+  metadata: PurchaseMetadata | null;
   purchasedAt: string;
 };
